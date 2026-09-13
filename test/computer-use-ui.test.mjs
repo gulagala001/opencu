@@ -13,6 +13,7 @@ import { extensionFixture } from './fixtures/computer-use/extension.mjs';
 import { extensionSocketPath } from '../src/computer-use/extension-hub.mjs';
 import { viewportGeometry, sameScreenshotGeometry } from '../src/computer-use/browser-screenshot.mjs';
 import { legacyBundle } from './fixtures/computer-use/native-runtime.mjs';
+import { testBrowserExecutable } from './fixtures/computer-use/test-browser.mjs';
 import { stopFixtureProcess } from './fixtures/process.mjs';
 
 async function until(fn, timeout = 30000) {
@@ -26,6 +27,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   const markStage = value => { stage = value; console.log('Computer Use UI stage:', backend, stage, Math.round(performance.now() - began) + 'ms'); };
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-ui-')), home = join(root, 'home'), workspace = join(root, 'workspace');
   await mkdir(home); await mkdir(workspace);
+  const testBrowser = await testBrowserExecutable(root);
   const nativeBinary=process.platform==='darwin'?await legacyBundle(join(root,'native')):join(root,'missing-native');
   const fixture = await startFixture(); let toolSent = false, cursorSent = false, external, browserId = 'browser',fixtureTabId; const userMessages = [], userPayloads=[];
   const provider = createServer(async (req, res) => {
@@ -49,7 +51,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   await writeFile(join(home, 'settings.yaml'), JSON.stringify({
     'llm-pi-ai': { providers: { fixture: { api: 'openai-completions', baseURL: `http://127.0.0.1:${provider.address().port}/v1`, apiKeyEnv: 'CU_UI_FIXTURE', models: [{ id: 'fixture', name: 'fixture', contextWindow: 1000000, maxTokens: 8192, input: ['text', 'image'] }, { id: 'text-fixture', name: '仅文本验收模型', contextWindow: 1000000, maxTokens: 8192, input: ['text'] }] } } },
     'agent-default-model': { provider: 'fixture', model: 'fixture' },
-    'trisoul-x': { stateEnabled: false, probeEnabled: false, digestEvery: 1000, flushIdleMs: 3600000, computerUseChromeUserDataDir: join(root, 'external-profile'),computerUseNativeBinary:nativeBinary },
+    'trisoul-x': { computerUseBrowserExecutable: testBrowser, stateEnabled: false, probeEnabled: false, digestEvery: 1000, flushIdleMs: 3600000, computerUseChromeUserDataDir: join(root, 'external-profile'),computerUseNativeBinary:nativeBinary },
   }));
   await writeFile(join(home, '.credentials.yaml'), JSON.stringify({ version: 1, refs: { CU_UI_FIXTURE: 'local-test-only' } }), { mode: 0o600 });
   const child = spawn(process.execPath, ['scripts/start.mjs'], { cwd: new URL('../', import.meta.url), env: { ...process.env, DSH_HOME: home, PORT: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -499,6 +501,8 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
         return frame ? { frame, box: element.getBoundingClientRect().toJSON() } : null;
       });
       if (!displayed) return false;
+      const { frameTree } = await cdp.send('Page.getFrameTree');
+      if (displayed.frame.loaderId !== frameTree.frame.loaderId) return false;
       const before = viewportGeometry(await cdp.send('Page.getLayoutMetrics'));
       const nextRect = await locator.boundingBox(), metrics = await cdp.send('Page.getLayoutMetrics');
       const after = viewportGeometry(metrics);

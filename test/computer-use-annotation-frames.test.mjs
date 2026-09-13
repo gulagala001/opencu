@@ -9,7 +9,7 @@ for(const backend of ['managed','extension'])test(backend+': nested frame annota
   const cleanups=[];let close;
   const root=await mkdtemp(join(tmpdir(),'trisoul-cu-frame-annotation-')),external=backend==='extension'?await extensionFixture({after:fn=>cleanups.push(fn)},{fixture}):null,launcher=join(root,'browser'),quote=s=>"'"+s.replaceAll("'","'\\''")+"'";
   if(process.platform==='darwin')await writeFile(launcher,'#!/bin/sh\nexec '+quote(chromium.executablePath())+' --use-mock-keychain "$@"\n',{mode:0o700});
-  const manager=new ComputerUseManager(root,{...(external?{extensionHub:external.hub}:{}),browser:process.platform==='darwin'?{executablePath:launcher}:{},native:{binary:join(root,'missing')}});
+  const manager=new ComputerUseManager(root,{...(external?{extensionHub:external.hub}:{}),browser:{executablePath:process.platform==='darwin'?launcher:chromium.executablePath()},native:{binary:join(root,'missing')}});
   t.after(async()=>{await close?.();await manager.close();for(const cleanup of cleanups)await cleanup();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await rm(root,{recursive:true,force:true});});
   const tab=await manager.dispatch('frames','createBrowserTab',[external?.browser.id??'browser',fixture.url]);let actor,frame;
   close=await manager.watchBrowser('frames',tab.id,(type,value)=>{if(type==='ready')actor=value.actor;if(type==='frame')frame=value;});

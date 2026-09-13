@@ -107,7 +107,23 @@ test('the external Chrome window shows the real assistant cursor across zoom and
       const at = (row * info.width + col) * info.channels;
       if (data[at] < 70 && data[at + 1] < 70 && data[at + 2] < 70) { count++; minX = Math.min(minX, col); minY = Math.min(minY, row); }
     }
-    assert.ok(count > 25 * dpr * dpr && minX - x < 5 * dpr && minY - y < 5 * dpr, JSON.stringify({ zoom, scale, pan, x, y, count, minX, minY, dpr }));
+    assert.ok(count > 25 * dpr * dpr, JSON.stringify({ zoom, scale, pan, x, y, count, minX, minY, dpr }));
+    // The tip is a white stroked SVG vertex, not the first dark raster pixel.
+    // Resolve the actual rendered path (including its closed shadow root) and
+    // require subpixel alignment, while retaining real screenshot visibility.
+    const { root: document } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+    const find = (node, predicate) => predicate(node) ? node : [...(node.children ?? []), ...(node.shadowRoots ?? [])].map(child => find(child, predicate)).find(Boolean);
+    const overlay = find(document, node => node.attributes?.includes('data-trisoul-cursor'));
+    const arrow = find(overlay, node => node.localName === 'path');
+    assert.ok(arrow, 'the visible cursor has an actual SVG path');
+    const { object } = await cdp.send('DOM.resolveNode', { backendNodeId: arrow.backendNodeId });
+    let tip;
+    try {
+      const result = await cdp.send('Runtime.callFunctionOn', { objectId: object.objectId, functionDeclaration: 'function(){const p=this.getPointAtLength(0),q=new DOMPoint(p.x,p.y).matrixTransform(this.getScreenCTM());return {x:q.x,y:q.y};}', returnByValue: true });
+      assert.equal(result.exceptionDetails, undefined); tip = result.result.value;
+    } finally { await cdp.send('Runtime.releaseObject', { objectId: object.objectId }); }
+    const actual = { x: (tip.x - initial.offsetX) * initial.scale * initial.rasterScale, y: (tip.y - initial.offsetY) * initial.scale * initial.rasterScale };
+    assert.ok(Math.abs(actual.x - x) < .001 && Math.abs(actual.y - y) < .001, JSON.stringify({ zoom, scale, pan, actual, expected: { x, y } }));
     assert.equal(await page.evaluate(() => document.activeElement.tagName), focused, 'showing the pointer must not steal focus');
     const after = await backend.invoke('test', tab.id, 'getScreenshot');
     t.diagnostic(`cursor scenario zoom=${zoom} scale=${scale}: model capture completed`);
