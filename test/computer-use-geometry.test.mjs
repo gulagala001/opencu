@@ -181,7 +181,7 @@ test('a queued JPEG from before browser zoom cannot acquire the new preview geom
     await waitForViewport(s.driver, { zoom: 1.5, scale: 2 });
     const viewport = (await s.driver.send('Page.getLayoutMetrics')).cssVisualViewport;
     assert.equal(viewport.zoom, 1.5); assert.equal(viewport.scale, 2); assert.equal(viewport.pageX, 0);
-    view.pending = { event: oldEvent, loaderId: view.loaderId }; await views.flush(view);
+    views.queueFrame(view, { event: oldEvent, loaderId: view.loaderId }); await view.flushing;
     const frame = view.latest;
     assert.equal(frame.geometry.zoom, 1.5); assert.equal(frame.mediaType, 'image/png', 'the stale JPEG must be replaced by a current geometry-checked screenshot');
     const picture = await pixels(Buffer.from(frame.data, 'base64')), red = centroid(picture, 'red');

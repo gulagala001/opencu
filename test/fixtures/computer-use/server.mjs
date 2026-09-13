@@ -38,7 +38,16 @@ export async function startFixture(port = 0) {
     }
   });
   await new Promise(resolve => server.listen(port, '127.0.0.1', resolve));
-  return { url: `http://127.0.0.1:${server.address().port}`, navigationRequests, close: () => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }) };
+  // localhost may resolve to ::1 in Chromium. Preserve the two distinct
+  // hostnames used by cross-origin tests without relying on IPv4 fallback.
+  const ipv6 = createServer(server.listeners('request')[0]);
+  try {
+    await new Promise((resolve, reject) => { ipv6.once('error', reject); ipv6.listen({ port: server.address().port, host: '::1', ipv6Only: true }, resolve); });
+  } catch (error) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); throw error; }
+  return { url: `http://127.0.0.1:${server.address().port}`, navigationRequests, close: async () => {
+    server.closeAllConnections(); ipv6.closeAllConnections();
+    await Promise.all([new Promise(resolve => server.close(resolve)), new Promise(resolve => ipv6.close(resolve))]);
+  } };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const fixture = await startFixture(Number(process.env.PORT || 0));
