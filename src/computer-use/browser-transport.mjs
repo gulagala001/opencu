@@ -72,18 +72,30 @@ export class BrowserTransport {
         this.requests.delete(message.id);
         if (request.method === 'Page.getFrameTree') {
           const session = this.sessions.get(request.sessionId);
-          if (session && message.result?.frameTree) session.loaderId = message.result.frameTree.frame.loaderId;
+          if (session && message.result?.frameTree) {
+            const frame = message.result.frameTree.frame;
+            session.loaderId = frame.loaderId;
+            // A restored OOPIF has no new frameNavigated event. Playwright
+            // does not initialize its URL from this non-main frame tree.
+            if (session.restoreFrame && frame.id === session.targetId) {
+              session.restoreFrame = false;
+              this.onmessage?.({ sessionId: request.sessionId, method: 'Page.frameNavigated', params: { frame, type: 'Navigation' } });
+            }
+          }
         }
       }
       if (message.method === 'Target.attachedToTarget') {
         const { sessionId, targetInfo } = message.params;
-        this.sessions.set(sessionId, { ...targetInfo, contexts: new Map() });
+        this.sessions.set(sessionId, { ...targetInfo, contexts: new Map(), restoreFrame: targetInfo.type === 'iframe' && !message.params.waitingForDebugger && ['page', 'iframe'].includes(this.sessions.get(message.sessionId)?.type) });
       } else if (message.method === 'Target.detachedFromTarget') {
         for (const attachment of this.frameAttachments.values()) if (attachment.message.params.sessionId === message.params.sessionId) attachment.detached = true;
         this.sessions.delete(message.params.sessionId);
-      } else if (message.method === 'Page.frameNavigated' && !message.params.frame.parentId) {
+      } else if (message.method === 'Page.frameNavigated') {
         const session = this.sessions.get(message.sessionId);
-        if (session) session.loaderId = message.params.frame.loaderId;
+        if (session) {
+          if (!message.params.frame.parentId || message.params.frame.id === session.targetId) session.loaderId = message.params.frame.loaderId;
+          if (message.params.frame.id === session.targetId) session.restoreFrame = false;
+        }
       }
       const session = this.sessions.get(message.sessionId);
       if (message.method === 'Runtime.executionContextsCleared') session?.contexts.clear();

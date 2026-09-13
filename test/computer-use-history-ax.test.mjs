@@ -39,6 +39,9 @@ test('history restores fresh AX observations and form values after nested cross-
   state = (await call('getAXState', { disableDiffing: true })).state;
   assert.match(state, /textbox "外层输入" value="外层甲"/);
   assert.match(state, /textbox "框架输入" value="跨源内层乙"/);
+  assert.deepEqual(record.page.frames().map(frame => frame.url()), [fixture.url + '/cross-frames', fixture.url.replace('127.0.0.1', 'localhost') + '/cross-middle', fixture.url + '/frame']);
+  assert.match(state, /\[iframe "http:\/\/localhost:\d+\/cross-middle"\]/);
+  assert.match(state, /\[iframe "http:\/\/127\.0\.0\.1:\d+\/frame"\]/);
   assert.equal(restores, 2, 'both history steps actually restore BFCache documents');
   await call('setValue', element(state, 'textbox', '外层输入'), '恢复后外层仍可操作');
   await call('setValue', element(state, 'textbox', '框架输入'), '恢复后内层仍可操作');
