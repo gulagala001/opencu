@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';import{tmpdir}from'node:os';import{join}from'node:path';import sharp from 'sharp';
 import{ComputerUseManager}from'../src/computer-use/manager.mjs';import{startFixture}from'./fixtures/computer-use/server.mjs';import{testBrowserExecutable}from'./fixtures/computer-use/test-browser.mjs';import{extensionFixture}from'./fixtures/computer-use/extension.mjs';
+import { largestColorRegion, seededColorRegion } from './fixtures/computer-use/color-region.mjs';
 for(const backend of ['managed','extension'])test(backend+': local threefold zoom, nested scrolling, visual drag and restored iframe editing',{timeout:30000,skip:backend==='extension'&&process.platform==='win32'},async t=>{
  const root=await mkdtemp(join(tmpdir(),'opencu-local-zoom-')),fixture=await startFixture();t.after(()=>fixture.close());
  const external=backend==='extension'?await extensionFixture(t,{fixture}):null;
@@ -18,7 +19,7 @@ for(const backend of ['managed','extension'])test(backend+': local threefold zoo
  evidence.capture=image.capture;evidence.before=await observe();evidence.candidates={};
  if(artifact){await save();await writeFile(join(artifact,'screenshot.png'),Buffer.from(image.data,'base64'));t.diagnostic('Local zoom evidence: '+artifact);}
  const pixels=await sharp(Buffer.from(image.data,'base64')).ensureAlpha().raw().toBuffer({resolveWithObject:true});
- const center=async(name,predicate)=>{let x=0,y=0,n=0,left=Infinity,top=Infinity,right=-1,bottom=-1;for(let j=0;j<pixels.data.length;j+=4){const px=(j/4)%pixels.info.width,py=Math.floor(j/4/pixels.info.width);if(predicate(pixels.data[j],pixels.data[j+1],pixels.data[j+2],px)){x+=px;y+=py;n++;left=Math.min(left,px);top=Math.min(top,py);right=Math.max(right,px);bottom=Math.max(bottom,py);}}const point=[x/n,y/n];evidence.candidates[name]={n,bbox:{left,top,right,bottom},centroid:point};await save();assert.ok(n>100,JSON.stringify(evidence));return point;};
+ const center=async(name,predicate)=>{const region=name==='drop'?seededColorRegion(pixels,predicate,[32,102,216]):largestColorRegion(pixels,predicate);evidence.candidates[name]=region;await save();assert.ok(region.n>100,JSON.stringify(evidence));return region.centroid;};
  const red=await center('red',(r,g,b)=>r>150&&g<100&&b<140),blue=await center('blue',(r,g,b,x)=>r<80&&g>70&&g<150&&b>150&&x<pixels.info.width/2),drop=await center('drop',(r,g,b,x)=>r<80&&g>70&&g<150&&b>150&&x>pixels.info.width/2);
  const frames=new Map([[JSON.stringify(['tab',target.browserId,target.id]),{...image.capture,previewWidth:pixels.info.width,previewHeight:pixels.info.height}]]);
  try{await run(`await tab.click(${JSON.stringify(red)}); await tab.drag(${JSON.stringify(blue)},${JSON.stringify(drop)}); await tab.getAXState();`,{coordinateFrames:frames});}
