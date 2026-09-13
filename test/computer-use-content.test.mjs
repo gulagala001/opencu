@@ -6,12 +6,14 @@ import { join, dirname } from 'node:path';
 import { ComputerUseManager } from '../src/computer-use/manager.mjs';
 import { extensionFixture } from './fixtures/computer-use/extension.mjs';
 import { contentFixture } from './fixtures/computer-use/content.mjs';
+import { testBrowserExecutable } from './fixtures/computer-use/test-browser.mjs';
+import sharp from 'sharp';
 
 for (const backend of ['managed', 'extension']) test(`${backend}: page assets and content export use real loaded bytes and survive turn cleanup`, { timeout: 45000, skip: backend === 'extension' && process.platform === 'win32' }, async t => {
   const fixture = await contentFixture(); t.after(() => fixture.close());
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-content-test-')), artifacts = new Set();
   const env = backend === 'extension' ? await extensionFixture(t, { fixture }) : null;
-  const manager = new ComputerUseManager(root, { ...(env ? { extensionHub: env.hub } : {}), native: { binary: join(root, 'missing') } });
+  const manager = new ComputerUseManager(root, { browser: { executablePath: await testBrowserExecutable(root) }, ...(env ? { extensionHub: env.hub } : {}), native: { binary: join(root, 'missing') } });
   t.after(async () => { await manager.close(); await Promise.all([root, ...artifacts].map(path => rm(path, { recursive: true, force: true }))); });
   const run = async code => { const r = await manager.execute('test', code); assert.equal(r.error, undefined, r.error?.message); return r; };
   const json = async code => JSON.parse((await run(code)).blocks.filter(block => block.type === 'text').at(-1).text);
@@ -25,16 +27,44 @@ for (const backend of ['managed', 'extension']) test(`${backend}: page assets an
   assert.ok(inventory.assets.some(asset => asset.url.endsWith('/background.png') && asset.sources.some(source => source.kind === 'computedStyle')));
   assert.equal(inventory.assets.some(asset => asset.url.endsWith('/lazy.png')), false);
   assert.match(inventory.inlineSvgs[0].markup, /circle/);
+  const svg = inventory.inlineSvgs[0];
+  assert.ok(inventory.assets.some(asset => asset.id === svg.id && asset.kind === 'image' && asset.sources.some(source => source.kind === 'inlineSvg')));
+  assert.equal(inventory.summary.totalCount, inventory.assets.length);
+  assert.equal(inventory.summary.byKind.image, 4);
+  assert.equal(inventory.summary.inlineSvgCount, 1);
+  assert.match(svg.markup, /xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+  const svgTarget = manager.status('test').target, svgHost = manager.browserForTab(svgTarget.id, svgTarget.browserId), svgRecord = await svgHost.target('test', svgTarget.id);
+  await svgRecord.page.locator('svg circle').evaluate(circle => circle.setAttribute('fill', '#00ff00'));
+  const contentReads = [], originalSend = svgRecord.cdp.send.bind(svgRecord.cdp);
+  svgRecord.cdp.send = (method, args) => { if (method === 'Page.getResourceContent') contentReads.push(args.url); return originalSend(method, args); };
+  const svgBundle = await json(`nodeRepl.write(JSON.stringify(await assets.bundle({inventoryId:inventory.id,assetIds:[${JSON.stringify(svg.id)},${JSON.stringify(svg.id)}],kinds:['image']})));`);
+  svgRecord.cdp.send = originalSend;
+  assert.deepEqual(contentReads, [], 'bundling an inline SVG never fetches a URL or asks CDP for a new resource');
+  artifacts.add(svgBundle.directoryPath);
+  assert.equal(svgBundle.summary.requestedCount, 1);
+  assert.equal(svgBundle.summary.downloadedCount, 1);
+  assert.equal(svgBundle.summary.failedCount, 0);
+  assert.equal(svgBundle.assets[0].contentType, 'image/svg+xml');
+  assert.match(svgBundle.assets[0].path, /\.svg$/);
+  assert.equal(await readFile(svgBundle.assets[0].path, 'utf8'), svg.markup);
+  const decodedSvg = await sharp(svgBundle.assets[0].path).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+  assert.equal(decodedSvg.info.width, 20); assert.equal(decodedSvg.info.height, 20);
+  assert.deepEqual([...decodedSvg.data.subarray((10 * 20 + 10) * 4, (10 * 20 + 10) * 4 + 4)], [0, 0, 0, 255], 'saved SVG uses the observed snapshot, not later DOM edits');
+  const all = await json('nodeRepl.write(JSON.stringify(await assets.bundle({inventoryId:inventory.id})));');
+  artifacts.add(all.directoryPath);
+  assert.equal(all.summary.requestedCount, 5); assert.equal(all.summary.downloadedCount, 4); assert.equal(all.summary.failedCount, 1);
+  assert.equal(all.assets.filter(asset => asset.id === svg.id).length, 1);
   const bundle = await json("nodeRepl.write(JSON.stringify(await assets.bundle({inventoryId:inventory.id,kinds:['image','stylesheet']}))); ");
   artifacts.add(bundle.directoryPath);
-  assert.equal(bundle.summary.requestedCount, 4);
-  assert.equal(bundle.summary.downloadedCount, 3);
+  assert.equal(bundle.summary.requestedCount, 5);
+  assert.equal(bundle.summary.downloadedCount, 4);
   assert.equal(bundle.summary.failedCount, 1);
   assert.match(bundle.failures[0].url, /missing\.png$/);
   for (const item of bundle.assets) {
     // Windows exposes synthesized mode bits, not POSIX per-user permissions.
     if (process.platform !== 'win32') assert.equal((await stat(item.path)).mode & 0o777, 0o600);
-    if (item.kind === 'image') assert.deepEqual(await readFile(item.path), fixture.image);
+    if (item.contentType === 'image/svg+xml') assert.equal(await readFile(item.path, 'utf8'), svg.markup);
+    else if (item.kind === 'image') assert.deepEqual(await readFile(item.path), fixture.image);
     else assert.equal(await readFile(item.path, 'utf8'), fixture.stylesheet);
   }
   assert.equal(JSON.parse(await readFile(bundle.manifestPath, 'utf8')).summary.failedCount, 1);
@@ -81,6 +111,6 @@ for (const backend of ['managed', 'extension']) test(`${backend}: page assets an
   assert.equal(cancelled.blocks.some(block => block.text?.includes('directoryPath')), false);
   assert.deepEqual((await readdir(tmpdir())).filter(name => name.startsWith('trisoul-cu-assets-') && !before.has(name)), []);
   await manager.endTurn('test');
-  assert.deepEqual(await readFile(bundle.assets.find(asset => asset.kind === 'image').path), fixture.image, 'delivered files remain after control ends');
+  assert.deepEqual(await readFile(bundle.assets.find(asset => asset.kind === 'image' && asset.contentType !== 'image/svg+xml').path), fixture.image, 'delivered files remain after control ends');
   assert.equal((await stat(path)).size, Buffer.byteLength(snapshot));
 });

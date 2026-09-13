@@ -50,7 +50,7 @@ test('documentation rereads do not operate the computer or discard partial-call 
   t.after(()=>runtime.reset());
   const failed=await runtime.execute("const completedValue='keep'; throw new Error('after completed work');");
   assert.match(failed.error.message,/after completed work/);
-  for(const topic of ['core','browser','app','recovery','files','screenshots','webmcp']){
+  for(const topic of ['core','browser','app','recovery','files','screenshots','webmcp','network']){
     const result=await runtime.execute(`nodeRepl.write(await cua.documentation('${topic}'));`);
     assert.equal(result.error,undefined);assert.equal(result.blocks.length,1);
     assert.ok(result.blocks[0].text.length>200);
