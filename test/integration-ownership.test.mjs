@@ -30,7 +30,7 @@ for (const order of ['standalone-first', 'integration-first']) test('shared owne
   const ctx = new Context();
   t.after(async () => { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); });
   for (const name of ['llm', 'agents', 'sessions', 'sessionProjections']) ctx.provide(name, {});
-  const settings = new Settings(ctx, { 'trisoul-x': { dataDir: directory, computerUseEnabled: false, computerUseNativeBinary: join(directory, 'missing-native') }, opencu: { computerUseEnabled: true } });
+  const settings = new Settings(ctx, { 'trisoul-x': { dataDir: directory, computerUseEnabled: false, computerUseNativeBinary: join(directory, 'missing-native') }, opencu: { computerUseEnabled: true, dataDir: join(directory, 'explicit') } });
   const tools = new Tools(ctx);
   let one, two;
   const integration = { dataDir: join(directory, 'computer-use'), getConfig: () => settings.section('trisoul-x') };
@@ -41,6 +41,7 @@ for (const order of ['standalone-first', 'integration-first']) test('shared owne
   await second; await one.fiber;
   assert.equal(one, two);
   assert.equal(one.computerUse, two.computerUse);
+  assert.equal(one.computerUse.directory, join(directory, 'explicit', 'computer-use'), 'explicit OpenCU data directory wins in both load orders');
   assert.equal(one.config().computerUseEnabled, true, 'explicit OpenCU setting takes precedence');
   assert.equal(one.config().computerUseNativeBinary, join(directory, 'missing-native'), 'preserve legacy runtime path');
   assert.deepEqual([...tools.entries.keys()], ['computer_use', 'computer_use_reset']);
@@ -50,6 +51,10 @@ for (const order of ['standalone-first', 'integration-first']) test('shared owne
   await first.dispose();
   assert.equal(closed, 0, 'removing either first owner retains the runtime');
   assert.equal(tools.entries.size, 2);
+  settings.data.opencu.computerUseEnabled = false; await two.refresh();
+  assert.equal(two.computerUse.enabled, false);
+  settings.data.opencu.computerUseEnabled = true; await two.refresh();
+  assert.equal(two.computerUse.enabled, true, 'remaining owner can still configure the live runtime');
   await second.dispose();
   assert.equal(closed, 1);
   assert.equal(tools.entries.size, 0, 'last unload removes the tools');

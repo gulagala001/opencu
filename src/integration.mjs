@@ -16,7 +16,8 @@ export function acquireComputerUse(ctx, options = {}) {
   if (!shared) {
     const legacy = ctx.settings.section('trisoul-x') ?? {};
     const initial = { ...legacy, ...options.config, ...options.getConfig?.(), ...ctx.settings.section('opencu') };
-    const directory = options.dataDir ?? join(initial.dataDir || join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'trisoul-x'), 'computer-use');
+    const explicitDirectory = ctx.settings.section('opencu')?.dataDir;
+    const directory = explicitDirectory ? join(explicitDirectory, 'computer-use') : options.dataDir ?? join(initial.dataDir || join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'trisoul-x'), 'computer-use');
     shared = { owners: new Map(), config: () => shared.getConfig(), computerImages: new ImageCoordinates() };
     // Explicit OpenCU settings win; otherwise keep the integration's existing
     // configuration, including saved legacy browser/native paths.
@@ -58,9 +59,10 @@ export function acquireComputerUse(ctx, options = {}) {
   }
   const owner = Symbol();
   shared.owners.set(owner, options);
+  void shared.refresh().catch(error => root.logger.warn(error.message));
   ctx.effect(() => () => {
     shared.owners.delete(owner);
-    if (shared.owners.size) return;
+    if (shared.owners.size) return shared.refresh();
     if (root[sharedKey] === shared) delete root[sharedKey];
     return shared.fiber.dispose();
   });
