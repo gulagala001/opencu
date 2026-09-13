@@ -27,7 +27,7 @@ export async function verifyDisplayScaling({ t, fixture, native, target, artifac
     await request('resize', { width: 440, height: 320 });
     await request('move', { x: 20, y: 20 });
     await request('focus');
-    for (const percent of [125, 150, 200]) await t.test('physical screenshot and input at ' + percent + '% display scaling', async () => {
+    for (const [step, percent] of [125, 150, 200, 125].entries()) await t.test('physical screenshot and input at ' + percent + '% display scaling' + (step === 3 ? ' after reducing from 200%' : ''), async () => {
       const binding = await native.bind('dpi', { id: target.app_id, windowId: target.window_id });
       try {
         await capture();
@@ -62,13 +62,14 @@ export async function verifyDisplayScaling({ t, fixture, native, target, artifac
         const marker = state.elements.find(e => e.label === '颜色标记');
         const screenshotMarker = { x: state.bounds.x + left * state.bounds.width / info.width, y: state.bounds.y + top * state.bounds.height / info.height };
         const comparison = {
-          percent, dpi: expectedDpi, screenshot: { width: info.width, height: info.height },
+          percent, step, dpi: expectedDpi, screenshot: { width: info.width, height: info.height },
           redPixels: { left, top, right, bottom }, screenshotMarker, uiaMarker: marker?.bounds ?? null,
           difference: marker?.bounds ? { x: marker.bounds.x - screenshotMarker.x, y: marker.bounds.y - screenshotMarker.y } : null,
           tolerance: { x: 2 * state.bounds.width / info.width, y: 2 * state.bounds.height / info.height },
         };
-        await writeFile(join(artifact, `scale-${percent}.png`), image);
-        await writeFile(join(artifact, `scale-${percent}.json`), JSON.stringify({ comparison, structuredContent: state, fixtureState: await request('state') }, null, 2));
+        const artifactName = `scale-${percent}${step === 3 ? '-return' : ''}`;
+        await writeFile(join(artifact, artifactName + '.png'), image);
+        await writeFile(join(artifact, artifactName + '.json'), JSON.stringify({ comparison, structuredContent: state, fixtureState: await request('state') }, null, 2));
         assert.ok(marker?.bounds && marker.bounds.x >= state.bounds.x && marker.bounds.x < state.bounds.x + state.bounds.width, 'UIA returns physical bounds in the same window');
         assert.ok(Math.abs(marker.bounds.x - (state.bounds.x + left * state.bounds.width / info.width)) <= 2 * state.bounds.width / info.width, 'UIA marker and screenshot use the same physical X coordinate: ' + JSON.stringify(comparison));
         assert.ok(Math.abs(marker.bounds.y - (state.bounds.y + top * state.bounds.height / info.height)) <= 2 * state.bounds.height / info.height, 'UIA marker and screenshot use the same physical Y coordinate: ' + JSON.stringify(comparison));
@@ -95,6 +96,6 @@ export async function verifyDisplayScaling({ t, fixture, native, target, artifac
     await request('move', { x: 100, y: 100 });
   }
   await writeFile(join(artifact, 'display-scaling.json'), JSON.stringify(reports, null, 2));
-  assert.equal(reports.length, 3, 'all three real display scales must pass');
+  assert.equal(reports.length, 4, 'all three real display scales and the return from 200% to 125% must pass');
   return reports;
 }
