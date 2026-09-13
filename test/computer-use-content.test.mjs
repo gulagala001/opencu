@@ -52,7 +52,11 @@ for (const backend of ['managed', 'extension']) test(`${backend}: page assets an
   const snapshot = await readFile(path, 'utf8');
   assert.match(snapshot, /MIME-Version:/);
   assert.match(snapshot, /picture\.png/);
-  assert.ok(snapshot.includes('已更新的页面内容') || snapshot.includes('=E5=B7=B2'), 'MHTML contains the current DOM state');
+  const htmlParts = snapshot.split(/\r\n--[^\r\n]+\r\n/).filter(part => /^Content-Type:\s*text\/html/im.test(part)).map(part => {
+    const separator = part.indexOf('\r\n\r\n');
+    return /Content-Transfer-Encoding:\s*base64/i.test(part.slice(0, separator)) ? Buffer.from(part.slice(separator + 4), 'base64').toString('utf8') : part;
+  }).join('\n');
+  assert.ok(htmlParts.includes('已更新的页面内容') || htmlParts.includes('=E5=B7=B2'), 'MHTML contains the current DOM state regardless of transfer encoding');
   await run('await tab.reload();');
   assert.match((await manager.execute('test', 'await assets.bundle({inventoryId:nextInventory.id});')).error?.message, /inventory changed/);
   // Cancellation while the backend is reading a real resource must remove

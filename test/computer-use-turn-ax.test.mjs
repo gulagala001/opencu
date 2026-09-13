@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+import { ComputerUseManager } from '../src/computer-use/manager.mjs';
+import { startFixture } from './fixtures/computer-use/server.mjs';
+import { testBrowserExecutable } from './fixtures/computer-use/test-browser.mjs';
+
+test('a retained draft can use newly observed AX ids after a turn boundary and rebinding', { timeout: 30000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'opencu-turn-ax-')), fixture = await startFixture();
+  const manager = new ComputerUseManager(root, { browser: { executablePath: await testBrowserExecutable(root) }, native: { binary: join(root, 'missing-native') } });
+  t.after(async () => { await manager.close(); await fixture.close(); await rm(root, { recursive: true, force: true }); });
+  const run = async (code, id = 'draft') => { const result = await manager.execute(id, code); assert.equal(result.error, undefined, JSON.stringify(result.error)); return result.blocks.filter(block => block.type === 'text').map(block => block.text).join('\n'); };
+  const element = (state, role, name) => { const line = state.split('\n').find(line => line.includes(`${role} ${JSON.stringify(name)}`)); assert.ok(line, state); return Number(line.trim().split(' ')[0]); };
+  await run(`const existing = await cua.createBrowserTab('browser', ${JSON.stringify(fixture.url)}); await existing.markDeliverable();`, 'existing');
+  await manager.endTurn('existing');
+  await run('await cua.getState();');
+  let state = await run(`const tab = await cua.createBrowserTab('browser', ${JSON.stringify(fixture.url + '/?draft=1')});`);
+  const name = element(state, 'textbox', '姓名');
+  await run(`await tab.setValue(${name}, '未保存的中文草稿'); await tab.getAXState();`);
+  await run('await tab.getAXState({disableDiffing:true});');
+  await run('await tab.markHandoff();');
+  const tabId = manager.status('draft').target.id;
+  await manager.endTurn('draft');
+  await delay(4000);
+  state = await run(`const tab = await cua.getTab(${JSON.stringify(tabId)}, {browser:'browser'});`);
+  const note = element(state, 'textbox', '备注'), save = element(state, 'button', '保存');
+  await delay(3800);
+  await run(`await tab.setValue(${note}, '继续完成'); await tab.click(${save}); await tab.getAXState();`);
+  const record = await manager.browser.target('draft', tabId);
+  assert.equal(await record.page.locator('#name').inputValue(), '未保存的中文草稿');
+  assert.match(await record.page.locator('#result').textContent(), /继续完成/);
+  await run('await tab.reload();');
+  const stale = await manager.execute('draft', `await tab.setValue(${note}, '不应写入');`);
+  assert.match(stale.error?.message, /old or detached/);
+});

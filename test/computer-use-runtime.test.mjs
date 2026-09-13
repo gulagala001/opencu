@@ -44,6 +44,25 @@ test('first-use documentation is scoped, suppressible results stay quiet, and re
   assert.equal(reset.blocks.length,1);assert.match(reset.blocks[0].text,/# Computer Use JavaScript API/);
 });
 
+test('documentation rereads do not operate the computer or discard partial-call bindings',async t=>{
+  const calls=[];
+  const runtime=new ComputerRuntime(async method=>{calls.push(method);return [];});
+  t.after(()=>runtime.reset());
+  const failed=await runtime.execute("const completedValue='keep'; throw new Error('after completed work');");
+  assert.match(failed.error.message,/after completed work/);
+  for(const topic of ['core','browser','app','recovery','files','screenshots','webmcp']){
+    const result=await runtime.execute(`nodeRepl.write(await cua.documentation('${topic}'));`);
+    assert.equal(result.error,undefined);assert.equal(result.blocks.length,1);
+    assert.ok(result.blocks[0].text.length>200);
+    assert.ok(!result.blocks[0].text.includes('output truncated'));
+    if(topic==='files')assert.match(result.blocks[0].text,/external-Chrome support remains incomplete/);
+  }
+  const unknown=await runtime.execute("await cua.documentation('missing');");
+  assert.match(unknown.error.message,/Unknown Computer Use documentation topic/);
+  const retained=await runtime.execute('nodeRepl.write(completedValue);');
+  assert.equal(retained.blocks[0].text,'keep');assert.deepEqual(calls,[]);
+});
+
 test('late timers retain their originating call and cannot act in a new call',async t=>{
   const calls=[];const runtime=new ComputerRuntime(async(method)=>{calls.push(method);return{apps:[]};});t.after(()=>runtime.reset());
   const first=await runtime.execute("setTimeout(()=>cua.getState({emit:false}).catch(()=>{}),100); nodeRepl.write('scheduled')");assert.equal(first.error,undefined);

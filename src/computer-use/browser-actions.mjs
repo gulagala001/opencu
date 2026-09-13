@@ -345,7 +345,7 @@ export class BrowserActions {
       if (method === 'getAXStateAndScreenshot') return await this.snapshot(record, args[0], signal, true);
       if (method === 'pageAssets.list') return await listPageAssets(record, signal);
       if (method === 'pageAssets.bundle') return await bundlePageAssets(record, args[0], signal);
-      if (method === 'content.export') return await exportPageContent(record, signal);
+      if (method === 'content.export') return await exportPageContent(record, signal, () => this.frameBindings(record));
       if (method === 'capabilities.list') return [{ id: 'pageAssets', description: 'Inventory and export assets already loaded by the current page.' }, ...(await webMcpAvailable(record, signal) ? [{ id: 'webmcp', description: 'Discover and invoke page-defined tools using the browser WebMCP protocol.' }] : [])];
       if (method === 'webmcp.fetchTools') return await fetchWebMcpTools(record, signal);
       if (method === 'webmcp.call') return await callWebMcpTool(record, args[0], args[1], args[2], signal);
