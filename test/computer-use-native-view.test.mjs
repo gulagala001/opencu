@@ -41,6 +41,7 @@ test('native live view: actual frames stay independent of model references and s
   const sharedSession=manager.nativeViews.views.get(target.viewId).sessionId,secondFrames=[];
   secondClose=await manager.watchNative('view',target.viewId,(type,value)=>{if(type==='frame')secondFrames.push(value);},new AbortController().signal);
   assert.equal(manager.nativeViews.views.size,1);assert.equal(manager.nativeViews.views.get(target.viewId).sessionId,sharedSession);
+  await wait(()=>secondFrames.length);
   await close();close=null;const secondBefore=secondFrames.at(-1).data;
   await cmd('text',{value:'第二个面板继续查看'});await wait(()=>secondFrames.at(-1)?.data!==secondBefore);
   await secondClose();secondClose=null;assert.equal(manager.nativeViews.views.size,0);
@@ -61,6 +62,15 @@ test('native live view: actual frames stay independent of model references and s
   await manager.resume('view');await execute(`const rebound=await cua.getApp(${JSON.stringify(bundle)});`);
   assert.notEqual(manager.status('view').target.id,target.id,'model authority is renewed');assert.equal(manager.status('view').target.viewId,target.viewId,'the physical window view stays stable');
   assert.equal(manager.nativeViews.views.get(target.viewId).sessionId,capture,'rebinding does not restart recording');
+  await execute('await rebound.getScreenshot();await rebound.click([258,211]);');
+  const liveView=manager.nativeViews.views.get(target.viewId);
+  await wait(()=>liveView.cursor);
+  const endpoint={x:liveView.cursor.x,y:liveView.cursor.y};
+  await manager.endTurn('view');
+  assert.equal(manager.native.connections.has('view'),false,'turn completion releases native input authority');
+  await delay(1700);
+  assert.deepEqual({x:liveView.cursor?.x,y:liveView.cursor?.y},endpoint,'the preview retains the endpoint after idle and input release');
+  await manager.stop('view');await wait(()=>liveView.cursor===null);
   await manager.setEnabled(false);assert.equal(manager.nativeViews.views.size,0);await assert.rejects(manager.watchNative('view',target.id,()=>{},new AbortController().signal),/已关闭/);
   assert.doesNotThrow(()=>process.kill(pid,0),'closing capture preserves the user application');
   await close();close=null;await manager.setEnabled(true);await manager.resume('view');await execute(`const reopened=await cua.getApp(${JSON.stringify(bundle)});`);
