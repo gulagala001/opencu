@@ -149,6 +149,11 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   await page.locator('.tx-cu-chip .tx-cu-vision-warning').waitFor({state:'hidden'});
   await page.getByRole('button', { name: '打开浏览器', exact: true }).click();
   await page.getByLabel('浏览器地址').waitFor();
+  await page.getByLabel('浏览器地址').fill(fixture.url);
+  await page.getByLabel('浏览器地址').press('Enter');
+  await page.locator('.tx-cu-pane .tx-cu-live[data-connection="live"] img').waitFor();
+  await delay(500);
+  assert.equal(await page.locator('.tx-cu-pane .tx-cu-live').getAttribute('data-connection'), 'live', 'first navigation while stopped keeps the preview connected');
   await page.getByRole('button', { name: '关闭当前标签页', exact: true }).click();
   await page.getByRole('heading', { name: '让助手操作应用和网页' }).waitFor();
   if (process.env.TRISOUL_CU_UI_ARTIFACTS) await page.screenshot({ path: join(root, 'first-use-entry.png') });

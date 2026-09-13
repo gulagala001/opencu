@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+import { BrowserHost } from '../src/computer-use/browser.mjs';
+import { BrowserViews } from '../src/computer-use/browser-view.mjs';
+import { testBrowserExecutable } from './fixtures/computer-use/test-browser.mjs';
+
+test('preview answers an open prompt after its triggering click fails and exposes that failure', { timeout: 15000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'opencu-preview-dialog-'));
+  const host = new BrowserHost(join(directory, 'profile'), { executablePath: await testBrowserExecutable(directory) });
+  const views = new BrowserViews(host); let close;
+  t.after(async () => { await close?.(); await host.close(); await rm(directory, { recursive: true, force: true }); });
+  const tab = await host.create('dialog');
+  const record = await host.target('dialog', tab.id);
+  await record.page.setContent('<button onclick="window.answer=prompt(\'中文提示\')">提示</button>');
+  let dialog; const warnings = [];
+  close = await views.subscribe(tab.id, (type, value) => { if (type === 'dialog') dialog = value; if (type === 'warning') warnings.push(value); });
+  record.page.setDefaultTimeout(500);
+  const state = (await host.invoke('dialog', tab.id, 'getAXState', [])).state;
+  const button = Number(state.split('\n').find(line => line.includes('button "提示"')).trim().split(' ')[0]);
+  await host.invoke('dialog', tab.id, 'click', [button]);
+  const deadline = Date.now() + 3000;
+  while (!dialog && Date.now() < deadline) await delay(10);
+  assert.ok(dialog);
+  await assert.rejects(record.pendingAction, /Timeout/);
+  const outcome = await views.input('dialog', tab.id, { type: 'dialog', dialogId: dialog.id, accept: true, text: '用户回答中文' });
+  assert.equal(outcome.dialogHandled, true);
+  assert.equal(outcome.triggeringActionError.name, 'TimeoutError');
+  assert.match(warnings.at(-1).message, /网页提示已处理.*触发操作失败.*Timeout/s);
+  assert.equal(await record.page.evaluate(() => window.answer), '用户回答中文');
+});

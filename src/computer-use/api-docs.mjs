@@ -84,13 +84,17 @@ interface Tab extends Target {
   markDeliverable(): Promise<void>; markHandoff(): Promise<void>;
   scroll(idOrPoint: number | Point, direction: 'up' | 'down' | 'left' | 'right', pages?: number): Promise<void>;
   paste(text: string): Promise<void>; // Current backend inserts plain text only.
+  selectText(elementId: number, text: string, options?: {
+    prefix?: string; suffix?: string; selectionType?: 'select' | 'before' | 'after'
+  }): Promise<void>; // Repeated text requires unique prefix/suffix context.
   playwright: Playwright;
-  dialog: { get(): Promise<null | {type: string; message: string; defaultValue?: string}>; accept(text?: string): Promise<void>; dismiss(): Promise<void> };
+  dialog: { get(): Promise<null | {type: string; message: string; defaultValue?: string}>; accept(text?: string): Promise<DialogAnswerResult>; dismiss(): Promise<DialogAnswerResult> };
   downloads: { list(): Promise<Array<{id: string; filename: string; url: string}>>; save(id: string, absolutePath: string): Promise<unknown> };
   filechooser: { setFiles(files: string | string[]): Promise<void> };
   dev: { logs(): Promise<unknown[]> };
   viewport: ViewportCapability;
 }
+type DialogAnswerResult = null | {dialogHandled: true; triggeringActionError: {name: string; message: string}};
 interface PageAssetsCapability {
   list(): Promise<{id: string; pageUrl: string; assets: Array<{id: string; kind: string; name: string; url: string; sources: unknown[]}>; inlineSvgs: Array<{id: string; name: string; markup: string}>; summary: unknown; truncated: boolean}>;
   bundle(options: {inventoryId: string; assetIds?: string[]; kinds?: Array<'font'|'image'|'stylesheet'|'video'>}): Promise<{directoryPath: string; manifestPath: string; assets: Array<{id: string; path: string; name: string; kind: string; url: string; contentType: string|null}>; failures: Array<{id: string; name: string; url: string; reason: string}>; summary: {requestedCount: number; downloadedCount: number; failedCount: number; elapsedMs: number}}>;
@@ -151,6 +155,9 @@ Created temporary tabs close at turn end unless marked with markDeliverable() or
 markHandoff(). Existing user tabs are released and kept. Stopping or unloading
 control leaves the user's Chrome running. An open JavaScript dialog must be
 explicitly answered with tab.dialog before normal page actions can continue.
+An answer may succeed while its interrupted triggering action has failed. In that
+case the result contains dialogHandled:true and triggeringActionError with the
+original error; inspect page state before deciding whether to retry that action.
 const assets = await tab.capabilities.get('pageAssets');
 const inventory = await assets.list(); inspect it with nodeRepl.write(inventory).
 Then await assets.bundle({inventoryId:inventory.id,kinds:['image','stylesheet']})

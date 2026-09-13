@@ -32,7 +32,27 @@ test('delayed navigation cannot invalidate current preview input; new navigation
   await page.waitForFunction(() => calls.some(call => call.type === 'pointerdown'));
   assert.deepEqual(await page.evaluate(() => navigations.map(n => n.loaderId)), ['new']);
   assert.equal(await page.evaluate(() => calls.find(call => call.type === 'pointerdown').frameId), 'new-frame');
-  await page.evaluate(() => { calls.length = 0; emit('navigation', { loaderId: 'next', observedAt: 30, tabId: 'tab' }); });
+  const changedData = (await sharp({ create: { width: 400, height: 250, channels: 3, background: '#00aa44' } }).png().toBuffer()).toString('base64');
+  await page.evaluate(frame => {
+    // CDP can publish the document's screenshot before navigation history has
+    // returned. Deliver both before React renders or the new image decodes.
+    emit('frame', { ...frame, id: 'raced-frame', loaderId: 'raced' });
+    emit('navigation', { loaderId: 'raced', observedAt: 25, tabId: 'tab' });
+  }, { ...frame, data: changedData });
+  await img.evaluate(img => img.decode());
+  assert.equal(await page.locator('.tx-cu-live').getAttribute('data-connection'), 'live', 'navigation for a frame already received must not strand the preview connecting');
+  await page.evaluate(() => { calls.length = 0; });
+  await img.click({ position: { x: 40, y: 40 } });
+  await page.waitForFunction(() => calls.some(call => call.type === 'pointerdown'));
+  assert.equal(await page.evaluate(() => calls.find(call => call.type === 'pointerdown').frameId), 'raced-frame');
+  await page.evaluate(frame => {
+    calls.length = 0;
+    emit('frame', { ...frame, id: 'superseded-frame', loaderId: 'superseded' });
+    emit('navigation', { loaderId: 'next', observedAt: 30, tabId: 'tab' });
+  }, frame);
+  await img.evaluate(img => img.decode());
+  await page.locator('textarea').press('ArrowDown');
+  assert.equal(await page.evaluate(() => calls.filter(call => call.type === 'keydown').length), 0, 'a late image load cannot restore input for a superseded document');
   await img.click({ position: { x: 40, y: 40 } });
   assert.equal(await page.evaluate(() => calls.filter(call => call.type === 'pointerdown').length), 0, 'a genuine navigation invalidates input until its own frame arrives');
   await page.evaluate(frame => emit('frame', { ...frame, id: 'next-frame', loaderId: 'next' }), frame);

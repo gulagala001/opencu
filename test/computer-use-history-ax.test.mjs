@@ -1,0 +1,45 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { BrowserHost } from '../src/computer-use/browser.mjs';
+import { startFixture } from './fixtures/computer-use/server.mjs';
+import { testBrowserExecutable } from './fixtures/computer-use/test-browser.mjs';
+
+test('history restores fresh AX observations and form values after nested cross-origin frames', { timeout: 30000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'opencu-history-ax-'));
+  const fixture = await startFixture();
+  const host = new BrowserHost(join(directory, 'profile'), { executablePath: await testBrowserExecutable(directory) });
+  t.after(async () => { await host.close(); await fixture.close(); await rm(directory, { recursive: true, force: true }); });
+  const tab = await host.create('history', fixture.url);
+  const record = await host.target('history', tab.id);
+  let restores = 0;
+  record.cdp.on('Page.frameNavigated', event => { if (event.type === 'BackForwardCacheRestore') restores++; });
+  const call = (method, ...args) => host.invoke('history', tab.id, method, args);
+  const element = (state, role, name) => {
+    const line = state.split('\n').find(line => line.includes(`${role} ${JSON.stringify(name)}`));
+    assert.ok(line, `${role} ${name}\n${state}`); return Number(line.trim().split(' ')[0]);
+  };
+  let state = (await call('getAXState', { disableDiffing: true })).state;
+  const oldNote = element(state, 'textbox', '备注');
+  await call('setValue', oldNote, '后退保留\n中文备注');
+  await call('goto', fixture.url + '/cross-frames');
+  state = (await call('getAXState', { disableDiffing: true })).state;
+  await call('setValue', element(state, 'textbox', '外层输入'), '外层甲');
+  await call('setValue', element(state, 'textbox', '框架输入'), '跨源内层乙');
+  await call('click', element(state, 'button', '框架按钮'));
+  await call('getAXState');
+  await call('back');
+  state = (await call('getAXState', { disableDiffing: true })).state;
+  assert.match(state, /textbox "备注" value="后退保留\\n中文备注"/);
+  await assert.rejects(call('setValue', oldNote, '不应使用旧引用'), /old or detached/);
+  await call('setValue', element(state, 'textbox', '框架输入'), '后退框架仍可操作');
+  await call('forward');
+  state = (await call('getAXState', { disableDiffing: true })).state;
+  assert.match(state, /textbox "外层输入" value="外层甲"/);
+  assert.match(state, /textbox "框架输入" value="跨源内层乙"/);
+  assert.equal(restores, 2, 'both history steps actually restore BFCache documents');
+  await call('setValue', element(state, 'textbox', '外层输入'), '恢复后外层仍可操作');
+  await call('setValue', element(state, 'textbox', '框架输入'), '恢复后内层仍可操作');
+});
