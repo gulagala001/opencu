@@ -54,7 +54,7 @@ export async function frontendFixture(t) {
     const value = await response.json(); if (!value.result?.ok) throw new Error(JSON.stringify(value)); return value.result.value;
   };
   const registered = await rpc('workspace/create', { path: workspace });
-  const { sessionId } = await rpc('session/create', { workspaceId: registered.workspace.workspaceId, agentPreset: 'trisoul-x' });
+  const { sessionId } = await rpc('session/create', { workspaceId: registered.workspace.workspaceId, agentPreset: 'standard' });
   await rpc('session/prompt', { requestId: crypto.randomUUID(), sessionId, mode: 'queue', content: [{ type: 'text', text: '整理工作台和对话界面' }] });
   browser = await chromium.launch({ headless: true, executablePath: chromium.executablePath() });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light', locale: 'zh-CN' });
@@ -62,7 +62,7 @@ export async function frontendFixture(t) {
   page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin); await page.getByRole('button', { name: '继续', exact: true }).click();
   await page.getByText('整理工作台和对话界面', { exact: true }).first().click();
-  await page.getByRole('button', { name: '打开工作台', exact: true }).waitFor();
+  await page.getByRole('button', { name: '打开 Computer Use', exact: true }).waitFor();
   return { root, home, page, context, rpc, sessionId, errors, replyWith(factory){replyFactory=factory;}, holdNextReply() {
     nextReply = new Promise(resolve => { releaseReply = resolve; });
     return () => releaseReply?.();
