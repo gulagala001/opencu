@@ -26,16 +26,19 @@ test('the browser cursor is visible, excluded from capture, and does not block s
   const pointer = { x: 700, y: 350, type: 'mouseMoved', buttons: 0, at: Date.now(), source: 'fixture', sequence: 1, geometry: viewportGeometry(await send('Page.getLayoutMetrics')), loaderId: frameTree.frame.loaderId };
   await cursor.update('test', pointer);
   const shown = await capture(); assert.notEqual(shown.data, before.data, 'the actual rendered frame must contain a cursor');
+  await delay(1700);
+  assert.notEqual((await capture()).data, before.data, 'the cursor stays visible while idle');
   const hidden = await cursor.capture(capture); assert.equal(hidden.data, before.data, 'model capture must omit it without changing page pixels');
   await cursor.painting;
+  assert.notEqual((await capture()).data, before.data, 'the idle cursor returns after model capture');
   const dialog = page.waitForEvent('dialog'); const open = page.evaluate(() => alert('cursor stop test')); await dialog;
   await cursor.stop('test');
   await send('Page.handleJavaScriptDialog', { accept: true }); await open; await cursor.hiding;
   assert.equal((await capture()).data, before.data, 'stopping must prevent a late script from restoring the cursor');
   await delay(1550);
-  assert.equal((await cursor.capture(capture)).data, before.data, 'capturing after idle removal must still work');
+  assert.equal((await cursor.capture(capture)).data, before.data, 'capturing after stop must still work');
   await cursor.update('test', { ...pointer, sequence: 2, at: Date.now() });
-  assert.notEqual((await capture()).data, before.data, 'the next input can show a fresh cursor after idle expiry');
+  assert.notEqual((await capture()).data, before.data, 'the next input can show a fresh cursor after resume');
 });
 
 test('cursor rendering respects strict CSP, existing modal focus, and overlapping captures', { timeout: 15000 }, async t => {
@@ -105,8 +108,6 @@ test('the external Chrome window shows the real assistant cursor across zoom and
     // The tip is a white stroked SVG vertex, not the first dark raster pixel.
     // Resolve the actual rendered path (including its closed shadow root) and
     // require subpixel alignment, while retaining real screenshot visibility.
-    // Measure before decoding/scanning the PNG: the idle cursor may expire
-    // while the test processes pixels on a slower CI runner.
     const { root: document } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
     const find = (node, predicate) => !node ? undefined : predicate(node) ? node : [...(node.children ?? []), ...(node.shadowRoots ?? [])].map(child => find(child, predicate)).find(Boolean);
     const overlay = find(document, node => node.attributes?.includes('data-trisoul-cursor'));

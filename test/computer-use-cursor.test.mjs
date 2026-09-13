@@ -74,8 +74,13 @@ for (const backend of ['managed', 'extension']) test(backend + ' assistant curso
   await run(`tab=await cua.getTab(${JSON.stringify(current.id)},{browser:${JSON.stringify(browser.id)}}); await tab.playwright.locator('canvas').click({position:{x:650,y:350}});`);
   await until(() => manager.sessions.get('test').pointer);
   const delayedPointer = { ...manager.sessions.get('test').pointer, sessionId: 'test' };
-  stage = 'end'; await manager.endTurn('test'); assert.equal(manager.sessions.get('test').pointer, null, 'turn completion must clear the cursor');
+  const retained = manager.sessions.get('test').pointer;
+  stage = 'end'; await manager.endTurn('test');
+  await delay(1700);
+  assert.equal(manager.sessions.get('test').pointer, retained, 'turn completion and idle time preserve the last observed location');
   manager.pointer(delayedPointer);
-  assert.equal(manager.sessions.get('test').pointer, null, 'a queued observation from the completed turn must not revive its cursor');
+  assert.equal(manager.sessions.get('test').pointer, retained, 'a queued observation from the completed turn cannot replace the retained cursor');
+  await manager.stop('test');
+  assert.equal(manager.sessions.get('test').pointer, null, 'stop clears the retained cursor');
   stage = 'done';
 });

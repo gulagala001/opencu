@@ -71,13 +71,15 @@ test('native surface: real cursor ordering, clean images and nested scrolling', 
     const { order } = await target.command('sample');
     return order.map(id => records.find(w => w.window_id === id)).filter(w => w && [target.pid, cover.pid, helperPid].includes(w.pid));
   };
-  const cursorWindow = async () => (await windows()).find(w => w.pid === helperPid && w.title === 'Trisoul assistant cursor');
+  const cursorWindow = async () => (await windows()).find(w => w.pid === helperPid && w.title === 'Oh My DSH assistant cursor');
   const screenshot = async () => Buffer.from((await execute('await app.getScreenshot();')).blocks.find(b => b.type === 'image').data, 'base64');
 
   await t.test('cursor is rendered above its target, excluded from its image, and removed on stop', async () => {
     const before = await screenshot();
     await execute('await app.click([500,90]);');
     const cursor = await waitFor(cursorWindow, Boolean, 'actual cursor window');
+    await delay(1700);
+    assert.equal((await cursorWindow())?.window_id, cursor.window_id, 'the native cursor remains visible while idle');
     const ordered = await windows();
     assert.ok(ordered.findIndex(w => w.window_id === cursor.window_id) < ordered.findIndex(w => w.window_id === target.windowId), 'actual on-screen z-order');
     const raw = await manager.native.call('surface-inspector', 'get_window_state', { pid: helperPid, window_id: cursor.window_id, include_accessibility_tree: false, include_screenshot: true });

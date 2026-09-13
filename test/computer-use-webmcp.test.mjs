@@ -22,7 +22,18 @@ for (const backend of ['managed', 'extension']) test(`${backend}: native WebMCP 
   if (process.platform !== 'win32') await writeFile(executablePath, '#!/bin/sh\nexec ' + "'" + (process.env.TRISOUL_CU_TEST_BROWSER_EXECUTABLE ?? chromium.executablePath()).replaceAll("'", "'\\''") + "'" + (process.platform === 'darwin' ? ' --use-mock-keychain' : ' --no-sandbox') + ' "$@"\n', { mode: 0o700 });
   const manager = new ComputerUseManager(root, { ...(env ? { extensionHub: env.hub } : { browser: { executablePath } }), native: { binary: join(root, 'missing') } });
   t.after(async () => { await manager.close(); await rm(root, { recursive: true, force: true }); });
-  const run = async code => { const r = await manager.execute('test', code); assert.equal(r.error, undefined, r.error?.message); return r; };
+  const navigationEvents = [], bind = manager.browser.bind.bind(manager.browser);
+  manager.browser.bind = async (...args) => {
+    const record = await bind(...args);
+    if (!record.fixtureNetwork) {
+      record.fixtureNetwork = true;
+      record.page.on('requestfailed', request => navigationEvents.push({ type: 'failed', url: request.url(), error: request.failure() }));
+      record.page.on('response', response => navigationEvents.push({ type: 'response', url: response.url(), status: response.status(), headers: response.headers() }));
+      record.page.on('framenavigated', frame => { if (frame === record.page.mainFrame()) navigationEvents.push({ type: 'navigation', url: frame.url() }); });
+    }
+    return record;
+  };
+  const run = async code => { const r = await manager.execute('test', code); if (r.error) t.diagnostic(JSON.stringify({ navigationEvents, browserStderr: manager.browser.run?.stderr })); assert.equal(r.error, undefined, r.error?.message); return r; };
   await run(`var tab=await cua.createBrowserTab(${JSON.stringify(env?.browser.id ?? 'browser')},${JSON.stringify(fixture.url)});await tab.playwright.getByText('工具已注册',{exact:true}).waitFor();var webmcp=await tab.capabilities.get('webmcp');var tools=await webmcp.fetchTools();nodeRepl.write(tools.description());`);
   const description = (await run('nodeRepl.write(tools.description());')).blocks.at(-1).text;
   assert.match(description, /set_note/); assert.match(description, /slow_note/);
