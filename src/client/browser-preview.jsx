@@ -78,7 +78,7 @@ export function BrowserPreview({ sessionId, tabId, pageUrl, visible, state, api,
   useEffect(() => {
     setFrame(null); setDialog(null); setCursor(null); current.current = null; displayedData.current = null;callbacks.current.onFrame?.(null);
     if (!visible) return;
-    let active = true;
+    let active = true, navigationObservedAt = -Infinity;
     const stream = new EventSource(url('stream', sessionId) + '&view=1&tab=' + encodeURIComponent(tabId));
     activeStream.current=stream;
     setConnection('connecting');
@@ -107,7 +107,10 @@ export function BrowserPreview({ sessionId, tabId, pageUrl, visible, state, api,
     });
     stream.addEventListener('dialog', event => { const next = JSON.parse(event.data); setDialog(next); setPrompt(next?.defaultPrompt ?? ''); });
     stream.addEventListener('navigation', event => {
+      if (!active) return;
       const value = JSON.parse(event.data);
+      if ((value.observedAt ?? 0) < navigationObservedAt) return;
+      navigationObservedAt = value.observedAt ?? 0;
       setCursor(null);
       if (current.current?.loaderId && value.loaderId !== current.current.loaderId) { current.current.id = undefined; setConnection('connecting');callbacks.current.onFrame?.(null); }
       callbacks.current.onNavigation(value);

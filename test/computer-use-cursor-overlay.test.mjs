@@ -62,7 +62,9 @@ test('cursor rendering respects strict CSP, existing modal focus, and overlappin
   assert.notEqual((await capture()).data, before.data, 'the latest cursor returns after the last capture finishes');
 });
 
-test('the external Chrome window shows the real assistant cursor across zoom and pan without contaminating model images', { timeout: 30000, skip: process.platform === 'win32' }, async t => {
+// Three complete zoom/pan scenarios share one browser. CI can spend over 30s
+// on their combined captures; per-action waits and all pixel assertions stay intact.
+test('the external Chrome window shows the real assistant cursor across zoom and pan without contaminating model images', { timeout: 60000, skip: process.platform === 'win32' }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-window-cursor-')), cleanup = []; let manager;
   t.after(async () => { try { await manager?.close(); } finally { for (const close of cleanup) await close(); if (!process.env.TRISOUL_CU_UI_ARTIFACTS) await rm(root, { recursive: true, force: true }); else console.log('Window cursor artifacts:', root); } });
   const headful = process.env.TRISOUL_CU_TEST_HEADFUL === '1';
