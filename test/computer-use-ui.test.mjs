@@ -1,3 +1,4 @@
+import { browserExecutablePath } from '../src/computer-use/browser.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -27,7 +28,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   const markStage = value => { stage = value; console.log('Computer Use UI stage:', backend, stage, Math.round(performance.now() - began) + 'ms'); };
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-ui-')), home = join(root, 'home'), workspace = join(root, 'workspace');
   await mkdir(home); await mkdir(workspace);
-  const testBrowser = await testBrowserExecutable(root);
+  const testBrowser = await testBrowserExecutable(root, browserExecutablePath());
   const nativeBinary=process.platform==='darwin'?await legacyBundle(join(root,'native')):join(root,'missing-native');
   const fixture = await startFixture(); let toolSent = false, cursorSent = false, external, browserId = 'browser',fixtureTabId; const userMessages = [], userPayloads=[];
   const provider = createServer(async (req, res) => {
@@ -489,7 +490,13 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   assert.equal(childMetadata.element.framePath[0].title,'测试框架');assert.equal(childMetadata.element.framePath[0].url,fixture.url+'/frame');assert.ok(childMetadata.polygon.length>=4);assert.equal(childMetadata.stylePreview.changes.width,'240px');
   await page.getByRole('button',{name:'发送消息',exact:true}).click();await until(()=>userMessages.some(text=>text.includes('请调整框架里的输入框')&&text.includes('网页批注.txt')));
   await page.getByRole('button',{name:'恢复助手控制',exact:true}).click();await page.locator('.tx-cu-pane').getByText('就绪',{exact:true}).waitFor();
-  const childLiveImage=await image.getAttribute('src');await target.evaluate(()=>scrollTo(0,0));await until(async()=>(await image.getAttribute('src'))!==childLiveImage);
+  await target.evaluate(()=>scrollTo(0,0));
+  await until(async()=>{
+    const displayed=await image.evaluate(element=>element.complete&&window.__cuDisplayedFrames?.get(element.src.split(',')[1]));
+    const geometry=viewportGeometry(await cdp.send('Page.getLayoutMetrics'));
+    const {frameTree}=await cdp.send('Page.getFrameTree');
+    return geometry.pageY===0&&displayed?.loaderId===frameTree.frame.loaderId&&sameScreenshotGeometry(displayed.geometry,geometry);
+  });
   // Only this observer reads the page. Every tested input goes through the
   // actual React pane, authenticated HTTP, manager, and separate browser.
   const point = async locator => {
