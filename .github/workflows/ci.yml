@@ -42,3 +42,11 @@ jobs:
       # Real browser fixtures are resource intensive and some exercise the
       # shared desktop. Keep platform results independent and run files in order.
       - run: node --test --test-concurrency=1 test/*.test.mjs
+        env:
+          TRISOUL_CU_UI_ARTIFACTS: '1'
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: test-evidence-${{ matrix.os }}-${{ matrix.node }}
+          path: cu-artifacts/
+          retention-days: 7

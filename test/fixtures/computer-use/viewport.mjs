@@ -1,5 +1,17 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
+export async function waitForViewport(cdp, expected) {
+  const deadline = Date.now() + 3000;
+  let last, matches = 0;
+  do {
+    last = (await cdp.send('Page.getLayoutMetrics')).cssVisualViewport;
+    matches = Object.entries(expected).every(([key, value]) => Math.abs(last[key] - value) < 0.001) ? matches + 1 : 0;
+    if (matches === 3) return last;
+    await delay(20);
+  } while (Date.now() < deadline);
+  throw new Error('The requested viewport did not settle: ' + JSON.stringify({ expected, actual: last }));
+}
+
 export async function panViewport(cdp, y = 180) {
   // Inject a real touch sequence into the target renderer. The synthesized
   // gesture's platform touch route can miss viewport panning in Aura.

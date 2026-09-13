@@ -60,9 +60,18 @@ export async function verifyDisplayScaling({ t, fixture, native, target, artifac
         assert.ok(dragged.pointerEvents.slice(clicked.pointerEvents.length).some(e => e.kind === 'move' && e.held));
         assert.ok(Object.values(dragged.held).every(value => value === false));
         const marker = state.elements.find(e => e.label === '颜色标记');
+        const screenshotMarker = { x: state.bounds.x + left * state.bounds.width / info.width, y: state.bounds.y + top * state.bounds.height / info.height };
+        const comparison = {
+          percent, dpi: expectedDpi, screenshot: { width: info.width, height: info.height },
+          redPixels: { left, top, right, bottom }, screenshotMarker, uiaMarker: marker?.bounds ?? null,
+          difference: marker?.bounds ? { x: marker.bounds.x - screenshotMarker.x, y: marker.bounds.y - screenshotMarker.y } : null,
+          tolerance: { x: 2 * state.bounds.width / info.width, y: 2 * state.bounds.height / info.height },
+        };
+        await writeFile(join(artifact, `scale-${percent}.png`), image);
+        await writeFile(join(artifact, `scale-${percent}.json`), JSON.stringify({ comparison, structuredContent: state, fixtureState: await request('state') }, null, 2));
         assert.ok(marker?.bounds && marker.bounds.x >= state.bounds.x && marker.bounds.x < state.bounds.x + state.bounds.width, 'UIA returns physical bounds in the same window');
-        assert.ok(Math.abs(marker.bounds.x - (state.bounds.x + left * state.bounds.width / info.width)) <= 2 * state.bounds.width / info.width, 'UIA marker and screenshot use the same physical X coordinate');
-        assert.ok(Math.abs(marker.bounds.y - (state.bounds.y + top * state.bounds.height / info.height)) <= 2 * state.bounds.height / info.height, 'UIA marker and screenshot use the same physical Y coordinate');
+        assert.ok(Math.abs(marker.bounds.x - (state.bounds.x + left * state.bounds.width / info.width)) <= 2 * state.bounds.width / info.width, 'UIA marker and screenshot use the same physical X coordinate: ' + JSON.stringify(comparison));
+        assert.ok(Math.abs(marker.bounds.y - (state.bounds.y + top * state.bounds.height / info.height)) <= 2 * state.bounds.height / info.height, 'UIA marker and screenshot use the same physical Y coordinate: ' + JSON.stringify(comparison));
         await request('focus');
         await native.invoke('dpi', binding.id, 'pressKey', ['ctrl+a']);
         const text = `缩放 ${percent}% 中文🙂`;
@@ -76,7 +85,6 @@ export async function verifyDisplayScaling({ t, fixture, native, target, artifac
           catch (error) { if (!['WINDOW_MOVED', 'CAPTURE_GEOMETRY_CHANGED'].includes(error.code)) throw error; }
         }
         assert.deepEqual(frame?.bounds, state.bounds); assert.equal(frame.geometryVerified, true);
-        await writeFile(join(artifact, `scale-${percent}.png`), image);
         reports.push({ percent, dpi: expectedDpi, screenshot: { width: info.width, height: info.height }, bounds: state.bounds, click: clicked.cursor, drag: dragged.cursor, unicodeInput: true, preview: true, staleCoordinatesRejected: true });
       } finally { await native.release('dpi'); }
     });

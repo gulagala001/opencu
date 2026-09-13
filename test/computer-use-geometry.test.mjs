@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -8,9 +8,15 @@ import { ComputerUseManager } from '../src/computer-use/manager.mjs';
 import { ImageCoordinates } from '../src/computer-use/image-coordinates.mjs';
 import { extensionFixture } from './fixtures/computer-use/extension.mjs';
 import { startFixture } from './fixtures/computer-use/server.mjs';
-import { panViewport } from './fixtures/computer-use/viewport.mjs';
+import { panViewport, waitForViewport } from './fixtures/computer-use/viewport.mjs';
 
 async function setup(t, backend) {
+  let artifact;
+  if (process.env.TRISOUL_CU_UI_ARTIFACTS) {
+    await mkdir('cu-artifacts', { recursive: true });
+    artifact = await mkdtemp(join('cu-artifacts', `geometry-${backend}-`));
+    t.diagnostic('Geometry evidence: ' + artifact);
+  }
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-geometry-')), cleanups = []; let manager;
   t.after(async () => { try { await manager?.close(); } finally { for (const close of cleanups) await close(); await rm(root, { recursive: true, force: true }); } });
   const external = backend === 'extension' ? await extensionFixture({ after: close => cleanups.push(close) }, { headless: process.env.TRISOUL_CU_TEST_HEADFUL !== '1' }) : null;
@@ -29,7 +35,7 @@ async function setup(t, backend) {
   await page.setViewportSize({ width: 1280, height: 720 });
   const bound = await manager.execute('test', `const tab=await cua.getTab(${JSON.stringify(tab.id)},{browser:${JSON.stringify(tab.browserId)}});`);
   assert.equal(bound.error, undefined);
-  return { manager, browser, tab, record, page, driver, external };
+  return { manager, browser, tab, record, page, driver, external, artifact, captures: 0 };
 }
 
 async function pixels(data) {
@@ -52,6 +58,11 @@ async function modelImage(s) {
   const result = await s.manager.execute('test', 'await tab.getScreenshot();'); assert.equal(result.error, undefined);
   const block = result.blocks.find(b => b.type === 'image'); assert.ok(block.capture.geometry);
   const source = Buffer.from(block.data, 'base64');
+  if (s.artifact) {
+    const name = join(s.artifact, `model-${++s.captures}`);
+    await writeFile(name + '.png', source);
+    await writeFile(name + '.json', JSON.stringify({ capture: block.capture, current: await s.driver.send('Page.getLayoutMetrics') }, null, 2));
+  }
   const preview = await sharp(source).resize({ width: Math.round(block.capture.width / 2) }).png().toBuffer();
   const metadata = await sharp(preview).metadata(), coordinates = new ImageCoordinates();
   const ref = { attachmentId: 'fixture' };
@@ -67,6 +78,7 @@ for (const backend of ['managed', 'extension']) {
     for (const pan of [false, true]) {
       await s.page.reload();
       await s.driver.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
+      await waitForViewport(s.driver, { scale: 2, zoom: 1 });
       if (pan) await panViewport(s.driver);
       const before = await s.driver.send('Page.getLayoutMetrics');
       if (pan) assert.ok(before.cssVisualViewport.pageX > 20, 'the second case must really pan the viewport');
@@ -105,7 +117,7 @@ for (const backend of ['managed', 'extension']) {
 
   test(backend + ' manual preview pixels hit the displayed control after pinch and pan', { timeout: 30000, skip: backend === 'extension' && process.platform === 'win32' }, async t => {
     const s = await setup(t, backend); let frame;
-    const close = await s.manager.watchBrowser('test', s.tab.id, (type, value) => { if (type === 'frame') frame = value; });
+    const close = await s.manager.watchBrowser('test', s.tab.id, (type, value) => { if (type === 'frame') frame = value; if (type === 'failure') t.diagnostic('Preview failure: ' + JSON.stringify(value)); });
     const metadata = new Map();
     s.manager.viewsFor(s.tab).views.get(s.tab.id).cdp.on('Page.screencastFrame', event => metadata.set(event.data, event.metadata));
     try {
@@ -115,9 +127,11 @@ for (const backend of ['managed', 'extension']) {
         if (s.external) {
           const worker = s.external.context.serviceWorkers().find(worker => worker.url() === s.external.origin + 'worker.js');
           await worker.evaluate(({ id, zoom }) => chrome.tabs.setZoom(id, zoom), { id: s.tab.nativeTabId, zoom });
+          await waitForViewport(s.driver, { zoom });
         }
         await s.page.reload();
         await s.driver.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
+        await waitForViewport(s.driver, { scale: 2, zoom });
           if (pan) await panViewport(s.driver);
         const { cssVisualViewport: viewport } = await s.driver.send('Page.getLayoutMetrics');
         assert.equal(viewport.scale, 2, 'the fixture must actually retain two-times pinch zoom');
@@ -125,8 +139,15 @@ for (const backend of ['managed', 'extension']) {
         if (pan) assert.ok(viewport.pageX > 20, 'the fixture must actually pan the zoomed viewport');
         const end = Date.now() + 5000;
         while (Date.now() < end && (!frame || frame.geometry.width !== viewport.clientWidth || Math.abs(frame.scrollX - viewport.pageX) > 1)) await new Promise(resolve => setTimeout(resolve, 20));
-        assert.ok(frame); assert.equal(frame.geometry.width, viewport.clientWidth, JSON.stringify({ viewport, recentMetadata: [...metadata.values()].slice(-3) })); assert.ok(Math.abs(frame.scrollX - viewport.pageX) <= 1);
-        const selected = frame, picture = await pixels(Buffer.from(selected.data, 'base64')), red = centroid(picture, 'red');
+        const view = s.manager.viewsFor(s.tab).views.get(s.tab.id);
+        const diagnostic = JSON.stringify({ viewport, recentMetadata: [...metadata.values()].slice(-3), closed: view?.closed, pending: !!view?.pending, flushing: !!view?.flushing, screencastAfter: view?.screencastAfter, loaderId: view?.loaderId });
+        const selected = frame;
+        if (s.artifact) {
+          if (selected) await writeFile(join(s.artifact, `preview-${zoom}-${pan}.png`), await sharp(Buffer.from(selected.data, 'base64')).png().toBuffer());
+          await writeFile(join(s.artifact, `preview-${zoom}-${pan}.json`), JSON.stringify({ frame: selected ? { ...selected, data: undefined } : null, diagnostic: JSON.parse(diagnostic), metadata: metadata.get(selected?.data) }, null, 2));
+        }
+        assert.ok(selected, diagnostic); assert.equal(selected.geometry.width, viewport.clientWidth, diagnostic); assert.ok(Math.abs(selected.scrollX - viewport.pageX) <= 1);
+        const picture = await pixels(Buffer.from(selected.data, 'base64')), red = centroid(picture, 'red');
         t.diagnostic(JSON.stringify({ zoom, pan, metadata: metadata.get(selected.data), viewport, image: { width: picture.info.width, height: picture.info.height }, frame: { width: selected.width, height: selected.height }, red }));
         const input = { tabId: s.tab.id, actor: selected.actor, frameId: selected.id, controlEpoch: s.manager.status('test').controlEpoch, x: red[0] / picture.info.width, y: red[1] / picture.info.height };
         await s.manager.manualInput('test', { ...input, type: 'pointerdown' });
@@ -143,6 +164,7 @@ for (const backend of ['managed', 'extension']) {
 test('a queued JPEG from before browser zoom cannot acquire the new preview geometry', { timeout: 30000, skip: process.platform === 'win32' }, async t => {
   const s = await setup(t, 'extension');
   await s.driver.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
+  await waitForViewport(s.driver, { scale: 2, zoom: 1 });
   let actor;
   const close = await s.manager.watchBrowser('test', s.tab.id, (type, value) => { if (type === 'ready') actor = value.actor; });
   const views = s.manager.viewsFor(s.tab), view = views.views.get(s.tab.id);
@@ -156,6 +178,7 @@ test('a queued JPEG from before browser zoom cannot acquire the new preview geom
     await view.cdp.send('Page.stopScreencast'); await view.flushing;
     const worker = s.external.context.serviceWorkers().find(worker => worker.url() === s.external.origin + 'worker.js');
     await worker.evaluate(id => chrome.tabs.setZoom(id, 1.5), s.tab.nativeTabId);
+    await waitForViewport(s.driver, { zoom: 1.5, scale: 2 });
     const viewport = (await s.driver.send('Page.getLayoutMetrics')).cssVisualViewport;
     assert.equal(viewport.zoom, 1.5); assert.equal(viewport.scale, 2); assert.equal(viewport.pageX, 0);
     view.pending = { event: oldEvent, loaderId: view.loaderId }; await views.flush(view);
