@@ -29,7 +29,7 @@ for (const order of scenarios) test('stock DSH install, restart and uninstall: '
     let body = ''; for await (const chunk of req) body += chunk;
     const p = JSON.parse(body); payloads.push(p);
     const done = p.messages.at(-1).role === 'tool' || !p.tools?.some(t => t.function.name === 'computer_use');
-    const delta = done ? { content: 'OpenCU installation verified' } : { tool_calls: [{ index: 0, id: 'install-' + payloads.length, type: 'function', function: { name: 'computer_use', arguments: JSON.stringify({ title: '检查已安装的 OpenCU', code: 'await cua.getState();' }) } }] };
+    const delta = done ? { content: 'OpenCU installation verified' } : { tool_calls: [{ index: 0, id: 'install-' + payloads.length, type: 'function', function: { name: 'computer_use', arguments: JSON.stringify({ title: '检查已安装的 OpenCU', code: "const installedTab = await cua.createBrowserTab('browser', 'data:text/html,<title>OpenCU installation</title><h1>OpenCU installed</h1>');" }) } }] };
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     res.write('data: ' + JSON.stringify({ id: 'fixture', choices: [{ index: 0, delta: { role: 'assistant', ...delta }, finish_reason: done ? 'stop' : 'tool_calls' }] }) + '\n\n');
     res.end('data: [DONE]\n\n');
@@ -66,7 +66,8 @@ for (const order of scenarios) test('stock DSH install, restart and uninstall: '
     assert.equal(p.tools.filter(t => t.function.name === 'computer_use_reset').length, 1);
     assert.ok(p.tools.some(t => ['bash', 'pwsh'].includes(t.function.name)), 'host tools remain available');
     const result = payloads.slice(before).find(p => p.messages.at(-1).role === 'tool').messages.at(-1);
-    assert.match(JSON.stringify(result), /browser/i, 'the registered tool actually executes');
+    assert.doesNotMatch(JSON.stringify(result), /Execution failed:/, 'browser startup cannot pass as an inventory error');
+    assert.match(JSON.stringify(result), /OpenCU installed/, 'the installed tool opens and reads an actual browser page');
     const state = await fetch(origin + '/trisoul-x/computer-use/state?session=' + sessionId, { headers: { cookie } });
     assert.equal(state.status, 200);
     assert.equal((await state.json()).enabled, true);
