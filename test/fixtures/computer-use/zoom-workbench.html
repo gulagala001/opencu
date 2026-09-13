@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>局部放大与精细操作</title>
+<style>body{font:15px system-ui;margin:20px;color:#14243a;background:#f4f6fb}h1{font-size:22px}button{padding:8px;margin:3px}#view{width:min(600px,90vw);height:280px;overflow:auto;border:2px solid #456;background:white;position:relative}canvas{display:block}output{display:block;height:28px;margin:8px 0}iframe{display:block;width:min(600px,90vw);height:180px;border:2px solid #456;margin-top:12px}.spacer{height:220px}p{max-width:600px}</style>
+<h1>局部放大与精细操作</h1><p>先放大细节，再点红色实心小圆，并把蓝点拖入蓝环。橙色圆是干扰目标。</p>
+<button id="zoom">放大细节 3×</button><button id="reset">恢复全图</button><button id="shift">平移到另一处</button>
+<output id="result">尚未操作</output><div id="view"><canvas width="1100" height="700" aria-label="精细操作画布"></canvas></div>
+<div class="spacer"></div><h2>框架编辑区</h2><iframe title="放大后填写" src="/zoom-frame"></iframe>
+<script>
+const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d'),view=document.querySelector('#view');
+const s=window.zoomFixture={redHit:false,dragComplete:false,wrongHits:0,events:[],zoom:1};let dragging=false,pointer;
+function draw(){ctx.fillStyle='#fff';ctx.fillRect(0,0,1100,700);ctx.strokeStyle='#e7ecf3';ctx.lineWidth=1;for(let x=0;x<1100;x+=25){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,700);ctx.stroke()}for(let y=0;y<700;y+=25){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1100,y);ctx.stroke()}
+ const circle=(x,y,r,c,fill=true)=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=ctx.strokeStyle=c;ctx.lineWidth=1.5;fill?ctx.fill():ctx.stroke()};
+ circle(200,120,5,s.redHit?'#198754':'#d52f44');circle(230,120,5,'#dc8b13');circle(170,120,5,'#dc8b13');circle(300,170,9,s.dragComplete?'#198754':'#2066d8',false);circle(dragging?pointer.x:s.dragComplete?300:210,dragging?pointer.y:170,5,'#2066d8');ctx.fillStyle='#263b59';ctx.font='9px sans-serif';ctx.fillText('红色目标',184,106);ctx.fillText('蓝点 → 蓝环',198,190);
+ ctx.font='20px sans-serif';ctx.fillText('远处区域',800,500);}
+function pos(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}}
+function report(){document.querySelector('#result').textContent=`红点：${s.redHit?'成功':'未完成'}；拖拽：${s.dragComplete?'成功':'未完成'}；误点：${s.wrongHits}`}
+canvas.onpointerdown=e=>{const p=pos(e);s.events.push({type:'down',...p});if(Math.hypot(p.x-200,p.y-120)<=5)s.redHit=true;else if([170,230].some(x=>Math.hypot(p.x-x,p.y-120)<=5))s.wrongHits++;if(Math.hypot(p.x-210,p.y-170)<=5&&!s.dragComplete){dragging=true;pointer=p;canvas.setPointerCapture(e.pointerId)}draw();report()};
+canvas.onpointermove=e=>{if(dragging){pointer=pos(e);draw()}};canvas.onpointerup=e=>{if(dragging){const p=pos(e);s.dragComplete=Math.hypot(p.x-300,p.y-170)<=9;s.events.push({type:'drop',...p});dragging=false;draw();report()}};
+document.querySelector('#zoom').onclick=()=>{s.zoom=3;canvas.style.zoom='3';view.scrollLeft=450;view.scrollTop=230;report()};document.querySelector('#reset').onclick=()=>{s.zoom=1;canvas.style.zoom='1';view.scrollTo(0,0);report()};document.querySelector('#shift').onclick=()=>view.scrollTo(1600,900);draw();
+</script>

@@ -4,9 +4,14 @@ import { pathToFileURL } from 'node:url';
 
 export async function startFixture(port = 0) {
   const page = await readFile(new URL('./page.html', import.meta.url)), visual = await readFile(new URL('./visual.html', import.meta.url)), geometry = await readFile(new URL('./geometry.html', import.meta.url));
+  const zoomPage = await readFile(new URL('./zoom-workbench.html', import.meta.url));
   const navigationRequests = [];
   const server = createServer((req, res) => {
-    if (req.url === '/geometry') {
+    if (req.url === '/zoom-workbench') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(zoomPage);
+    } else if (req.url === '/zoom-frame') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(`<style>body{font:16px system-ui}input{width:220px}output{display:block}</style><label>框架备注<input aria-label="框架备注"></label><button onclick="document.querySelector('output').textContent=document.querySelector('input').value">保存框架备注</button><output>未保存</output>`);
+    } else if (req.url === '/geometry') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(geometry);
     } else if (req.url === '/visual') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(visual);
