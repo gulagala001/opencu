@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fork, execFile } from 'node:child_process';
 import { once } from 'node:events';
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -122,12 +122,38 @@ test('normal browser restart preserves the real profile website storage', { time
   await record.page.evaluate(value => localStorage.setItem('cu-profile', value), value);
   await record.page.context().addCookies([{ name: 'cu-profile', value, url: fixture.url, expires: Date.now() / 1000 + 3600 }]);
   const browser = await record.page.context().browser().newBrowserCDPSession();
-  await browser.send('Browser.close').catch(() => {});
-  await until(() => host.run.lost);
-  const next = await host.create('test', fixture.url), restored = await host.target('test', next.id);
-  assert.equal(await restored.page.evaluate(() => localStorage.getItem('cu-profile')), value);
-  assert.equal((await restored.page.context().cookies(fixture.url)).find(cookie => cookie.name === 'cu-profile')?.value, value);
-  assert.notEqual(next.id, tab.id);
+  const originalRun = host.run, guardian = host.child, started = Date.now();
+  const evidence = { platform: process.platform, guardianMessages: [], samples: [] };
+  const pidState = pid => {
+    if (!pid) return { pid: null, alive: null };
+    try { return { pid, alive: alive(pid) }; } catch (error) { return { pid, alive: null, error: error.message }; }
+  };
+  const sample = phase => ({ phase, elapsedMs: Date.now() - started, browser: pidState(originalRun.browserPid), guardian: pidState(guardian.pid), lost: originalRun.lost, runPhase: originalRun.phase, currentRunId: host.run?.id, originalRunId: originalRun.id, guardianExitCode: guardian.exitCode, guardianSignalCode: guardian.signalCode });
+  const onMessage = message => evidence.guardianMessages.push({ elapsedMs: Date.now() - started, message });
+  guardian.on('message', onMessage);
+  evidence.samples.push(sample('before-close'));
+  try {
+    const closeStarted = Date.now();
+    await browser.send('Browser.close').then(result => { evidence.close = { result: result ?? null, elapsedMs: Date.now() - closeStarted }; }, error => { evidence.close = { error: { name: error.name, message: error.message, code: error.code }, elapsedMs: Date.now() - closeStarted }; });
+    evidence.samples.push(sample('after-close'));
+    await until(() => { evidence.samples.push(sample('waiting-for-lost')); return host.run.lost; });
+    const next = await host.create('test', fixture.url), restored = await host.target('test', next.id);
+    assert.equal(await restored.page.evaluate(() => localStorage.getItem('cu-profile')), value);
+    assert.equal((await restored.page.context().cookies(fixture.url)).find(cookie => cookie.name === 'cu-profile')?.value, value);
+    assert.notEqual(next.id, tab.id);
+  } catch (error) {
+    evidence.failure = { name: error.name, message: error.message };
+    error.message += '\nBrowser restart evidence: ' + JSON.stringify({ close: evidence.close, last: sample('failure'), guardianMessages: evidence.guardianMessages });
+    throw error;
+  } finally {
+    evidence.samples.push(sample('finished')); guardian.off('message', onMessage);
+    if (process.env.TRISOUL_CU_UI_ARTIFACTS) {
+      const artifact = join(process.cwd(), 'cu-artifacts', `browser-profile-restart-${started}`);
+      await mkdir(artifact, { recursive: true });
+      await writeFile(join(artifact, 'lifecycle.json'), JSON.stringify(evidence, null, 2));
+      t.diagnostic('Browser restart evidence: ' + artifact);
+    }
+  }
 });
 
 test('browser crash clears the pane target and a user can open a fresh tab', { timeout: 15000 }, async t => {
