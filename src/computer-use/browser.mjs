@@ -18,6 +18,21 @@ export function browserExecutablePath(requested) {
   return installed.find(path => existsSync(path)) ?? chromium.executablePath();
 }
 
+// A guardian can close IPC just before its exit event arrives. A failed Stop
+// write is not proof that shutdown failed; the owned process exit is decisive.
+export async function waitForWindowsGuardian(run, timeoutMs = 12000) {
+  let sendError, timer;
+  if (run.child.connected) {
+    try { run.child.send({ type: 'stop' }, error => { sendError = error; }); }
+    catch (error) { sendError = error; }
+  }
+  try {
+    await Promise.race([run.exited, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Windows browser shutdown is still pending; retry Stop.', { cause: sendError })), timeoutMs);
+    })]);
+  } finally { clearTimeout(timer); }
+}
+
 function debuggingEndpoint(address) {
   const [port, path] = (address ?? '').trim().split('\n');
   return /^\d+$/.test(port) && Number(port) > 0 && Number(port) <= 65535 && path?.startsWith('/devtools/browser/') ? `ws://127.0.0.1:${port}${path}` : null;
@@ -311,10 +326,7 @@ export class BrowserHost extends BrowserActions {
         if (child.exitCode === null && child.signalCode === null) {
           // The guardian owns the browser's exit handle. Killing the guardian
           // first loses that confirmation while Chrome still holds its files.
-          if (child.connected) await new Promise((resolve, reject) => { child.send({ type: 'stop' }, error => error && child.exitCode === null && child.signalCode === null ? reject(error) : resolve()); });
-          let timer;
-          try { await Promise.race([run.exited, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Windows browser shutdown is still pending; retry Stop.')), 12000); })]); }
-          finally { clearTimeout(timer); }
+          await waitForWindowsGuardian(run);
         }
         if (run.cleanupError) throw run.cleanupError;
       } else {
