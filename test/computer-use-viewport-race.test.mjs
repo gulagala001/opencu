@@ -3,6 +3,30 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 import { BrowserActions } from '../src/computer-use/browser-actions.mjs';
+import { screenshotGeometry } from '../src/computer-use/browser-screenshot.mjs';
+
+test('navigation destroying a pending scroll read is a stale screenshot and permits a fresh observation', { timeout: 15000 }, async t => {
+  const browser = await chromium.launch({ channel: 'chromium' });
+  t.after(() => browser.close());
+  const page = await browser.newPage(), cdp = await page.context().newCDPSession(page);
+  await page.goto('data:text/html,old document');
+  const frame = page.mainFrame(), evaluate = frame.evaluate.bind(frame);
+  let entered;
+  const started = new Promise(resolve => { entered = resolve; });
+  page.on('console', message => { if (message.text() === 'pending-scroll-read') entered(); });
+  frame.evaluate = () => {
+    frame.evaluate = evaluate;
+    return evaluate(() => new Promise(() => console.log('pending-scroll-read')));
+  };
+  const reading = screenshotGeometry({ page, cdp });
+  const rejected = assert.rejects(reading, error => error.code === 'STALE_SCREENSHOT');
+  await started;
+  await page.goto('data:text/html,new document');
+  await rejected;
+  const fresh = await screenshotGeometry({ page, cdp });
+  assert.ok(fresh.width > 0 && fresh.height > 0);
+  assert.equal(fresh.scrollState, '[[[0,0]]]');
+});
 
 test('viewport reset and resize survive an in-flight screenshot restoration', { timeout: 20000 }, async t => {
   const browser = await chromium.launch({ channel: 'chromium' });
