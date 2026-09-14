@@ -121,10 +121,11 @@ test('backend cleanup errors settle the active tool and leave a resettable worke
   assert.equal((await runtime.execute('nodeRepl.write(42)')).blocks[0].text,'42');
 });
 
-test('temporary-tab delivery notice accompanies visible screenshots but not silent observations',async t=>{
+test('temporary-tab screenshots emit images without adding reply or handoff instructions',async t=>{
  const runtime=new ComputerRuntime(async(method,args)=>method==='createBrowserTab'?{id:'one',kind:'tab',browserId:'browser'}:method==='target'&&args[1]==='getScreenshot'?{screenshot:Buffer.from('image').toString('base64'),retention:'temporary'}:{state:'page'});
  t.after(()=>runtime.reset());await runtime.execute("const tab=await cua.createBrowserTab('browser','about:blank');");
- const shown=await runtime.execute('await tab.getScreenshot();');assert.equal(shown.blocks.filter(b=>b.type==='image').length,1);assert.match(shown.blocks.at(-1).text,/will close.*markDeliverable/s);
+ const shown=await runtime.execute('await tab.getScreenshot();');assert.equal(shown.blocks.filter(b=>b.type==='image').length,1);assert.equal(shown.blocks.length,1);assert.equal(shown.blocks[0].data,Buffer.from('image').toString('base64'));
+ const again=await runtime.execute('await tab.getScreenshot();');assert.equal(again.blocks.length,1);assert.equal(again.blocks[0].type,'image');
  const silent=await runtime.execute('await tab.getScreenshot({emit:false});');assert.equal(silent.blocks.length,0);
 });
 
