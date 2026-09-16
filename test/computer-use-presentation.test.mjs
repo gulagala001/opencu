@@ -26,6 +26,6 @@ test('cancelled presentation expires and cannot be acknowledged later',async()=>
  await assert.rejects(m.presentBrowser('one','browser','yes'),/boolean/);
 });
 test('no active UI produces an explicit timeout rather than a claimed display',async()=>{
- const m=fixture();await assert.rejects(m.presentBrowser('one','browser',true),/No active DSH page confirmed/);
+ const m=fixture();await assert.rejects(m.presentBrowser('one','browser',true),/No active conversation client confirmed/);
  assert.equal(m.session('one').presentationRequest,null);assert.equal(m.session('one').presentationCompleted,undefined);
 });
