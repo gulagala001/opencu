@@ -29,7 +29,11 @@ for (const order of ['standalone-first', 'integration-first']) test('shared owne
   const directory = await mkdtemp(join(tmpdir(), 'opencu-owners-'));
   const ctx = new Context();
   t.after(async () => { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }); });
-  for (const name of ['llm', 'agents', 'sessions', 'sessionProjections']) ctx.provide(name, {});
+  for (const name of ['llm', 'agents', 'sessionProjections']) ctx.provide(name, {});
+  const titleSession = { id: 'session-title-fixture', header: { title: '过期的头部名称' } };
+  let titleReads = 0;
+  ctx.provide('sessions', { get: id => id === titleSession.id ? titleSession : undefined });
+  ctx.provide('sessionTitle', { get: () => { titleReads++; return { title: '真实会话名称' }; } });
   const settings = new Settings(ctx, { 'trisoul-x': { dataDir: directory, computerUseEnabled: false, computerUseNativeBinary: join(directory, 'missing-native') }, opencu: { computerUseEnabled: true, dataDir: join(directory, 'explicit') } });
   const tools = new Tools(ctx);
   let one, two;
@@ -41,6 +45,17 @@ for (const order of ['standalone-first', 'integration-first']) test('shared owne
   await second; await one.fiber;
   assert.equal(one, two);
   assert.equal(one.computerUse, two.computerUse);
+  one.computerUse.extensionConnected({ id: 'chrome:title-test', epoch: 'title-test', capabilities: ['session-tab-groups'] });
+  const browser = one.computerUse.extensionBrowsers.get('chrome:title-test');
+  assert.equal(browser.getSessionTitle(titleSession.id), '真实会话名称');
+  assert.equal(browser.getSessionTitle(titleSession.id), '真实会话名称');
+  assert.equal(titleReads, 1, 'do not fold the full session log on every browser action');
+  let renamed;
+  browser.renameSessionGroup = async (id, title) => { renamed = { id, title }; };
+  ctx.emit('session/event', titleSession, { type: 'session/title', data: { title: '会话新名称' } });
+  assert.equal(browser.getSessionTitle(titleSession.id), '会话新名称');
+  assert.deepEqual(renamed, { id: titleSession.id, title: '会话新名称' });
+
   assert.equal(one.computerUse.directory, join(directory, 'explicit', 'computer-use'), 'explicit OpenCU data directory wins in both load orders');
   assert.equal(one.config().computerUseEnabled, true, 'explicit OpenCU setting takes precedence');
   assert.equal(one.config().computerUseNativeBinary, join(directory, 'missing-native'), 'preserve legacy runtime path');
