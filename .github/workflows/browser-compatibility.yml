@@ -21,4 +21,4 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
-      - run: node --test --test-concurrency=1 test/computer-use-cold-navigation.test.mjs test/computer-use-initial-navigation.test.mjs
+      - run: node --test --test-concurrency=1 test/windows-startup-isolation.mjs
