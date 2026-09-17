@@ -1,0 +1,39 @@
+name: Export tested release snapshot
+on:
+  push:
+    branches: ['diagnostics/windows-startup-isolation']
+    paths: ['.github/workflows/candidate-export.yml']
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: gulagala001/oh-my-dsh
+          ref: 4bd262c4f3392cb769dfff6c7cf2759d1d5f69d3
+          path: omd
+      - uses: actions/checkout@v7
+        with:
+          repository: gulagala001/opencu
+          ref: 27153eda602e587575b4e9091a12bf718934efcc
+          path: cu
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Export committed sources and compiled assets
+        run: |
+          mkdir artifacts
+          git -C omd archive --format=zip --prefix=oh-my-dsh-v0.1.6-alpha.2.1/ -o "$PWD/artifacts/oh-my-dsh-v0.1.6-alpha.2.1.zip" HEAD
+          git -C cu archive --format=zip --prefix=opencu-v1.0.3/ -o "$PWD/artifacts/opencu-v1.0.3.zip" HEAD
+          (cd omd && npm pack --ignore-scripts --pack-destination ../artifacts)
+          (cd cu && npm pack --ignore-scripts --pack-destination ../artifacts)
+          cp omd/docs/upstream-patches/dsh-alpha2-release-output.patch artifacts/
+          (cd artifacts && sha256sum *.zip *.tgz *.patch > SHA256SUMS)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tested-candidate-snapshots
+          path: artifacts/
+          retention-days: 14
