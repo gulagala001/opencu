@@ -8,7 +8,7 @@ function fixture() {
   const initial = new Promise((resolve, reject) => { ready = resolve; fail = reject; });
   const calls = [];
   const page = {
-    waitForLoadState: async state => { assert.equal(state, 'domcontentloaded'); calls.push('initial'); entered(); await initial; },
+    waitForLoadState: async state => { assert.equal(state, process.platform === 'win32' ? 'networkidle' : 'domcontentloaded'); calls.push('initial'); entered(); await initial; },
     waitForFunction: async predicate => { assert.match(predicate.toString(), /document.readyState/); calls.push('document'); return { dispose: async () => {} }; },
     goto: async url => { calls.push('goto'); current = url; },
     title: async () => 'Loaded page', url: () => current,

@@ -2,7 +2,7 @@ name: Browser compatibility
 on:
   push:
     branches: ['main']
-    paths: ['test/browser-startup-diagnostics.mjs', '.github/workflows/browser-compatibility.yml']
+    paths: ['src/computer-use/browser.mjs', 'test/computer-use-cold-navigation.test.mjs', 'test/computer-use-initial-navigation.test.mjs', '.github/workflows/browser-compatibility.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,4 +18,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install chromium
-      - run: node --test test/browser-startup-diagnostics.mjs
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - run: node --test --test-concurrency=1 test/computer-use-cold-navigation.test.mjs test/computer-use-initial-navigation.test.mjs
