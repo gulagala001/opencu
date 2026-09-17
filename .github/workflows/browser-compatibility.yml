@@ -1,0 +1,21 @@
+name: Browser compatibility
+on:
+  push:
+    branches: ['main']
+    paths: ['test/browser-startup-diagnostics.mjs', '.github/workflows/browser-compatibility.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cold-start:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
+      - run: node --test test/browser-startup-diagnostics.mjs
