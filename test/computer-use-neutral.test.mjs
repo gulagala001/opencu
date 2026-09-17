@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BROWSER_DOCUMENTATION, documentationTopic } from '../src/computer-use/api-docs.mjs';
@@ -35,5 +36,5 @@ test('native missing-runtime message is neutral but the installed application pa
   await assert.rejects(NativeHost.prototype.launch.call({ available: () => false }), error => {
     assertNeutral(error.message); assert.match(error.message, /application settings/); return true;
   });
-  assert.ok(defaultNativeBinary('/fixture/apps').endsWith('/Oh My DSH Computer Use.app/Contents/MacOS/trisoul-computer-use'));
+  assert.equal(defaultNativeBinary('/fixture/apps'), join('/fixture/apps', 'Oh My DSH Computer Use.app', 'Contents', 'MacOS', 'trisoul-computer-use'));
 });

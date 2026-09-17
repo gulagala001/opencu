@@ -9,6 +9,7 @@ function fixture() {
   const calls = [];
   const page = {
     waitForLoadState: async state => { assert.equal(state, 'domcontentloaded'); calls.push('initial'); entered(); await initial; },
+    waitForFunction: async predicate => { assert.match(predicate.toString(), /document.readyState/); calls.push('document'); return { dispose: async () => {} }; },
     goto: async url => { calls.push('goto'); current = url; },
     title: async () => 'Loaded page', url: () => current,
     close: async () => { calls.push('close'); },
@@ -26,7 +27,7 @@ test('the first requested URL waits for the initial document and is sent exactly
   const f = fixture(), pending = BrowserHost.prototype.create.call(f.host, 'session', 'https://fixture.test/');
   await f.waiting; assert.deepEqual(f.calls, ['initial']);
   f.ready(); const result = await pending;
-  assert.deepEqual(f.calls, ['initial', 'goto']); assert.equal(result.url, 'https://fixture.test/');
+  assert.deepEqual(f.calls, ['initial', 'document', 'goto']); assert.equal(result.url, 'https://fixture.test/');
 });
 test('cancelling during initial document readiness never starts the requested navigation', async () => {
   const f = fixture(), controller = new AbortController();

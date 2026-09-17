@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { BrowserHost } from '../src/computer-use/browser.mjs';
@@ -18,7 +18,7 @@ test('cold browser targets commit their first requested URL exactly once', { tim
     open.call(this);
     this.socket?.on('message', data => {
       const message = JSON.parse(data.toString());
-      if (state.pending.delete(message.id) || /^(Page\.(frameNavigated|frameStartedNavigating|frameRequestedNavigation|frameStartedLoading|frameStoppedLoading|lifecycleEvent)|Target\.(targetCreated|targetDestroyed|attachedToTarget|detachedFromTarget)|Network\.loadingFailed)$/.test(message.method ?? '')) state.evidence.protocol.push({ at: Date.now(), direction: 'received', ...message });
+      if (state.pending.delete(message.id) || /^(Page\.(frameNavigated|frameStartedNavigating|frameRequestedNavigation|frameStartedLoading|frameStoppedLoading|lifecycleEvent)|Target\.(targetCreated|targetDestroyed|attachedToTarget|detachedFromTarget)|Network\.(loadingFailed|requestWillBeSent|responseReceived))$/.test(message.method ?? '')) state.evidence.protocol.push({ at: Date.now(), direction: 'received', ...message });
     });
   };
   BrowserTransport.prototype.write = function (message) {
@@ -47,6 +47,7 @@ test('cold browser targets commit their first requested URL exactly once', { tim
       t.diagnostic(JSON.stringify({ runtime, attempt, error: error.message, recentProtocol: evidence.protocol.slice(-8) })); throw error;
     } finally {
       evidence.runtimePath = host.runtimePath;
+      evidence.browserLog = await readFile(join(root, 'browser-profile', 'browser-startup.log'), 'utf8').catch(() => '');
       evidence.run = host.run && { browserPid: host.run.browserPid, guardianPid: host.run.child?.pid, lost: host.run.lost, phase: host.run.phase, stderr: host.run.stderr };
       try {
         if (process.env.TRISOUL_CU_UI_ARTIFACTS) {
