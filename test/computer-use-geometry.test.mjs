@@ -76,7 +76,8 @@ for (const backend of ['managed', 'extension']) {
   test(backend + ' screenshot points survive pinch zoom and pan through the model-preview mapping', { timeout: 45000, skip: backend === 'extension' && process.platform === 'win32' }, async t => {
     const s = await setup(t, backend);
     for (const pan of [false, true]) {
-      await s.page.reload();
+      // Finish this fixture's reload before the external driver changes pinch.
+      await s.page.reload({ waitUntil: 'networkidle' });
       await s.driver.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
       await waitForViewport(s.driver, { scale: 2, zoom: 1 });
       if (pan) await panViewport(s.driver);
@@ -129,7 +130,8 @@ for (const backend of ['managed', 'extension']) {
           await worker.evaluate(({ id, zoom }) => chrome.tabs.setZoom(id, zoom), { id: s.tab.nativeTabId, zoom });
           await waitForViewport(s.driver, { zoom });
         }
-        await s.page.reload();
+        // Finish this fixture's reload before the external driver changes pinch.
+        await s.page.reload({ waitUntil: 'networkidle' });
         await s.driver.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
         await waitForViewport(s.driver, { scale: 2, zoom });
           if (pan) await panViewport(s.driver);
