@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
-import { createServer } from 'node:http';
+import http from 'node:http';
+import { startFixture } from './fixtures/computer-use/server.mjs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -27,14 +28,13 @@ for (const mode of ['baseline', 'native-transport', 'startup-window', 'stop-blan
       return originalConnect.call(this, endpoint, options);
     };
     t.after(() => { childProcess.fork = originalFork; syncBuiltinESMExports(); chromium.connectOverCDP = originalConnect; });
-    const requests = new Map();
-    const server = createServer((req, res) => {
-      requests.set(req.url, (requests.get(req.url) ?? 0) + 1);
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end('<!doctype html><title>Startup ready</title><h1>Ready</h1>');
-    });
-    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+    const fixture = await startFixture(), requests = new Map();
+    const originalEmit = http.Server.prototype.emit;
+    http.Server.prototype.emit = function(event, ...args) {
+      if (event === 'request') requests.set(args[0].url, (requests.get(args[0].url) ?? 0) + 1);
+      return originalEmit.call(this, event, ...args);
+    };
+    t.after(async () => { http.Server.prototype.emit = originalEmit; await fixture.close(); });
     for (let i = 0; i < 10; i++) await t.test('fresh profile ' + i, async () => {
       const root = await mkdtemp(join(tmpdir(), 'cu-startup-isolated-'));
       const host = new BrowserHost(root, { executablePath: chromium.executablePath() });
@@ -50,7 +50,7 @@ for (const mode of ['baseline', 'native-transport', 'startup-window', 'stop-blan
           return record;
         };
       }
-      const path = '/probe?case=' + i, url = `http://127.0.0.1:${server.address().port}${path}`;
+      const path = '/probe?case=' + i, url = fixture.url + path;
       const began = performance.now();
       try {
         const tab = await host.create('probe', url);
