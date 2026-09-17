@@ -7,3 +7,7 @@ allowBuilds:
   protobufjs: true
 minimumReleaseAgeExclude:
   - '@deepseek-ai/*'
+
+# DSH office preview transitively pins a vulnerable ZIP parser.
+overrides:
+  'fflate@<0.8.3': 0.8.3
