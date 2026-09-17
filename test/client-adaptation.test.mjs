@@ -32,7 +32,8 @@ test('CU state sharing remains session-isolated and applies host mutation events
 
 function slotFixture() {
   const entries = [], listeners = new Set(); const emit = () => { for (const listener of listeners) listener(); };
-  return { entries, listeners, entriesOfSlot: () => [...entries].sort((a, b) => (a.options.priority || 0) - (b.options.priority || 0)),
+  return { allEntries: entries, listeners, entries: () => [...entries].sort((a, b) => (a.options.priority || 0) - (b.options.priority || 0)),
+    entriesOfSlot: () => [...entries].sort((a, b) => (a.options.priority || 0) - (b.options.priority || 0)).filter((entry, i, all) => all.findIndex(e => e.options.key === entry.options.key) === i),
     subscribe: (_name, listener) => { listeners.add(listener); return () => listeners.delete(listener); },
     register(options, component) { const entry = { options, component }; entries.push(entry); emit(); return () => { const index = entries.indexOf(entry); if (index !== -1) entries.splice(index, 1); emit(); }; },
   };
@@ -42,12 +43,12 @@ test('live renderer removal, replacement and two adapter layers never retain or 
   let removeHost = slots.register({ name: 'test', key: 'one' }, () => 'host');
   const a = decorateSlot(slots, 'test', () => true, wrap('A'));
   const b = decorateSlot(slots, 'test', () => true, wrap('B'));
-  assert.equal(slots.entriesOfSlot()[0].component(), 'B(A(host))'); assert.equal(slots.entries.length, 3);
-  removeHost(); assert.equal(slots.entries.length, 0);
+  assert.equal(slots.entriesOfSlot()[0].component(), 'B(A(host))'); assert.equal(slots.allEntries.length, 3);
+  removeHost(); assert.equal(slots.allEntries.length, 0);
   removeHost = slots.register({ name: 'test', key: 'one' }, () => 'new');
-  assert.equal(slots.entriesOfSlot()[0].component(), 'B(A(new))'); assert.equal(slots.entries.length, 3);
-  a(); assert.equal(slots.entriesOfSlot()[0].component(), 'B(new)'); assert.equal(slots.entries.length, 2);
-  b(); assert.equal(slots.entries.length, 1); assert.equal(slots.listeners.size, 0); removeHost();
+  assert.equal(slots.entriesOfSlot()[0].component(), 'B(A(new))'); assert.equal(slots.allEntries.length, 3);
+  a(); assert.equal(slots.entriesOfSlot()[0].component(), 'B(new)'); assert.equal(slots.allEntries.length, 2);
+  b(); assert.equal(slots.allEntries.length, 1); assert.equal(slots.listeners.size, 0); removeHost();
 });
 
 test('official browser preview uses the owning tab navigation without controlling or replacing the CU target', () => {
