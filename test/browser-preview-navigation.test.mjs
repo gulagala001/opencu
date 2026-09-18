@@ -36,7 +36,10 @@ test('delayed navigation cannot invalidate current preview input; new navigation
   await page.evaluate(frame => {
     // CDP can publish the document's screenshot before navigation history has
     // returned. Deliver both before React renders or the new image decodes.
-    emit('frame', { ...frame, id: 'raced-frame', loaderId: 'raced' });
+    emit('frame', { ...frame, id: 'raced-frame', loaderId: 'raced', observedAt: 25 });
+    // This delayed event is newer than the last delivered navigation, but
+    // older than the document whose screenshot was already received.
+    emit('navigation', { loaderId: 'old-delayed', observedAt: 22, tabId: 'tab' });
     emit('navigation', { loaderId: 'raced', observedAt: 25, tabId: 'tab' });
   }, { ...frame, data: changedData });
   await img.evaluate(img => img.decode());

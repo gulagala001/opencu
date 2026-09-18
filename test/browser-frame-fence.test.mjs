@@ -28,6 +28,8 @@ test('a fence advancing during the metrics query invalidates an in-flight JPEG',
 
 test('fresh JPEGs still pass without an unnecessary screenshot capture', async () => {
   const f = fixture(true); f.event.metadata.timestamp = 25;
+  const started = performance.now();
   await f.views.flush(f.view); assert.equal(f.published.length, 1);
+  assert.ok(f.view.latest.observedAt >= started && f.view.latest.observedAt <= performance.now());
   assert.equal(f.view.latest.data, 'old'); assert.equal(f.view.latest.mediaType, 'image/jpeg');
 });
