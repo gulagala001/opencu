@@ -1,0 +1,35 @@
+name: Synchronize published release documentation
+on:
+  push:
+    branches: ['sync/release-docs-20260918']
+permissions:
+  contents: write
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Apply only reviewed documentation changes
+        env:
+          PATCH_COMMIT: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = 'b6c0e48c3148d082784f67dfcbb1cc7c88fc1745'
+          git fetch origin "$PATCH_COMMIT"
+          git show "$PATCH_COMMIT:release-doc-sync.patch" > "$RUNNER_TEMP/release-doc-sync.patch"
+          git apply --check "$RUNNER_TEMP/release-doc-sync.patch"
+          git apply "$RUNNER_TEMP/release-doc-sync.patch"
+          git diff --check
+          python3 - <<'PY'
+          import subprocess
+          expected={'README.md','docs/usage.md','docs/windows.md'}
+          assert set(subprocess.check_output(['git','diff','--name-only'],text=True).splitlines())==expected
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md docs/usage.md docs/windows.md
+          git commit -m 'docs: align release guidance with DSH alpha.2 and verification limit [skip ci]'
+          git push origin HEAD:main
+          git rev-parse HEAD
