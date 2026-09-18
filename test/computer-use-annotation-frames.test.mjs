@@ -17,7 +17,15 @@ for(const backend of ['managed','extension'])test(backend+': nested frame annota
   const manager=new ComputerUseManager(root,{...(external?{extensionHub:external.hub}:{}),browser:{executablePath:await testBrowserExecutable(root)},native:{binary:join(root,'missing')}});
   t.after(async()=>{await close?.();await manager.close();for(const cleanup of cleanups)await cleanup();crossServer.closeAllConnections();server.closeAllConnections();await Promise.all([new Promise(resolve=>crossServer.close(resolve)),new Promise(resolve=>server.close(resolve))]);await rm(root,{recursive:true,force:true});});
   const tab=await manager.dispatch('frames','createBrowserTab',[external?.browser.id??'browser',fixture.url]);let actor,frame;
-  close=await manager.watchBrowser('frames',tab.id,(type,value)=>{if(type==='ready')actor=value.actor;if(type==='frame')frame=value;});
+  // Prepare both fixture branches before starting its short-lived preview
+  // observer. This test measures annotation geometry, not cold page loading;
+  // navigation while observing is independently exercised by the view suite.
+  const fixturePage=(await manager.browserForTab(tab.id,tab.browserId).target('frames',tab.id)).page;
+  await fixturePage.waitForFunction(() => document.readyState === 'complete');
+  await fixturePage.frameLocator('#cross').frameLocator('#nested').locator('#target').waitFor({state:'visible'});
+  await fixturePage.frameLocator('#same').frameLocator('#nested').locator('#target').waitFor({state:'visible'});
+  const observationFailures=[];
+  close=await manager.watchBrowser('frames',tab.id,(type,value)=>{if(type==='ready')actor=value.actor;if(type==='frame')frame=value;if(type==='failure')observationFailures.push(value);});
   for(let i=0;i<100&&!frame;i++)await new Promise(r=>setTimeout(r,20));assert.ok(frame);
   const views=manager.viewsFor(manager.status('frames').target),view=views.views.get(tab.id),page=view.record.page;
   // The test observer owns this viewport. A model-owned viewport is correctly
@@ -27,7 +35,7 @@ for(const backend of ['managed','extension'])test(backend+': nested frame annota
   // branch. Initial navigation only promises DOMContentLoaded on the top page.
   // This observer attaches after navigation and can miss the earlier load
   // notification. Read current DOM readiness, then verify both frame branches.
-  await page.waitForFunction(() => document.readyState === 'complete');
+  assert.deepEqual(observationFailures,[],'the prepared fixture must retain its observer');
   await page.frameLocator('#cross').frameLocator('#nested').locator('#target').waitFor({state:'visible'});
   await page.frameLocator('#same').frameLocator('#nested').locator('#target').waitFor({state:'visible'});
   const cross=await(await page.locator('#cross').elementHandle()).contentFrame(),inner=await(await cross.locator('#nested').elementHandle()).contentFrame();await inner.evaluate(()=>scrollTo(0,20));
@@ -53,5 +61,6 @@ for(const backend of ['managed','extension'])test(backend+': nested frame annota
   const fresh=await capture(),next=fresh.elements.find(e=>e.id==='target'&&e.framePath[0].id==='cross');assert.ok(next);
   const observe=views.browser.observeScreenshot;let moved=false;views.browser.observeScreenshot=async(...args)=>{if(!moved){moved=true;await inner.goto(fixture.url+'/inner?during-preview');}return observe.apply(views.browser,args);};
   await assert.rejects(manager.annotationStylePreview('frames',{...input(),sourceFrameId:fresh.frame.id,elementKey:next.key,changes:{color:'red'}}));views.browser.observeScreenshot=observe;
+  assert.deepEqual(observationFailures,[],'annotation must not silently lose its preview');
   assert.equal(view.stylePreview,null,'child navigation does not leave an unrecoverable style lease');assert.equal(await inner.locator('#target').getAttribute('style'),null);
 });
