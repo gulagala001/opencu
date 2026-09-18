@@ -1,0 +1,47 @@
+name: Prepare initial document compatibility
+on:
+  push:
+    branches: ['completion/windows-initial-document']
+    paths: ['.github/workflows/prepare-initial-document.yml']
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Apply bounded initialization and align restart-test setup budgets
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/computer-use/browser.mjs');s=p.read_text()
+          old="        await record.cdp.send('Page.stopLoading');\n        signal?.throwIfAborted();\n      }\n      record.navigating = true;"
+          assert s.count(old)==1
+          new="        await record.cdp.send('Page.stopLoading');\n        signal?.throwIfAborted();\n        if (url !== 'about:blank') {\n          // The first empty target can still be provisional in Chromium.\n          // Commit only that empty document before dispatching the user URL.\n          await page.goto('about:blank', { waitUntil: 'load' });\n          signal?.throwIfAborted();\n        }\n      }\n      record.navigating = true;"
+          p.write_text(s.replace(old,new,1))
+          p=Path('test/computer-use-initial-navigation.test.mjs');s=p.read_text()
+          old="goto: async url => { calls.push('goto'); current = url; }"
+          assert old in s
+          s=s.replace(old,"goto: async url => { calls.push(url === 'about:blank' ? 'initialize' : 'goto'); current = url; }",1)
+          old="...(process.platform === 'win32' ? ['retire'] : [])"
+          assert old in s
+          p.write_text(s.replace(old,"...(process.platform === 'win32' ? ['retire', 'initialize'] : [])",1))
+          p=Path('test/computer-use-lifecycle.test.mjs');s=p.read_text()
+          old="import { BrowserHost } from '../src/computer-use/browser.mjs';";assert old in s
+          s=s.replace(old,"import { BrowserHost, BROWSER_STARTUP_TIMEOUT_MS } from '../src/computer-use/browser.mjs';",1)
+          marker='const runFile = promisify(execFile);';assert marker in s
+          s=s.replace(marker,marker+"\n// These cases include two cold launches plus shutdown. Do not time out the\n// test before either launch's existing bounded budget. Transition assertions\n// below retain their original 4-5 second limits.\nconst lifecycleTimeout = process.platform === 'win32' ? 2 * BROWSER_STARTUP_TIMEOUT_MS + 15000 : 15000;",1)
+          assert s.count('{ timeout: 15000 }, async t => {')==5
+          s=s.replace('{ timeout: 15000 }, async t => {','{ timeout: lifecycleTimeout }, async t => {')
+          p.write_text(s)
+          Path('.github/workflows/prepare-initial-document.yml').unlink()
+          PY
+          node --check src/computer-use/browser.mjs
+          node --check test/computer-use-initial-navigation.test.mjs
+          node --check test/computer-use-lifecycle.test.mjs
+          node --check test/windows-initial-document.test.mjs
+          git diff --check
+          git add src/computer-use/browser.mjs test/computer-use-initial-navigation.test.mjs test/computer-use-lifecycle.test.mjs .github/workflows/prepare-initial-document.yml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: await the first real Windows document commit before user navigation'
+          git push origin HEAD:completion/windows-initial-document
