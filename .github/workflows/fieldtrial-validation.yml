@@ -1,0 +1,37 @@
+name: Validate managed Chromium field trials
+on:
+  push:
+    branches: ['validation/browser-fieldtrial']
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: ['baseline', 'disabled']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Original annotation and extended cold-start assertions
+        env:
+          CU_FIELD_TRIAL_MODE: ${{ matrix.mode }}
+          NODE_OPTIONS: --import=./test/fixtures/browser-field-trial.mjs
+          TRISOUL_CU_UI_ARTIFACTS: '1'
+        run: node --test --test-concurrency=1 test/computer-use-annotation-browser.test.mjs test/computer-use-cold-navigation.test.mjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: field-trial-${{ matrix.mode }}
+          path: cu-artifacts/
+          retention-days: 7
