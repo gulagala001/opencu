@@ -1,0 +1,26 @@
+name: Verified release delivery
+on:
+  push:
+    branches: ['release/delivery-v0.1.6-alpha.2.1']
+    paths: ['.github/workflows/release-delivery.yml']
+permissions:
+  contents: read
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download published release assets
+        run: |
+          mkdir -p artifacts/omd artifacts/opencu
+          gh release download v0.1.6-alpha.2.1 -R gulagala001/oh-my-dsh --dir artifacts/omd
+          gh release download v1.0.3 -R gulagala001/opencu --dir artifacts/opencu
+          (cd artifacts/omd && sha256sum --check SHA256SUMS)
+          (cd artifacts/opencu && sha256sum --check SHA256SUMS)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OMD-v0.1.6-alpha.2.1-final-delivery
+          path: artifacts/
+          retention-days: 30
