@@ -30,8 +30,6 @@ jobs:
                   signal?.throwIfAborted();
                 }
                 record.navigating = true;"""
-          # YAML removes ten spaces from this block, while JS uses six.
-          patch = '\n'.join(line[10:] if i else line for i,line in enumerate(patch.splitlines()))
           Path('src/computer-use/browser.mjs').write_text(baseline.replace(old,patch,1))
           for name in ['test/fixtures/computer-use/startup-probe.mjs','.github/workflows/release-completion-probe.yml','.github/workflows/prepare-completion.yml']:
               Path(name).unlink()
