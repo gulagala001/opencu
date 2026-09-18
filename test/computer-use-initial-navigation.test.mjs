@@ -11,7 +11,7 @@ function fixture({ retire = async () => {}, initialUrl = 'about:blank' } = {}) {
   const page = {
     waitForLoadState: async state => { assert.equal(state, process.platform === 'win32' ? 'networkidle' : 'domcontentloaded'); calls.push('initial'); entered(); await initial; },
     waitForFunction: async predicate => { assert.match(predicate.toString(), /document.readyState/); calls.push('document'); return { dispose: async () => {} }; },
-    goto: async url => { calls.push('goto'); current = url; },
+    goto: async url => { calls.push(url === 'about:blank' ? 'initialize' : 'goto'); current = url; },
     title: async () => 'Loaded page', url: () => current,
     close: async () => { calls.push('close'); },
   };
@@ -31,7 +31,7 @@ test('the first requested URL waits for the initial document and is sent exactly
   const f = fixture(), pending = BrowserHost.prototype.create.call(f.host, 'session', 'https://fixture.test/');
   await f.waiting; assert.deepEqual(f.calls, ['initial']);
   f.ready(); const result = await pending;
-  assert.deepEqual(f.calls, ['initial', 'document', ...(process.platform === 'win32' ? ['retire'] : []), 'goto']);
+  assert.deepEqual(f.calls, ['initial', 'document', ...(process.platform === 'win32' ? ['retire', 'initialize'] : []), 'goto']);
   assert.equal(result.url, 'https://fixture.test/');
 });
 test('cancelling during initial document readiness never starts the requested navigation', async () => {
