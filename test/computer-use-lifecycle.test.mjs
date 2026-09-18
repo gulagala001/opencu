@@ -6,12 +6,16 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { BrowserHost } from '../src/computer-use/browser.mjs';
+import { BrowserHost, BROWSER_STARTUP_TIMEOUT_MS } from '../src/computer-use/browser.mjs';
 import { ComputerUseManager } from '../src/computer-use/manager.mjs';
 import { startFixture } from './fixtures/computer-use/server.mjs';
 import { promisify } from 'node:util';
 
 const runFile = promisify(execFile);
+// These cases include two cold launches plus shutdown. Do not time out the
+// test before either launch's existing bounded budget. Transition assertions
+// below retain their original 4-5 second limits.
+const lifecycleTimeout = process.platform === 'win32' ? 2 * BROWSER_STARTUP_TIMEOUT_MS + 15000 : 15000;
 
 async function until(check, timeout = 4000) {
   const end = Date.now() + timeout;
@@ -72,7 +76,7 @@ test('owner death during startup also kills helpers that ignore termination', { 
   await until(() => !alive(info.browser) && !alive(info.helper) && !alive(info.guardian), 5000);
 });
 
-test('browser crash cancels old work and allows a fresh browser without rebinding old tabs', { timeout: 15000 }, async t => {
+test('browser crash cancels old work and allows a fresh browser without rebinding old tabs', { timeout: lifecycleTimeout }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-browser-crash-')), fixture = await startFixture();
   const host = new BrowserHost(root);
   t.after(async () => { await host.close(); await fixture.close(); await rm(root, { recursive: true, force: true }); });
@@ -89,7 +93,7 @@ test('browser crash cancels old work and allows a fresh browser without rebindin
   await assert.rejects(host.target('test', first.id), /closed|exited/i);
 });
 
-test('a second owner cannot disturb a live profile or use its debugging endpoint', { timeout: 15000 }, async t => {
+test('a second owner cannot disturb a live profile or use its debugging endpoint', { timeout: lifecycleTimeout }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-profile-owner-')), fixture = await startFixture();
   const first = new BrowserHost(root), second = new BrowserHost(root);
   t.after(async () => { await Promise.allSettled([second.close(), first.close()]); await fixture.close(); await rm(root, { recursive: true, force: true }); });
@@ -103,7 +107,7 @@ test('a second owner cannot disturb a live profile or use its debugging endpoint
   assert.match((await first.invoke('first', tab.id, 'getAXState', [])).state, /测试工作台/);
 });
 
-test('simultaneous launches never adopt the other process debugging endpoint', { timeout: 15000 }, async t => {
+test('simultaneous launches never adopt the other process debugging endpoint', { timeout: lifecycleTimeout }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-launch-race-')), fixture = await startFixture();
   const hosts = [new BrowserHost(root), new BrowserHost(root)];
   t.after(async () => { await Promise.allSettled(hosts.map(host => host.close())); await fixture.close(); await rm(root, { recursive: true, force: true }); });
@@ -114,7 +118,7 @@ test('simultaneous launches never adopt the other process debugging endpoint', {
   assert.equal(hosts[1 - index].records.size, 0);
 });
 
-test('normal browser restart preserves the real profile website storage', { timeout: 15000 }, async t => {
+test('normal browser restart preserves the real profile website storage', { timeout: lifecycleTimeout }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-profile-restart-')), fixture = await startFixture();
   const host = new BrowserHost(root), value = 'profile-' + crypto.randomUUID();
   t.after(async () => { await host.close(); await fixture.close(); await rm(root, { recursive: true, force: true }); });
@@ -156,7 +160,7 @@ test('normal browser restart preserves the real profile website storage', { time
   }
 });
 
-test('browser crash clears the pane target and a user can open a fresh tab', { timeout: 15000 }, async t => {
+test('browser crash clears the pane target and a user can open a fresh tab', { timeout: lifecycleTimeout }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-pane-crash-')), fixture = await startFixture();
   const manager = new ComputerUseManager(root, { native: { binary: join(root, 'uninstalled') } });
   t.after(async () => { await manager.close(); await fixture.close(); await rm(root, { recursive: true, force: true }); });
