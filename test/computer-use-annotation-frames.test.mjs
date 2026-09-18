@@ -25,7 +25,9 @@ for(const backend of ['managed','extension'])test(backend+': nested frame annota
   await view.cdp.send('Emulation.setDeviceMetricsOverride',{width:1280,height:800,deviceScaleFactor:1,mobile:false});
   // This assertion needs the complete fixture, not just its faster cross-site
   // branch. Initial navigation only promises DOMContentLoaded on the top page.
-  await page.waitForLoadState('load');
+  // This observer attaches after navigation and can miss the earlier load
+  // notification. Read current DOM readiness, then verify both frame branches.
+  await page.waitForFunction(() => document.readyState === 'complete');
   await page.frameLocator('#cross').frameLocator('#nested').locator('#target').waitFor({state:'visible'});
   await page.frameLocator('#same').frameLocator('#nested').locator('#target').waitFor({state:'visible'});
   const cross=await(await page.locator('#cross').elementHandle()).contentFrame(),inner=await(await cross.locator('#nested').elementHandle()).contentFrame();await inner.evaluate(()=>scrollTo(0,20));
