@@ -1,0 +1,29 @@
+name: Retire superseded candidate check
+on:
+  push:
+    branches: ['release/alpha2-verified']
+    paths: ['.github/workflows/retire-superseded-check.yml']
+permissions:
+  contents: read
+  actions: write
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only the explicitly superseded incomplete run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json,subprocess
+          repo='gulagala001/opencu';expected='13813e9269e3b7c87778fd1aa937fc47ff0e2349'
+          def get(path):return json.loads(subprocess.check_output(['gh','api','repos/'+repo+'/'+path],text=True))
+          assert get('branches/main')['commit']['sha']==expected
+          run=get('actions/runs/35293895916')
+          assert run['head_sha']=='a10466a9ccd3afed57eba47d1770d101fe43a8ed' and run['head_branch']=='main' and run['name']=='CI' and run['event']=='push'
+          if run['status'] in ['queued','pending','in_progress']:
+              subprocess.run(['gh','api','--method','POST','repos/'+repo+'/actions/runs/35293895916/cancel'],check=True)
+              print('Superseded run cancelled; existing results and logs retained. Current release checks unchanged.')
+          else:print('Previous run already finished; nothing changed.')
+          PY
