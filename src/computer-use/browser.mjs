@@ -123,7 +123,7 @@ export class BrowserHost extends BrowserActions {
       });
     });
     child.on('message', message => {
-      if (message.type === 'browser-job-started') { run.jobPid = message.pid; run.phase = 'job-helper'; }
+      if (message.type === 'browser-job-started') { run.jobPid = message.pid; run.phase = 'browser-job-started'; }
       if (message.type === 'browser-job-owned') run.phase = 'job-retained';
       if (message.type === 'browser-started') { run.browserPid = message.pid; run.phase = 'browser-started'; if (this.run === run) this.browserPid = message.pid; }
       if (message.type === 'launch-error') run.launchError = new Error(message.message);
@@ -260,7 +260,15 @@ export class BrowserHost extends BrowserActions {
       // Confirm a live initial document instead of relying only on a cached
       // lifecycle event. The requested navigation is still sent exactly once.
       await (await page.waitForFunction(() => document.readyState !== 'loading')).dispose();
-      signal?.throwIfAborted(); record.navigating = true;
+      signal?.throwIfAborted();
+      if (process.platform === 'win32') {
+        // A ready document may still have native startup loading queued.
+        // Retire it only on our new empty target, before sending any user URL.
+        if (page.url() !== 'about:blank') throw new Error('The new browser target changed before its first navigation.');
+        await record.cdp.send('Page.stopLoading');
+        signal?.throwIfAborted();
+      }
+      record.navigating = true;
       try { await page.goto(url, { waitUntil: 'domcontentloaded' }); } finally { record.navigating = false; }
       signal?.throwIfAborted();
       const info = { id: record.id, browserId: 'browser', title: await page.title(), url: page.url() };
@@ -363,7 +371,7 @@ export class BrowserHost extends BrowserActions {
         if (await signal(0)) {
           await signal('SIGKILL');
           const killedBy = Date.now() + 1000;
-          while (await signal(0) && Date.now() < killedBy) await delay(25);
+          while (await signal(0)) { if (Date.now() >= killedBy) break; await delay(25); }
           if (await signal(0)) throw new Error('Browser process group did not terminate');
         }
       }
