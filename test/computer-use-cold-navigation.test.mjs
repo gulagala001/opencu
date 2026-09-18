@@ -38,6 +38,10 @@ test('cold browser targets commit their first requested URL exactly once', { tim
     const host = new BrowserHost(root, { executablePath });
     try {
       const tab = await host.create('cold', fixture.url);
+      assert.ok(host.child.spawnargs.includes('--disable-field-trial-config'));
+      assert.ok(host.child.spawnargs.includes('--enable-blink-features=WebMCP'));
+      assert.ok(!host.child.spawnargs.includes('--disable-back-forward-cache'));
+      assert.ok(!host.child.spawnargs.includes('--disable-extensions'));
       assert.equal(tab.url, fixture.url + '/');
       assert.match((await host.invoke('cold', tab.id, 'getAXState', [])).state, /测试工作台/);
       const requests = evidence.protocol.filter(row => row.direction === 'sent' && row.method === 'Page.navigate' && row.params.url === new URL(fixture.url).href);

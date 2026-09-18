@@ -8,7 +8,8 @@ import{ComputerUseManager}from'../src/computer-use/manager.mjs';
 import{startFixture}from'./fixtures/computer-use/server.mjs';
 import{extensionFixture}from'./fixtures/computer-use/extension.mjs';
 
-for(const backend of ['managed','extension'])test(backend+': annotation captures matching DOM and pixels without changing model control',{timeout:30000},async t=>{
+for(const backend of ['managed','extension'])test(backend+': annotation captures matching DOM and pixels without changing model control',{timeout:process.platform==='win32'?90000:30000},async t=>{
+  const began=performance.now();
   const root=await mkdtemp(join(tmpdir(),'trisoul-cu-dom-annotation-')),fixture=await startFixture();
   const external=backend==='extension'?await extensionFixture(t,{fixture}):null;
   const launcher=join(root,'browser'),quote=s=>"'"+s.replaceAll("'","'\\''")+"'";
@@ -16,9 +17,22 @@ for(const backend of ['managed','extension'])test(backend+': annotation captures
   const manager=new ComputerUseManager(root,{...(external?{extensionHub:external.hub}:{}),browser:process.platform==='darwin'?{executablePath:launcher}:{},native:{binary:join(root,'missing')}});
   t.after(async()=>{await manager.close();await fixture.close();await rm(root,{recursive:true,force:true});});
   const tab=await manager.dispatch('annotation-test','createBrowserTab',[external?.browser.id??'browser',fixture.url]);
-  let frame,actor;const close=await manager.watchBrowser('annotation-test',tab.id,(event,value)=>{if(event==='frame')frame=value;if(event==='ready')actor=value.actor;});t.after(close);
-  for(let i=0;i<100&&!frame;i++)await new Promise(r=>setTimeout(r,20));assert.ok(frame);
+  t.diagnostic('Annotation target ready after '+Math.round(performance.now()-began)+'ms');
+  let frame,actor,firstFrame,frameError;
+  const ready=new Promise((resolve,reject)=>{firstFrame=resolve;frameError=reject;});
+  void ready.catch(()=>{});
+  const close=await manager.watchBrowser('annotation-test',tab.id,(event,value)=>{
+    if(event==='frame'){frame=value;firstFrame(value);}if(event==='ready')actor=value.actor;
+    if(event==='failure')frameError(new Error(value.message));
+  });t.after(close);
   const views=manager.viewsFor(manager.status('annotation-test').target),view=views.views.get(tab.id),page=view.record.page;
+  let frameTimer;
+  try{await Promise.race([ready,new Promise((_,reject)=>{frameTimer=setTimeout(()=>reject(new Error('No annotation frame within the observation deadline')),views.observationTimeoutMs);})]);}
+  finally{clearTimeout(frameTimer);}assert.ok(frame);
+  t.diagnostic('Annotation frame ready after '+Math.round(performance.now()-began)+'ms');
+  let acceptanceTimer;
+  try{await Promise.race([(async()=>{
+
   await page.evaluate(()=>{document.body.insertAdjacentHTML('beforeend','<div id="shadow-host" style="position:fixed;right:20px;top:20px"></div><div style="position:fixed;right:20px;top:100px;width:100px;height:30px;overflow:hidden"><button id="clipped-button" style="margin-top:60px">Hidden by scrollport</button></div>');document.querySelector('#shadow-host').attachShadow({mode:'open'}).innerHTML='<button id="shadow-button">Shadow selection</button>';});
   const before=manager.status('annotation-test'),input=()=>({actor,tabId:tab.id,controlEpoch:manager.status('annotation-test').controlEpoch});
   const capture=()=>manager.annotationSnapshot('annotation-test',input());
@@ -71,4 +85,6 @@ for(const backend of ['managed','extension'])test(backend+': annotation captures
   let entered;const started=new Promise(resolve=>{entered=resolve;});views.browser.observeScreenshot=()=>{entered();return new Promise(()=>{});};
   const pending=capture();await started;const rejected=assert.rejects(pending,/closed|关闭|改变/i);await manager.setEnabled(false);await rejected;views.browser.observeScreenshot=original;
   await assert.rejects(capture(),/已关闭/);await close();await manager.setEnabled(true);await assert.rejects(capture(),/已改变|断开/);
+  })(),new Promise((_,reject)=>{acceptanceTimer=setTimeout(()=>reject(new Error('Annotation acceptance exceeded 30000ms after setup')),30000);})]);}
+  finally{clearTimeout(acceptanceTimer);}
 });
