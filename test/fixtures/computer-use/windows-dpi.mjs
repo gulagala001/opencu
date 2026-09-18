@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import sharp from 'sharp';
+import { captureAfterFixtureAutomation } from './fixture-automation-ready.mjs';
 
 // Reuse the already-built native runtime and WPF fixture; do not compile a
 // separate application or repeat the complete desktop suite for each DPI.
@@ -36,7 +37,7 @@ export async function verifyDisplayScaling({ t, fixture, native, target, artifac
         await wait(state => state.dpi === expectedDpi);
         await assert.rejects(native.invoke('dpi', binding.id, 'click', [{ x: 10, y: 10 }]), error => error.code === 'WINDOW_MOVED', 'old screenshot coordinates cannot survive a DPI change');
         await request('focus');
-        const shot = await capture(), state = shot.structuredContent;
+        const shot = await captureAfterFixtureAutomation(capture, { onIncomplete: state => t.diagnostic('Waiting for fixture UIA after DPI change: ' + JSON.stringify(state)) }), state = shot.structuredContent;
         const image = Buffer.from(shot.content.find(item => item.type === 'image').data, 'base64');
         const { data, info } = await sharp(image).removeAlpha().raw().toBuffer({ resolveWithObject: true });
         assert.equal(info.width, state.screenshot_width); assert.equal(info.height, state.screenshot_height);
