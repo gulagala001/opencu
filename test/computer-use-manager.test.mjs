@@ -172,21 +172,28 @@ test('regular expressions, nested locators and file bytes retain their types acr
   assert.equal(original.blocks.at(-1).text, '嵌套定位 🧭');
 });
 
-test('a late screenshot from another target cannot overwrite the selected pane', { timeout: 15000 }, async t => {
-  const manager = await managerFor(t), fixture = await startFixture(); t.after(()=>fixture.close());
+test('a late screenshot from another target cannot overwrite the selected pane', { timeout: process.platform === 'win32' ? 45000 : 15000 }, async t => {
+  // Windows startup alone is allowed 30 seconds. Keep the race itself on a
+  // separate 15-second deadline, rather than consuming it while booting Chrome.
+  const began = performance.now(), manager = await managerFor(t), fixture = await startFixture();
+  t.after(() => fixture.close());
   const first = await manager.dispatch('test','createBrowserTab',['browser',fixture.url]);
   const second = await manager.dispatch('test','createBrowserTab',['browser',fixture.url+'/frame']);
+  t.diagnostic('Both targets ready in ' + Math.round(performance.now() - began) + 'ms');
   const screenshot = manager.browser.capture.bind(manager.browser);
-  let release, entered; const ready = new Promise(resolve=>{entered=resolve;}), finish = new Promise(resolve=>{release=resolve;});
-  t.after(()=>release());
-  manager.browser.capture = async (...args)=>{const image=await screenshot(...args);if(args[0].id===first.id){entered();await finish;}return image;};
+  let release, entered, timer; const ready = new Promise(resolve => { entered = resolve; }), finish = new Promise(resolve => { release = resolve; });
+  manager.browser.capture = async (...args) => { const image = await screenshot(...args); if (args[0].id === first.id) { entered(); await finish; } return image; };
   const slow = manager.dispatch('test','target',[first,'getScreenshot']);
-  await ready;
-  const current = await manager.dispatch('test','target',[second,'getScreenshot']);
-  assert.equal(manager.status('test').target.id,second.id);
-  assert.equal(manager.preview.get('test').data,current.screenshot);
-  release(); const old = await slow; assert.notEqual(old.screenshot,current.screenshot);
-  assert.equal(manager.status('test').target.id,second.id);
-  assert.equal(manager.preview.get('test').target.id,second.id,'the pane image must describe its currently selected target');
-  assert.equal(manager.preview.get('test').data,current.screenshot);
+  const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Screenshot target race exceeded 15000ms after browser startup')), 15000); });
+  const completedEarly = slow.then(() => { throw new Error('The delayed screenshot completed before its release'); });
+  try {
+    await Promise.race([ready, completedEarly, deadline]);
+    const current = await Promise.race([manager.dispatch('test','target',[second,'getScreenshot']), deadline]);
+    assert.equal(manager.status('test').target.id,second.id);
+    assert.equal(manager.preview.get('test').data,current.screenshot);
+    release(); const old = await Promise.race([slow, deadline]); assert.notEqual(old.screenshot,current.screenshot);
+    assert.equal(manager.status('test').target.id,second.id);
+    assert.equal(manager.preview.get('test').target.id,second.id,'the pane image must describe its currently selected target');
+    assert.equal(manager.preview.get('test').data,current.screenshot);
+  } finally { clearTimeout(timer); release(); await slow.catch(() => {}); }
 });
