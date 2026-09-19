@@ -36,7 +36,7 @@ for (const order of scenarios) test('stock DSH install, restart and uninstall: '
   });
   await new Promise(r => provider.listen(0, '127.0.0.1', r));
   const testBrowser = await testBrowserExecutable(temp);
-  const settings = { 'agent-default-model': { provider: 'fixture', model: 'fixture' }, 'llm-pi-ai': { providers: { fixture: { api: 'openai-completions', baseURL: `http://127.0.0.1:${provider.address().port}/v1`, apiKeyEnv: 'OPENCU_FIXTURE', models: [{ id: 'fixture', name: 'fixture', contextWindow: 1000000, maxTokens: 1024, input: ['text'] }] } } }, opencu: { computerUseBrowserExecutable: testBrowser, computerUseNativeBinary: join(temp, 'missing-native') }, 'trisoul-x': { stateEnabled: false, probeEnabled: false, flushIdleMs: 3600000 } };
+  const settings = { 'agent-default-model': { provider: 'fixture', model: 'fixture' }, 'llm-pi-ai': { providers: { fixture: { api: 'openai-completions', baseURL: `http://127.0.0.1:${provider.address().port}/v1`, apiKeyEnv: 'OPENCU_FIXTURE', models: [{ id: 'fixture', name: 'fixture', contextWindow: 1000000, maxTokens: 1024, input: ['text'] }] } } }, opencu: { computerUseBrowserExecutable: testBrowser, computerUseNativeBinary: join(temp, 'missing-native') }, 'trisoul-x': { componentAutoSetup: false, stateEnabled: false, probeEnabled: false, flushIdleMs: 3600000 } };
   await writeFile(join(home, 'settings.yaml'), JSON.stringify(settings));
   await writeFile(join(home, '.credentials.yaml'), JSON.stringify({ version: 1, refs: { OPENCU_FIXTURE: 'test-only' } }), { mode: 0o600 });
   let child, log = '', origin, cookie, browser, workspaceId;
