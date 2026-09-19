@@ -3,6 +3,20 @@ import assert from 'node:assert/strict';
 import { computerGroups,operationKind,operationIcon,operationSummary,operationRowLocale,operationState,finalAnswerPresentation } from '../src/client/computer-groups.mjs';
 const node=(kind,key,step,data={},turn=1)=>({kind,key,location:{kind:'step',turn:{turn},step:{step}},data});
 const call=(key,step,name='computer_use',extra={})=>node('tool-call',key,step,{root:{callId:key,kind:'tool-result',call:{name,argsRaw:JSON.stringify({title:key})},...extra}});
+test('generic tools stay visible and split groups before, between and after specialized tools',()=>{
+ const tools=new Set(['write','edit']),before=call('verify',1,'verify_link'),write=call('write',1,'write'),middle=call('custom',1,'plugin_custom'),edit=call('edit',2,'edit'),after=call('status',2,'runtime_status');
+ const nodes=[before,write,middle,edit,after],groups=computerGroups(nodes,tools);
+ for(const generic of [before,middle,after])assert.equal(groups.has(generic.key),false,'generic fallback has no group renderer');
+ assert.equal(groups.get('write').headerCallId,'write');assert.deepEqual(groups.get('write').calls,['write']);
+ assert.equal(groups.get('edit').headerCallId,'edit');assert.deepEqual(groups.get('edit').calls,['edit']);
+ assert.equal(computerGroups(nodes,new Set([...tools,'verify_link'])).get('verify').calls.length,2,'new renderer can join the next group');
+ assert.equal(computerGroups(nodes,new Set(['edit'])).has('write'),false,'unloaded renderer falls back to an independent visible row');
+});
+test('host generic auto-review denial cannot own a hidden specialized group',()=>{
+ const denied=call('denied',1,'write',{isError:true,error:{name:'AutoReviewDeniedError',code:'AUTO_REVIEW_DENIED'}}),next=call('next',1,'write');
+ const groups=computerGroups([denied,next],new Set(['write']));
+ assert.equal(groups.has('denied'),false);assert.equal(groups.get('next').headerCallId,'next');
+});
 test('completed answer reasoning is projected ahead of prose without rewriting source blocks',()=>{
  const text={kind:'text',text:'Final answer'},reasoning={kind:'reasoning',text:'Illustrative reasoning'},image={kind:'image',attachment:'image'},secondReasoning={kind:'reasoning',text:'Another summary'};
  const original=Object.freeze({...node('assistant-step','final',3),data:Object.freeze({step:3,blocks:Object.freeze([text,reasoning,image,secondReasoning])})});
