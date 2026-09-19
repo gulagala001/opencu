@@ -6,10 +6,10 @@ Windows 上使用同一套 OpenCU 工具和实时预览。内置浏览器使用�
 
 ## 安装与试用
 
-OpenCU 1.0.3 需要 **DSH 0.1.6-alpha.2 Web**。先阅读[已知验证限制](../README.md#发行状态)，再停止服务，在 PowerShell 7 中安装插件：
+OpenCU 1.0.4 需要 **DSH 0.1.6-alpha.2 Web**。先阅读[验证范围与限制](release-1.0.4.md)，再停止服务，在 PowerShell 7 中安装插件：
 
 ```powershell
-dsh plugin --profile web add github:gulagala001/opencu#v1.0.3
+dsh plugin --profile web add github:gulagala001/opencu#v1.0.4
 if ($LASTEXITCODE -ne 0) { throw '插件安装失败' }
 dsh web
 ```
