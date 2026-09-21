@@ -35,10 +35,10 @@ test('all tool families share a list, while user messages, prose and turns remai
  const data=[call('a',1),node('user','user',1),call('b',2),node('context','context',2),node('assistant-step','mixed',3,{blocks:[{kind:'text',text:'I will check the files.'}]}),call('c',3),call('shell',3,'bash'),call('d',4),node('assistant-step','next',1,{},2)];
  const groups=computerGroups(data);assert.notEqual(groups.get('a'),groups.get('b'));assert.notEqual(groups.get('b'),groups.get('c'));assert.equal(groups.get('c'),groups.get('d'));assert.equal(groups.has('mixed'),false);assert.equal(groups.get('shell'),groups.get('c'));assert.equal(groups.has('next'),false);assert.equal(groups.get('a').headerCallId,'a');
 });
-test('context, system updates, compaction and standalone reasoning join the same live process without rewriting nodes',()=>{
+test('context, system updates and standalone reasoning join the same live process without rewriting nodes',()=>{
  const context=node('context','context',1),system=node('system-prompt','system',2),compaction=node('compaction','compact',2),thought=node('assistant-step','thought',3,{blocks:[{kind:'reasoning',text:'Illustrative thought'},{kind:'tool-call',callId:'last',name:'bash'}]});
- const original=[context,node('turn-process','controller',1),call('first',1,'read'),system,compaction,thought,call('last',3,'bash')],before=JSON.stringify(original),groups=computerGroups(original),group=groups.get('context');
- assert.equal(group.contexts,3);assert.deepEqual(group.calls,['first','last']);for(const item of [system,compaction,thought])assert.equal(groups.get(item.key),group);
+ const original=[context,node('turn-process','controller',1),call('first',1,'read'),system,thought,call('last',3,'bash')],before=JSON.stringify(original),groups=computerGroups(original),group=groups.get('context');
+ assert.equal(group.contexts,2);assert.deepEqual(group.calls,['first','last']);for(const item of [system,thought])assert.equal(groups.get(item.key),group);
  assert.equal(groups.get('call:last'),group);assert.equal(JSON.stringify(original),before);
  assert.equal(computerGroups([{kind:'system-prompt',key:'initial',data:{},location:{kind:'unresolved'}}]).size,0,'session-level system prompt remains accessible outside any turn');
  const image=node('assistant-step','image',4,{blocks:[{kind:'image',attachment:'file'}]});assert.equal(computerGroups([call('a',4),image,call('b',4)]).has('image'),false,'visible image content is never hidden as thinking');
@@ -90,4 +90,10 @@ test('collapsed groups and completed turns use the last call, not an earlier res
  check('running');
  nodes=[{...first,data:{root:{...first.data.root,isError:true}}},last];check('running');
  nodes=[first,call('last',2,'bash',{call:{name:'bash',argsRaw:JSON.stringify({description:'运行测试'})}})];check('done');
+});
+
+test('task injections join preceding operations while compression remains a visible boundary',()=>{
+ const injection={kind:'omd-task-injection',key:'todo',location:{kind:'session'},data:{}},first=call('first',1,'bash'),last=call('last',2,'bash'),compact=node('compaction','compact',2);
+ const groups=computerGroups([first,injection,compact,last]);
+ assert.equal(groups.get('todo'),groups.get('first'));assert.equal(groups.has('compact'),false);assert.notEqual(groups.get('first'),groups.get('last'));
 });
