@@ -38,6 +38,9 @@ test('generic tool followed by file writes retains a live disclosure and survive
   const completed=page.locator('button[data-turn-process-tool-calls="3"]');await completed.waitFor();
   if(await completed.getAttribute('aria-expanded')!=='true')await completed.click();
   for(const id of ['generic','write-one','write-two'])await page.locator(`[data-chat-call-id="${id}"] :is(button,[role="button"])`).first().waitFor();
-  assert.equal(await page.locator('.tx-cu-group-toggle:visible').count(),1,'completed process owns the only disclosure');
+  assert.equal(await group.getAttribute('aria-expanded'),'true','completed process preserves the independent file group');
+  await group.click();
+  assert.equal(await page.locator('[data-cu-operation=write-one]:visible').count(),0);
+  assert.equal(await completed.getAttribute('aria-expanded'),'true','closing the file group leaves the outer process open');
   assert.deepEqual(f.errors,[]);
 });

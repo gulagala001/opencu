@@ -48,7 +48,15 @@ test('live renderer removal, replacement and two adapter layers never retain or 
   removeHost = slots.register({ name: 'test', key: 'one' }, () => 'new');
   assert.equal(slots.entriesOfSlot()[0].component(), 'B(A(new))'); assert.equal(slots.allEntries.length, 3);
   a(); assert.equal(slots.entriesOfSlot()[0].component(), 'B(new)'); assert.equal(slots.allEntries.length, 2);
-  b(); assert.equal(slots.allEntries.length, 1); assert.equal(slots.listeners.size, 0); removeHost();
+  b(); assert.equal(slots.allEntries.length, 1); assert.equal(slots.listeners.size, 0);
+  const owner = { fiber: { uid: 1 } };
+  const owned = { ...slots, ctx: owner, register(...args) { assert.notEqual(owner.fiber.uid, null, 'disposed owners cannot register effects'); return slots.register(...args); } };
+  const dispose = decorateSlot(owned, 'test', () => true, wrap('owned'));
+  owner.fiber.uid = null;
+  removeHost();
+  const removeReplacement = slots.register({ name: 'test', key: 'one' }, () => 'replacement during teardown');
+  dispose(); removeReplacement();
+  assert.equal(slots.allEntries.length, 0); assert.equal(slots.listeners.size, 0);
 });
 
 test('official browser preview uses the owning tab navigation without controlling or replacing the CU target', () => {
