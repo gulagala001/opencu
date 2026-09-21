@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computerGroups,operationKind,operationIcon,operationSummary,operationRowLocale,operationState,finalAnswerPresentation } from '../src/client/computer-groups.mjs';
+import { computerGroups,latestOperation,processSummaries,operationKind,operationIcon,operationSummary,operationRowLocale,operationState,finalAnswerPresentation } from '../src/client/computer-groups.mjs';
 const node=(kind,key,step,data={},turn=1)=>({kind,key,location:{kind:'step',turn:{turn},step:{step}},data});
 const call=(key,step,name='computer_use',extra={})=>node('tool-call',key,step,{root:{callId:key,kind:'tool-result',call:{name,argsRaw:JSON.stringify({title:key})},...extra}});
 test('generic tools stay visible and split groups before, between and after specialized tools',()=>{
@@ -62,4 +62,32 @@ test('lifecycle titles preserve original locale actions and explicit stopped/err
  assert.equal(operationRowLocale(en,'read',done),en);
  assert.equal(operationState({...done,meta:{computerUseError:'failed'}}),'error');
  assert.equal(operationState({...done,isError:true,content:[{type:'text',text:'Computer Use is stopped'}]}),'error','file error text is not a Computer Use cancellation');
+});
+
+test('latest action uses explicit descriptions or real parameters and tracks terminal states',()=>{
+ const running=(name,argsRaw)=>({name,argsRaw});
+ assert.equal(latestOperation(running('bash',JSON.stringify({command:'pnpm test',description:'运行回归测试'}))).label,'运行回归测试');
+ assert.equal(latestOperation(running('read',JSON.stringify({file_path:'package.json'}))).label,'读取文件 package.json');
+ assert.equal(latestOperation(running('edit',JSON.stringify({file_path:'login.ts'}))).label,'编辑文件 login.ts');
+ assert.equal(latestOperation(running('grep',JSON.stringify({pattern:'ContextPipeline'}))).label,'搜索 ContextPipeline');
+ assert.equal(latestOperation(running('bash',JSON.stringify({command:'pnpm test'}))).label,'运行命令 pnpm test');
+ assert.equal(latestOperation(running('custom_tool','{}')).label,'custom_tool');
+ assert.equal(latestOperation(running('read','{"file_path":')).label,'读取文件');
+ assert.equal(latestOperation(running('read','null')).state,'running');
+ for(const [extra,state] of [[{},'done'],[{isError:true},'error'],[{error:{code:'ABORTED'}},'stopped']]){
+  assert.equal(latestOperation({kind:'tool-result',call:{name:'bash',argsRaw:'{}'},...extra}).state,state);
+ }
+});
+test('collapsed groups and completed turns use the last call, not an earlier result update',()=>{
+ const first=call('first',1,'read'),last=call('last',2,'bash',{kind:undefined,name:'bash',call:undefined,argsRaw:JSON.stringify({description:'运行测试'})});
+ let nodes=[first,last];
+ const check=state=>{
+  const snapshot={order:nodes.map(n=>n.key),nodes:new Map(nodes.map(n=>[n.key,n]))};
+  for(const latest of [computerGroups(nodes).get('first').latest,processSummaries(snapshot).get(1).latest]){
+   assert.deepEqual(latest,{label:'运行测试',state,icon:'terminal'});
+  }
+ };
+ check('running');
+ nodes=[{...first,data:{root:{...first.data.root,isError:true}}},last];check('running');
+ nodes=[first,call('last',2,'bash',{call:{name:'bash',argsRaw:JSON.stringify({description:'运行测试'})}})];check('done');
 });

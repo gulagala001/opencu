@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createComputerStatePool } from '../src/client/state-pool.mjs';
 import { decorateSlot } from '../src/client/slot-decoration.mjs';
 import { hostPreviewUrl, openHostBrowserPreview } from '../src/client/host-browser.mjs';
-import { processSummaries, operationSummary, operationIcon, operationState } from '../src/client/computer-groups.mjs';
+import { processSummaries, operationSummary, operationIcon, operationState, latestOperation } from '../src/client/computer-groups.mjs';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 test('chip and pane share one request, reject a late poll after navigation and dispose by last owner', async () => {
@@ -74,6 +74,6 @@ test('one-pass process summaries exactly match the per-turn history scan', () =>
   const snapshot = { order: nodes.map(n => n.key), nodes: new Map(nodes.map(n => [n.key, n])) }, results = processSummaries(snapshot);
   for (let turn = 0; turn < 35; turn++) {
     const calls = nodes.filter(n => n.kind === 'tool-call' && n.location.turn.turn === turn).map(n => n.data.root), names = calls.map(c => c.call.name);
-    assert.deepEqual(results.get(turn), { label: operationSummary(names), icon: operationIcon(names), failures: calls.filter(c => operationState(c) === 'error').length, stopped: calls.filter(c => operationState(c) === 'stopped').length });
+    assert.deepEqual(results.get(turn), { label: operationSummary(names), icon: operationIcon(names), latest: latestOperation(calls.at(-1)), failures: calls.filter(c => operationState(c) === 'error').length, stopped: calls.filter(c => operationState(c) === 'stopped').length });
   }
 });

@@ -23,7 +23,7 @@ test('generic tool followed by file writes retains a live disclosure and survive
   await f.rpc('session/prompt',{requestId:crypto.randomUUID(),sessionId:f.sessionId,mode:'queue',content:[{type:'text',text:'创建两个测试文件'}]});
   await until(()=>requests>=2);
   assert.equal(await readFile(join(f.root,'workspace','first.txt'),'utf8'),'FIRST_GROUP_FIXTURE');
-  const group=page.getByRole('button',{name:'已编辑文件 2 次操作',exact:true});
+  const group=page.getByRole('button',{name:/编辑文件 .*second\.txt 已完成 2 次操作/});
   await group.waitFor({timeout:10000});
   assert.equal(await group.getAttribute('aria-expanded'),'false');
   assert.equal(await page.locator('[data-chat-call-id="write-one"] :is(button,[role="button"]):not(.tx-cu-group-toggle):visible').count(),0);
