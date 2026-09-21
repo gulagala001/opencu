@@ -97,3 +97,12 @@ test('task injections join preceding operations while compression remains a visi
  const groups=computerGroups([first,injection,compact,last]);
  assert.equal(groups.get('todo'),groups.get('first'));assert.equal(groups.has('compact'),false);assert.notEqual(groups.get('first'),groups.get('last'));
 });
+
+test('completed tools retain the latest action until the owning turn closes',()=>{
+ const item=call('last',1,'bash');
+ item.location.turn.status='open';
+ let group=computerGroups([item]).get('last');
+ assert.equal(group.running,false);assert.equal(group.turnActive,true);assert.equal(group.latest.state,'done');
+ item.location.turn.status='closed';
+ group=computerGroups([item]).get('last');assert.equal(group.running,false);assert.equal(group.turnActive,false);
+});
