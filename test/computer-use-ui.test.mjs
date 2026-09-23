@@ -172,7 +172,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
     assert.equal(await group.getAttribute('aria-expanded'), 'false');
     assert.equal(await page.locator('.tx-cu-card').isVisible(), false, 'closed operation summaries hide individual rows');
     await group.click();
-    const operations = page.locator('[data-cu-group] > button').filter({ hasText: '1 次操作' });
+    const operations = page.locator('[data-cu-group] .tx-cu-group-toggle').filter({ hasText: '1 次操作' });
     await operations.waitFor();
     assert.equal(await operations.count(), 1, 'the process contains one operation group');
     assert.equal(await operations.getAttribute('aria-expanded'), 'false', 'opening a completed process preserves the independently folded operation list');
