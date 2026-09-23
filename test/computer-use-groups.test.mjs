@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { operationRowLocale, operationState, summarizeToolOutcomes } from '../src/client/computer-groups.mjs';
+
+test('preparing calls do not claim execution or outcomes', () => {
+ const block={phase:'preparing',callId:'pending',name:'bash',subCalls:[]};
+ const zh=key=>key==='row.failed'?'失败':key;
+ assert.equal(operationState(block),'preparing');
+ assert.equal(operationRowLocale(zh,'bash',block)('tool.title.bash'),'准备运行');
+ assert.deepEqual(summarizeToolOutcomes([{root:block}]),{failures:0,stopped:0});
+});
 test('lifecycle titles preserve original locale actions and explicit stopped/error status',()=>{
  const zh=key=>key==='row.failed'?'执行失败':key,en=key=>key==='row.failed'?'Failed':key;
  const done={kind:'tool-result',call:{name:'read'}};

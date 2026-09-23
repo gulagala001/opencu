@@ -63,7 +63,7 @@ for (const backend of ['managed', 'extension']) test(backend + ' browser dialogs
     window.__cuRestoreFetch = () => { window.fetch = original; delete window.__cuRestoreFetch; };
     window.fetch = async (...args) => {
       let delayed = false;
-      if (typeof args[0] === 'string' && args[0].includes('/trisoul-x/computer-use/navigate?')) {
+      if (typeof args[0] === 'string' && new URL(args[0], location.href).pathname.endsWith('/trisoul-x/computer-use/navigate')) {
         try { delayed = JSON.parse(args[1]?.body ?? '{}').url === delayedUrl; } catch {}
       }
       let complete;
