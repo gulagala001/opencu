@@ -1,56 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computerGroups,latestOperation,processSummaries,operationKind,operationIcon,operationSummary,operationRowLocale,operationState,finalAnswerPresentation } from '../src/client/computer-groups.mjs';
-const node=(kind,key,step,data={},turn=1)=>({kind,key,location:{kind:'step',turn:{turn},step:{step}},data});
-const call=(key,step,name='computer_use',extra={})=>node('tool-call',key,step,{root:{callId:key,kind:'tool-result',call:{name,argsRaw:JSON.stringify({title:key})},...extra}});
-test('generic tools stay visible and split groups before, between and after specialized tools',()=>{
- const tools=new Set(['write','edit']),before=call('verify',1,'verify_link'),write=call('write',1,'write'),middle=call('custom',1,'plugin_custom'),edit=call('edit',2,'edit'),after=call('status',2,'runtime_status');
- const nodes=[before,write,middle,edit,after],groups=computerGroups(nodes,tools);
- for(const generic of [before,middle,after])assert.equal(groups.has(generic.key),false,'generic fallback has no group renderer');
- assert.equal(groups.get('write').headerCallId,'write');assert.deepEqual(groups.get('write').calls,['write']);
- assert.equal(groups.get('edit').headerCallId,'edit');assert.deepEqual(groups.get('edit').calls,['edit']);
- assert.equal(computerGroups(nodes,new Set([...tools,'verify_link'])).get('verify').calls.length,2,'new renderer can join the next group');
- assert.equal(computerGroups(nodes,new Set(['edit'])).has('write'),false,'unloaded renderer falls back to an independent visible row');
-});
-test('host generic auto-review denial cannot own a hidden specialized group',()=>{
- const denied=call('denied',1,'write',{isError:true,error:{name:'AutoReviewDeniedError',code:'AUTO_REVIEW_DENIED'}}),next=call('next',1,'write');
- const groups=computerGroups([denied,next],new Set(['write']));
- assert.equal(groups.has('denied'),false);assert.equal(groups.get('next').headerCallId,'next');
-});
-test('completed answer reasoning is projected ahead of prose without rewriting source blocks',()=>{
- const text={kind:'text',text:'Final answer'},reasoning={kind:'reasoning',text:'Illustrative reasoning'},image={kind:'image',attachment:'image'},secondReasoning={kind:'reasoning',text:'Another summary'};
- const original=Object.freeze({...node('assistant-step','final',3),data:Object.freeze({step:3,blocks:Object.freeze([text,reasoning,image,secondReasoning])})});
- const process={foldable:true,spec:{inlineReasoning:true,answerStep:3}},display=finalAnswerPresentation(original,process);
- assert.deepEqual(display.data.blocks,[reasoning,secondReasoning,text,image]);assert.deepEqual(original.data.blocks,[text,reasoning,image,secondReasoning]);assert.equal(display.data.blocks[0],reasoning);
- assert.equal(finalAnswerPresentation(original,{...process,foldable:false}),original,'streaming and unfolded transcript order remains unchanged');
- assert.equal(finalAnswerPresentation(original,{...process,spec:{inlineReasoning:true,answerStep:2}}),original,'earlier assistant steps retain their ordering');
- assert.equal(finalAnswerPresentation(display,process),display,'an already ordered answer remains the same instance');
-});
-test('consecutive CU prose and calls form one group before a final answer, including running/failure',()=>{
- const a=node('assistant-step','a',1),b=call('b',1),c=node('assistant-step','c',2),d=call('d',2,'computer_use',{isError:true}),e=call('e',3,'computer_use',{kind:undefined,name:'computer_use'}),final=node('assistant-step','final',4);
- const groups=computerGroups([a,b,c,d,e,final]),g=groups.get('a');
- assert.equal(groups.get('call:e'),g);assert.deepEqual(g.calls,['b','d','e']);assert.equal(g.running,true);assert.equal(g.failures,1);assert.equal(groups.has('final'),false);
-});
-test('all tool families share a list, while user messages, prose and turns remain boundaries',()=>{
- const data=[call('a',1),node('user','user',1),call('b',2),node('context','context',2),node('assistant-step','mixed',3,{blocks:[{kind:'text',text:'I will check the files.'}]}),call('c',3),call('shell',3,'bash'),call('d',4),node('assistant-step','next',1,{},2)];
- const groups=computerGroups(data);assert.notEqual(groups.get('a'),groups.get('b'));assert.notEqual(groups.get('b'),groups.get('c'));assert.equal(groups.get('c'),groups.get('d'));assert.equal(groups.has('mixed'),false);assert.equal(groups.get('shell'),groups.get('c'));assert.equal(groups.has('next'),false);assert.equal(groups.get('a').headerCallId,'a');
-});
-test('context, system updates and standalone reasoning join the same live process without rewriting nodes',()=>{
- const context=node('context','context',1),system=node('system-prompt','system',2),compaction=node('compaction','compact',2),thought=node('assistant-step','thought',3,{blocks:[{kind:'reasoning',text:'Illustrative thought'},{kind:'tool-call',callId:'last',name:'bash'}]});
- const original=[context,node('turn-process','controller',1),call('first',1,'read'),system,thought,call('last',3,'bash')],before=JSON.stringify(original),groups=computerGroups(original),group=groups.get('context');
- assert.equal(group.contexts,2);assert.deepEqual(group.calls,['first','last']);for(const item of [system,thought])assert.equal(groups.get(item.key),group);
- assert.equal(groups.get('call:last'),group);assert.equal(JSON.stringify(original),before);
- assert.equal(computerGroups([{kind:'system-prompt',key:'initial',data:{},location:{kind:'unresolved'}}]).size,0,'session-level system prompt remains accessible outside any turn');
- const image=node('assistant-step','image',4,{blocks:[{kind:'image',attachment:'file'}]});assert.equal(computerGroups([call('a',4),image,call('b',4)]).has('image'),false,'visible image content is never hidden as thinking');
-});
-test('aborted calls stay in their group with explicit stopped status',()=>{
- const group=computerGroups([call('a',1),call('b',2,'computer_use',{isError:true,error:{code:'ABORTED'}})]).get('a');assert.equal(group.stopped,1);assert.equal(group.failures,0);
-});
-test('operation categories and icons do not confuse PowerShell, webpages or unrelated names',()=>{
- assert.equal(operationKind('pwsh'),'command');assert.equal(operationKind('catalog'),'tool');assert.equal(operationKind('allocate_resource'),'tool');assert.equal(operationKind('web_fetch'),'web');
- assert.equal(operationIcon(['read','bash']),'book');assert.equal(operationIcon(['bash','read_image']),'terminal');assert.equal(operationIcon(['web_search']),'search');
- assert.equal(operationSummary(['pwsh','web_fetch']),'已运行命令、读取网页');
-});
+import { operationRowLocale, operationState, summarizeToolOutcomes } from '../src/client/computer-groups.mjs';
 test('lifecycle titles preserve original locale actions and explicit stopped/error status',()=>{
  const zh=key=>key==='row.failed'?'执行失败':key,en=key=>key==='row.failed'?'Failed':key;
  const done={kind:'tool-result',call:{name:'read'}};
@@ -64,45 +14,11 @@ test('lifecycle titles preserve original locale actions and explicit stopped/err
  assert.equal(operationState({...done,isError:true,content:[{type:'text',text:'Computer Use is stopped'}]}),'error','file error text is not a Computer Use cancellation');
 });
 
-test('latest action uses explicit descriptions or real parameters and tracks terminal states',()=>{
- const running=(name,argsRaw)=>({name,argsRaw});
- assert.equal(latestOperation(running('bash',JSON.stringify({command:'pnpm test',description:'运行回归测试'}))).label,'运行回归测试');
- assert.equal(latestOperation(running('read',JSON.stringify({file_path:'package.json'}))).label,'读取文件 package.json');
- assert.equal(latestOperation(running('edit',JSON.stringify({file_path:'login.ts'}))).label,'编辑文件 login.ts');
- assert.equal(latestOperation(running('grep',JSON.stringify({pattern:'ContextPipeline'}))).label,'搜索 ContextPipeline');
- assert.equal(latestOperation(running('bash',JSON.stringify({command:'pnpm test'}))).label,'运行命令 pnpm test');
- assert.equal(latestOperation(running('custom_tool','{}')).label,'custom_tool');
- assert.equal(latestOperation(running('read','{"file_path":')).label,'读取文件');
- assert.equal(latestOperation(running('read','null')).state,'running');
- for(const [extra,state] of [[{},'done'],[{isError:true},'error'],[{error:{code:'ABORTED'}},'stopped']]){
-  assert.equal(latestOperation({kind:'tool-result',call:{name:'bash',argsRaw:'{}'},...extra}).state,state);
- }
-});
-test('collapsed groups and completed turns use the last call, not an earlier result update',()=>{
- const first=call('first',1,'read'),last=call('last',2,'bash',{kind:undefined,name:'bash',call:undefined,argsRaw:JSON.stringify({description:'运行测试'})});
- let nodes=[first,last];
- const check=state=>{
-  const snapshot={order:nodes.map(n=>n.key),nodes:new Map(nodes.map(n=>[n.key,n]))};
-  for(const latest of [computerGroups(nodes).get('first').latest,processSummaries(snapshot).get(1).latest]){
-   assert.deepEqual(latest,{label:'运行测试',state,icon:'terminal'});
-  }
- };
- check('running');
- nodes=[{...first,data:{root:{...first.data.root,isError:true}}},last];check('running');
- nodes=[first,call('last',2,'bash',{call:{name:'bash',argsRaw:JSON.stringify({description:'运行测试'})}})];check('done');
-});
-
-test('task injections join preceding operations while compression remains a visible boundary',()=>{
- const injection={kind:'omd-task-injection',key:'todo',location:{kind:'session'},data:{}},first=call('first',1,'bash'),last=call('last',2,'bash'),compact=node('compaction','compact',2);
- const groups=computerGroups([first,injection,compact,last]);
- assert.equal(groups.get('todo'),groups.get('first'));assert.equal(groups.has('compact'),false);assert.notEqual(groups.get('first'),groups.get('last'));
-});
-
-test('completed tools retain the latest action until the owning turn closes',()=>{
- const item=call('last',1,'bash');
- item.location.turn.status='open';
- let group=computerGroups([item]).get('last');
- assert.equal(group.running,false);assert.equal(group.turnActive,true);assert.equal(group.latest.state,'done');
- item.location.turn.status='closed';
- group=computerGroups([item]).get('last');assert.equal(group.running,false);assert.equal(group.turnActive,false);
+test('native turn outcomes count recursive calls once and separate stops from failures', () => {
+ const failed = { callId: 'failed', kind: 'tool-result', isError: true };
+ const stopped = { callId: 'stopped', kind: 'tool-result', error: { code: 'ABORTED' } };
+ const running = { callId: 'live', kind: 'tool-call' };
+ const root = { callId: 'root', kind: 'tool-result', subCalls: [failed, stopped, running] };
+ assert.deepEqual(summarizeToolOutcomes([{ root }, { root: failed }]), { failures: 1, stopped: 1 });
+ assert.deepEqual(summarizeToolOutcomes([]), { failures: 0, stopped: 0 });
 });

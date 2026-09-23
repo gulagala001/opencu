@@ -36,10 +36,11 @@ for (const order of scenarios) test('stock DSH install, restart and uninstall: '
   });
   await new Promise(r => provider.listen(0, '127.0.0.1', r));
   const testBrowser = await testBrowserExecutable(temp);
-  const settings = { 'agent-default-model': { provider: 'fixture', model: 'fixture' }, 'llm-pi-ai': { providers: { fixture: { api: 'openai-completions', baseURL: `http://127.0.0.1:${provider.address().port}/v1`, apiKeyEnv: 'OPENCU_FIXTURE', models: [{ id: 'fixture', name: 'fixture', contextWindow: 1000000, maxTokens: 1024, input: ['text'] }] } } }, opencu: { computerUseBrowserExecutable: testBrowser, computerUseNativeBinary: join(temp, 'missing-native') }, 'trisoul-x': { componentAutoSetup: false, stateEnabled: false, probeEnabled: false, flushIdleMs: 3600000 } };
+  const settings = { 'agent-default-model': { provider: 'fixture', model: 'fixture' }, 'llm-pi-ai': { providers: { fixture: { api: 'openai-completions', baseURL: `http://127.0.0.1:${provider.address().port}/v1`, apiKeyEnv: 'OPENCU_FIXTURE', models: [{ id: 'fixture', name: 'fixture', contextWindow: 1000000, maxTokens: 1024, input: ['text'] }] } } }, opencu: { computerUseBrowserExecutable: testBrowser, computerUseNativeBinary: join(temp, 'missing-native') }, 'trisoul-x': { componentAutoSetup: false, contextEnabled: false, flushIdleMs: 3600000 } };
   await writeFile(join(home, 'settings.yaml'), JSON.stringify(settings));
   await writeFile(join(home, '.credentials.yaml'), JSON.stringify({ version: 1, refs: { OPENCU_FIXTURE: 'test-only' } }), { mode: 0o600 });
   let child, log = '', origin, cookie, browser, workspaceId;
+  t.after(()=>{if(!t.passed)console.error(log.replace(/token=\S+/g,'token=[redacted]'));});
   const stop = async () => { if (child?.exitCode === null) await stopFixtureProcess(child); };
   t.after(async () => { await browser?.close(); await stop(); provider.closeAllConnections(); await new Promise(r => provider.close(r)); await rm(temp, { recursive: true, force: true }); });
   const boot = async () => {
@@ -51,6 +52,7 @@ for (const order of scenarios) test('stock DSH install, restart and uninstall: '
     }, 60000);
     origin = new URL(url).origin;
     const response = await fetch(url, { redirect: 'manual' }); cookie = response.headers.getSetCookie().map(c => c.split(';')[0]).join('; ');
+    await until(async () => (await rpc('llm/listProviders', {})).some(p => p.id === 'fixture'));
   };
   const rpc = async (method, args) => {
     const body = await (await fetch(origin + '/api/' + method, { method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ type: 'client-request', rpcId: crypto.randomUUID(), method, payload: { args } }) })).json();
@@ -81,6 +83,7 @@ for (const order of scenarios) test('stock DSH install, restart and uninstall: '
   if (ohmySource) await exercise('trisoul-x');
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ locale: 'zh-CN' }); const errors = [];
+  page.setDefaultTimeout(15000);
   page.on('pageerror', e => errors.push(e.message));
   await page.context().addCookies(cookie.split('; ').map(value => { const at = value.indexOf('='); return { name: value.slice(0, at), value: value.slice(at + 1), url: origin }; }));
   await page.goto(origin);

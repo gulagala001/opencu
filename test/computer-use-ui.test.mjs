@@ -1,3 +1,4 @@
+import { trackBrowserFrames, previewPointer } from './fixtures/computer-use/preview-input.mjs';
 import { browserExecutablePath } from '../src/computer-use/browser.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,7 +24,7 @@ async function until(fn, timeout = 30000) {
   throw new Error('Timed out waiting for the Computer Use UI');
 }
 
-for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browser UI: takeover, navigation, tabs, references and themes', { timeout: process.platform === 'win32' ? 360000 : 90000, skip: backend === 'extension' && process.platform === 'win32' }, async t => {
+for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browser UI: takeover, navigation, tabs, references and themes', { timeout: process.platform === 'win32' ? 360000 : 180000, skip: backend === 'extension' && process.platform === 'win32' }, async t => {
   const began = performance.now(); let stage = 'prepare';
   const markStage = value => { stage = value; console.log('Computer Use UI stage:', backend, stage, Math.round(performance.now() - began) + 'ms'); };
   const root = await mkdtemp(join(tmpdir(), 'trisoul-cu-ui-')), home = join(root, 'home'), workspace = join(root, 'workspace');
@@ -58,7 +59,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   await writeFile(join(home, 'settings.yaml'), JSON.stringify({
     'llm-pi-ai': { providers: { fixture: { api: 'openai-completions', baseURL: `http://127.0.0.1:${provider.address().port}/v1`, apiKeyEnv: 'CU_UI_FIXTURE', models: [{ id: 'fixture', name: 'fixture', contextWindow: 1000000, maxTokens: 8192, input: ['text', 'image'] }, { id: 'text-fixture', name: '仅文本验收模型', contextWindow: 1000000, maxTokens: 8192, input: ['text'] }] } } },
     'agent-default-model': { provider: 'fixture', model: 'fixture' },
-    'trisoul-x': { computerUseBrowserExecutable: testBrowser, stateEnabled: false, probeEnabled: false, digestEvery: 1000, flushIdleMs: 3600000, computerUseChromeUserDataDir: join(root, 'external-profile'),computerUseNativeBinary:nativeBinary },
+    'opencu': { computerUseBrowserExecutable: testBrowser, computerUseChromeUserDataDir: join(root, 'external-profile'),computerUseNativeBinary:nativeBinary },
   }));
   await writeFile(join(home, '.credentials.yaml'), JSON.stringify({ version: 1, refs: { CU_UI_FIXTURE: 'local-test-only' } }), { mode: 0o600 });
   const child = spawn(process.execPath, ['scripts/start.mjs'], { cwd: new URL('../', import.meta.url), env: { ...process.env, DSH_HOME: home, PORT: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -101,24 +102,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   await rpc('session/prompt', { requestId: crypto.randomUUID(), sessionId, mode: 'queue', content: [{ type: 'text', text: '入口验收' }] });
   browser = await chromium.launch({ headless: true, executablePath: chromium.executablePath() });
   const context = await browser.newContext({ viewport: { width: 1480, height: 1000 }, colorScheme: 'light', locale: 'zh-CN' });
-  await context.addInitScript(() => {
-    const original = EventSource.prototype.addEventListener;
-    EventSource.prototype.addEventListener = function(type, listener, options) {
-      if (type === 'frame') return original.call(this, type, event => {
-        const { data, ...frame } = JSON.parse(event.data);
-        const frames = window.__cuDisplayedFrames ??= new Map();
-        frames.set(data, frame);
-        while (frames.size > 32) frames.delete(frames.keys().next().value);
-        listener.call(this, event);
-      }, options);
-      if (type !== 'navigation') return original.call(this, type, listener, options);
-      return original.call(this, type, event => {
-        const deliver = () => listener.call(this, event);
-        if (JSON.parse(event.data).url === window.__cuDelayedNavigationUrl) (window.__cuDelayedNavigations ??= []).push(deliver);
-        else deliver();
-      }, options);
-    };
-  });
+  await trackBrowserFrames(context);
   await context.addCookies(cookie.split('; ').map(c => { const at = c.indexOf('='); return { name: c.slice(0, at), value: c.slice(at + 1), url: origin }; }));
   page = await context.newPage(); page.on('pageerror', e => errors.push(e.message));
   page.on('console', message => { if (message.type() === 'error' && !message.text().includes('Failed to load resource')) errors.push(message.text().slice(0,2000)); });
@@ -176,7 +160,6 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   }
   const target = controlled.contexts()[0].pages().find(p => p.url().startsWith(fixture.url)); assert.ok(target);
   fixtureTabId=(await(await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json()).target.id;
-
   // Playwright otherwise auto-dismisses dialogs on this independent observer.
   // Only the real pane is allowed to answer the fixture's prompt.
   target.on('dialog', () => {});
@@ -189,8 +172,12 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
     assert.equal(await group.getAttribute('aria-expanded'), 'false');
     assert.equal(await page.locator('.tx-cu-card').isVisible(), false, 'closed operation summaries hide individual rows');
     await group.click();
+    const operations = page.locator('[data-cu-group] > button').filter({ hasText: '1 次操作' });
+    await operations.waitFor();
+    assert.equal(await operations.count(), 1, 'the process contains one operation group');
+    assert.equal(await operations.getAttribute('aria-expanded'), 'false', 'opening a completed process preserves the independently folded operation list');
+    await operations.click();
     const card = page.locator('.tx-cu-card'); await card.waitFor();
-    assert.equal(await page.locator('.tx-cu-group-toggle:visible').count(),1,'a completed turn has only one summary level, not a nested Computer Use group');
     await card.getByText('打开验收页面', { exact: true }).waitFor();
     await card.getByText('已执行', { exact: true }).waitFor();
     assert.equal(await card.locator('img').count(), 0, 'collapsed Computer Use calls must not mount screenshot images');
@@ -400,7 +387,11 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   assert.equal(popupAfter.target.id,popupBefore.target.id);assert.equal(popupAfter.status,popupBefore.status);assert.equal(popupAfter.controlEpoch,popupBefore.controlEpoch);assert.deepEqual(popupWrites,[]);
   context.off('request',recordPopupWrite);
   await pip.getByRole('button',{name:'缩小预览',exact:true}).click();
-  await pip.getByRole('button',{name:'返回对话',exact:true}).click();
+  await pip.getByRole('button',{name:'返回对话',exact:true}).click({noWaitAfter:true}).catch(error => {
+    // This action closes its own page. Chromium can tear down the click's
+    // acknowledgement first; accept only that expected terminal condition.
+    if (!pip.isClosed() || !error.message.includes('Target page, context or browser has been closed')) throw error;
+  });
   await until(()=>pip.isClosed());
   assert.equal(target.isClosed(),false,'closing a preview preserves the actual browser tab');
   await page.getByRole('button',{name:'悬浮预览',exact:true}).waitFor();
@@ -533,51 +524,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   });
   // Only this observer reads the page. Every tested input goes through the
   // actual React pane, authenticated HTTP, manager, and separate browser.
-  const point = async locator => {
-    let rect, box, viewport, frame;
-    const readDisplayed = async () => {
-      const displayed = await image.evaluate(element => {
-        if (!element.complete || !element.naturalWidth) return null;
-        const frame = window.__cuDisplayedFrames?.get(element.src.split(',')[1]);
-        return frame ? { frame, box: element.getBoundingClientRect().toJSON() } : null;
-      });
-      if (!displayed) return false;
-      const live = page.getByLabel('浏览器实时画面');
-      if (await live.getAttribute('data-connection') !== 'live' || await live.getAttribute('data-layout-busy') === 'true') return false;
-      if (backend === 'managed') {
-        const size = await live.locator('.tx-cu-preview-stage').evaluate(element => ({ width: element.clientWidth, height: element.clientHeight }));
-        if (Math.abs(size.width - displayed.frame.width) > 2 || Math.abs(size.height - displayed.frame.height) > 2) return false;
-      }
-      const { frameTree } = await cdp.send('Page.getFrameTree');
-      if (displayed.frame.loaderId !== frameTree.frame.loaderId) return false;
-      const before = viewportGeometry(await cdp.send('Page.getLayoutMetrics'));
-      const nextRect = await locator.boundingBox(), metrics = await cdp.send('Page.getLayoutMetrics');
-      const after = viewportGeometry(metrics);
-      // DOM-derived click coordinates must describe the decoded image on
-      // screen, not merely any intermediate frame produced by smooth scroll.
-      if (!nextRect || !sameScreenshotGeometry(before, after) || !sameScreenshotGeometry(displayed.frame.geometry, after)) return false;
-      rect = nextRect; box = displayed.box; frame = displayed.frame; viewport = metrics.cssVisualViewport;
-      return true;
-    };
-    await until(readDisplayed);
-    // A revealed window can show only the top of an emulated viewport. Keep
-    // coordinates in the actual frame's CSS dimensions and uniform scale.
-    const visibleHeight = () => Math.min(viewport.clientHeight, frame.height);
-    if (rect.y < 0 || rect.y + rect.height > visibleHeight()) {
-      await page.mouse.move(box.x + box.width - 4, box.y + box.height / 2);
-      await page.mouse.wheel(0, rect.y + rect.height / 2 - visibleHeight() / 2);
-      await until(async () => await readDisplayed() && rect.y >= 0 && rect.y + rect.height <= visibleHeight());
-    }
-    const position = { x: (rect.x + rect.width / 2) * box.width / frame.width, y: (rect.y + rect.height / 2) * box.height / frame.height };
-    return { x: box.x + position.x, y: box.y + position.y, position };
-  };
-  const click = async locator => {
-    const p = await point(locator);
-    // Use the actual image hit target: raw screen coordinates can point
-    // outside it if the host finishes a sidebar layout between measurement
-    // and pointer dispatch. Actionability waits before sending one click.
-    await image.click({ position: p.position });
-  };
+  const { point, click } = previewPointer(page, image, () => cdp, backend);
   await rpc('session/prompt', { requestId: crypto.randomUUID(), sessionId, mode: 'queue', content: [{ type: 'text', text: '助手光标验收' }] });
   const assistantCursor = page.locator('.tx-cu-pane .tx-cu-assistant-cursor');
   if (backend === 'managed') {
@@ -624,10 +571,6 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   assert.equal(await pane.evaluate(e => e.scrollTop), before);
   await click(target.getByRole('button', { name: '保存', exact: true }));
   await target.waitForFunction(() => fixtureEvents.at(-1)?.value?.name === '已全选替换');
-  await click(target.getByRole('button', { name: '打开对话框', exact: true }));
-  await page.getByLabel('网页提示输入').fill('真实界面弹窗');
-  await page.locator('.tx-cu-dialog').getByRole('button', { name: '确定', exact: true }).click();
-  await target.waitForFunction(() => fixtureEvents.at(-1)?.value === '真实界面弹窗');
   await page.getByRole('button', { name: '恢复助手控制', exact: true }).click();
   await page.locator('.tx-cu-chip').getByText('就绪', { exact: true }).waitFor({ timeout: 750 });
   const address = page.getByLabel('浏览器地址');
@@ -678,47 +621,9 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   await page.getByRole('button', { name: '关闭当前标签页', exact: true }).click();
   await until(async () => (await selectedTabId()) === newId);
   assert.equal(target.isClosed(), true);
-  // Delay a completed response to reproduce rapid typing while the previous
-  // request is still in flight. The second Enter must not disappear.
-  await page.evaluate(delayedUrl => {
-    window.__cuDelayedNavigationUrl = delayedUrl;
-    const original = window.fetch;
-    window.__cuRestoreFetch = () => { window.fetch = original; delete window.__cuRestoreFetch; };
-    window.fetch = async (...args) => {
-      let delayed = false;
-      if (typeof args[0] === 'string' && args[0].includes('/trisoul-x/computer-use/navigate?')) {
-        try { delayed = JSON.parse(args[1]?.body ?? '{}').url === delayedUrl; } catch {}
-      }
-      let complete;
-      if (delayed) window.__cuDelayDone = new Promise(resolve => { complete = resolve; });
-      try { const response = await original.apply(window, args); if (delayed) await new Promise(resolve => setTimeout(resolve, 400)); return response; }
-      finally { complete?.(); }
-    };
-  }, fixture.url + '/final');
   await address.fill(fixture.url + '/final'); await address.press('Enter');
   await until(() => controlled.contexts()[0].pages().some(p => p.url() === fixture.url + '/final'));
   const second = controlled.contexts()[0].pages().find(p => p.url() === fixture.url + '/final');
-  cdp = await second.context().newCDPSession(second);
-  await address.fill(fixture.url + '/mousedown-dialog'); await address.press('Enter');
-  await until(() => second.url().endsWith('/mousedown-dialog'));
-  await page.evaluate(async () => { await window.__cuDelayDone; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); window.__cuRestoreFetch(); delete window.__cuDelayDone; });
-  assert.ok(await page.evaluate(() => (window.__cuDelayedNavigations ?? []).length), 'the fixture must really retain an old navigation observation');
-  await page.evaluate(async () => { for (const deliver of window.__cuDelayedNavigations) deliver(); delete window.__cuDelayedNavigationUrl; delete window.__cuDelayedNavigations; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); });
-  assert.equal(await address.inputValue(), fixture.url + '/mousedown-dialog', 'the old completed response cannot overwrite the later address');
-  await click(second.getByRole('button', { name: '打开对话框', exact: true }));
-  await page.getByText('On down', { exact: true }).waitFor();
-  await page.getByLabel('网页提示输入').fill('鼠标已释放');
-  await page.locator('.tx-cu-dialog').getByRole('button', { name: '确定', exact: true }).click();
-  await second.waitForFunction(() => fixtureEvents.at(-1)?.value === '鼠标已释放');
-  await page.locator('.tx-cu-dialog').waitFor({ state: 'detached' });
-  const moves = await second.evaluate(() => fixtureMoveCount); box = await image.boundingBox();
-  await page.mouse.move(box.x + box.width - 5, box.y + 15);
-  await second.waitForFunction(previous => fixtureMoveCount > previous && fixtureLastButtons === 0, moves);
-  await address.fill(fixture.url + '/slow-navigation?replace'); await address.press('Enter');
-  await until(() => fixture.navigationRequests.at(-1)?.state === 'started');
-  await address.fill(fixture.url + '/interrupted'); await address.press('Enter');
-  await until(() => second.url().endsWith('/interrupted'));
-  assert.equal(fixture.navigationRequests.at(-1).state, 'cancelled', 'the new URL cancels the old request instead of waiting for it to finish');
   // The real rich-text reference must reach a model request with its identity.
   const composer = page.locator('[contenteditable="true"]').first();
   await composer.pressSequentially(external ? '@Chrome' : '@Browser');

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { createComputerStatePool } from '../src/client/state-pool.mjs';
 import { decorateSlot } from '../src/client/slot-decoration.mjs';
 import { hostPreviewUrl, openHostBrowserPreview } from '../src/client/host-browser.mjs';
-import { processSummaries, operationSummary, operationIcon, operationState, latestOperation } from '../src/client/computer-groups.mjs';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 test('chip and pane share one request, reject a late poll after navigation and dispose by last owner', async () => {
@@ -67,13 +66,4 @@ test('official browser preview uses the owning tab navigation without controllin
   assert.equal(hostPreviewUrl(target, { tabId: 'other', url: 'https://wrong.example' }), target.url);
   for (const url of ['javascript:alert(1)', 'data:text/html,unsafe', 'file:///etc/passwd', 'not a URL']) assert.equal(openHostBrowserPreview(actions, url), false);
   assert.equal(hostPreviewUrl({ kind: 'app' }), null); assert.equal(calls.length, 1);
-});
-
-test('one-pass process summaries exactly match the per-turn history scan', () => {
-  const nodes = Array.from({ length: 500 }, (_, i) => ({ key: String(i), kind: i % 3 ? 'tool-call' : 'context', location: { turn: { turn: i % 35 } }, data: { root: { call: { name: i % 2 ? 'read' : 'computer_use' }, kind: 'tool-result', isError: i % 17 === 0 } } }));
-  const snapshot = { order: nodes.map(n => n.key), nodes: new Map(nodes.map(n => [n.key, n])) }, results = processSummaries(snapshot);
-  for (let turn = 0; turn < 35; turn++) {
-    const calls = nodes.filter(n => n.kind === 'tool-call' && n.location.turn.turn === turn).map(n => n.data.root), names = calls.map(c => c.call.name);
-    assert.deepEqual(results.get(turn), { label: operationSummary(names), icon: operationIcon(names), latest: latestOperation(calls.at(-1)), failures: calls.filter(c => operationState(c) === 'error').length, stopped: calls.filter(c => operationState(c) === 'stopped').length });
-  }
 });
