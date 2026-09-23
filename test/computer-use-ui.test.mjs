@@ -3,13 +3,15 @@ import { browserExecutablePath } from '../src/computer-use/browser.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
+import { parse, stringify } from 'yaml';
 import { startFixture } from './fixtures/computer-use/server.mjs';
 import { extensionFixture } from './fixtures/computer-use/extension.mjs';
 import { extensionSocketPath } from '../src/computer-use/extension-hub.mjs';
@@ -62,6 +64,13 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
     'opencu': { computerUseBrowserExecutable: testBrowser, computerUseChromeUserDataDir: join(root, 'external-profile'),computerUseNativeBinary:nativeBinary },
   }));
   await writeFile(join(home, '.credentials.yaml'), JSON.stringify({ version: 1, refs: { CU_UI_FIXTURE: 'local-test-only' } }), { mode: 0o600 });
+  // The host's iframe browser is opt-in; this scenario explicitly exercises it.
+  const repo = new URL('../', import.meta.url), cli = new URL('node_modules/@deepseek-ai/dsh/lib/bin.js', repo);
+  execFileSync(process.execPath, [fileURLToPath(cli), 'plugin', '--profile', 'web', 'add', 'link:' + fileURLToPath(repo)], { cwd: repo, env: { ...process.env, DSH_HOME: home }, stdio: 'pipe' });
+  const patchFile = join(home, 'profiles/web/cordis.patch.yml');
+  const patch = parse(await readFile(patchFile, 'utf8')) || [];
+  patch.push({ id: 'ui-sidebar-browser', disabled: false });
+  await writeFile(patchFile, stringify(patch));
   const child = spawn(process.execPath, ['scripts/start.mjs'], { cwd: new URL('../', import.meta.url), env: { ...process.env, DSH_HOME: home, PORT: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
   let log = '', browser, controlled, page, complete = false; const errors = [];
   child.stdout.on('data', data => { log = (log + data).slice(-15000); }); child.stderr.on('data', data => { log = (log + data).slice(-15000); });
