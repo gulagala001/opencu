@@ -7,6 +7,7 @@ import sharp from 'sharp';
 import{ComputerUseManager}from'../src/computer-use/manager.mjs';
 import{startFixture}from'./fixtures/computer-use/server.mjs';
 import{extensionFixture}from'./fixtures/computer-use/extension.mjs';
+import{cleanupFixture}from'./fixtures/process.mjs';
 
 for(const backend of ['managed','extension'])test(backend+': annotation captures matching DOM and pixels without changing model control',{timeout:process.platform==='win32'?90000:30000},async t=>{
   const began=performance.now();
@@ -15,19 +16,41 @@ for(const backend of ['managed','extension'])test(backend+': annotation captures
   const launcher=join(root,'browser'),quote=s=>"'"+s.replaceAll("'","'\\''")+"'";
   if(process.platform==='darwin')await writeFile(launcher,'#!/bin/sh\nexec '+quote(chromium.executablePath())+' --use-mock-keychain "$@"\n',{mode:0o700});
   const manager=new ComputerUseManager(root,{...(external?{extensionHub:external.hub}:{}),browser:process.platform==='darwin'?{executablePath:launcher}:{},native:{binary:join(root,'missing')}});
-  t.after(async()=>{await manager.close();await fixture.close();await rm(root,{recursive:true,force:true});});
+  let close, views, view, originalObserve, originalSend;
+  const gates=new Set(),controllers=new Set();
+  const hold=()=>{let resume;const promise=new Promise(resolve=>{resume=resolve;});gates.add(resume);return{promise,release:()=>{gates.delete(resume);resume();}};};
+  const releaseInjected=()=>{
+    for(const controller of controllers)controller.abort();controllers.clear();
+    for(const release of gates)release();gates.clear();
+    if(views&&originalObserve)views.browser.observeScreenshot=originalObserve;
+    if(view&&originalSend)view.cdp.send=originalSend;
+  };
+  t.after(async()=>{
+    t.diagnostic('Annotation cleanup start after '+Math.round(performance.now()-began)+'ms');
+    releaseInjected();
+    try{await cleanupFixture([
+      async()=>{if(close){t.diagnostic('Annotation closing preview');await close();}},
+      async()=>{t.diagnostic('Annotation closing manager');await manager.close();},
+      async()=>{t.diagnostic('Annotation closing fixture');await fixture.close();},
+      ()=>rm(root,{recursive:true,force:true}),
+    ]);}finally{t.diagnostic('Annotation cleanup complete after '+Math.round(performance.now()-began)+'ms');}
+  });
   const tab=await manager.dispatch('annotation-test','createBrowserTab',[external?.browser.id??'browser',fixture.url]);
-  t.diagnostic('Annotation target ready after '+Math.round(performance.now()-began)+'ms');
-  let frame,actor,firstFrame,frameError;
+  t.diagnostic('Annotation page ready after '+Math.round(performance.now()-began)+'ms');
+  let frame,actor,firstFrame,frameError,lastViewFailure;
   const ready=new Promise((resolve,reject)=>{firstFrame=resolve;frameError=reject;});
   void ready.catch(()=>{});
-  const close=await manager.watchBrowser('annotation-test',tab.id,(event,value)=>{
+  close=await manager.watchBrowser('annotation-test',tab.id,(event,value)=>{
     if(event==='frame'){frame=value;firstFrame(value);}if(event==='ready')actor=value.actor;
-    if(event==='failure')frameError(new Error(value.message));
-  });t.after(close);
-  const views=manager.viewsFor(manager.status('annotation-test').target),view=views.views.get(tab.id),page=view.record.page;
+    if(event==='failure'){lastViewFailure=value.message;frameError(new Error(value.message));}
+  });
+  views=manager.viewsFor(manager.status('annotation-test').target);view=views.views.get(tab.id);
+  const page=view.record.page;
+  originalObserve=views.browser.observeScreenshot;originalSend=view.cdp.send;
+  t.diagnostic('Annotation view ready after '+Math.round(performance.now()-began)+'ms');
   let frameTimer;
   try{await Promise.race([ready,new Promise((_,reject)=>{frameTimer=setTimeout(()=>reject(new Error('No annotation frame within the observation deadline')),views.observationTimeoutMs);})]);}
+  catch(error){t.diagnostic('Annotation first-frame state: '+JSON.stringify({error:error.message,viewFailure:lastViewFailure,closed:view.closed,loaderId:view.loaderId,record:!!view.record,cdp:!!view.cdp,initialGeometry:!!view.initialGeometry,latest:!!view.latest,pending:!!view.pending,flushing:!!view.flushing,navigationPending:!!view.navigationPending,dialog:!!view.dialog,listeners:view.listeners?.size,observationTimeoutMs:views.observationTimeoutMs}));throw error;}
   finally{clearTimeout(frameTimer);}assert.ok(frame);
   t.diagnostic('Annotation frame ready after '+Math.round(performance.now()-began)+'ms');
   let acceptanceTimer;
@@ -56,22 +79,35 @@ for(const backend of ['managed','extension'])test(backend+': annotation captures
   await assert.rejects(manager.annotationStylePreview('annotation-test',{...input(),sourceFrameId:result.frame.id,elementKey:name.key,changes:{color:'not-a-color'}}),/无效的 CSS/);
   assert.equal(await page.locator('#name').getAttribute('style'),originalStyle);
   const styleInput=()=>({...input(),sourceFrameId:result.frame.id,elementKey:name.key,changes:{color:'rgb(10, 20, 30)',width:'290px'}});
-  const captureBeforeFailure=views.browser.observeScreenshot;
   views.browser.observeScreenshot=async()=>{await page.locator('#name').evaluate(el=>{el.style.setProperty('outline-width','7px');el.style.setProperty('color','rgb(70, 80, 90)');});throw new Error('injected capture failure');};
-  await assert.rejects(manager.annotationStylePreview('annotation-test',styleInput()),/injected capture failure/);
-  assert.equal(await page.locator('#name').evaluate(el=>el.style.width),'');assert.equal(await page.locator('#name').evaluate(el=>el.style.color),'rgb(70, 80, 90)','preserve page-owned changes to a previewed property');
-  assert.equal(await page.locator('#name').evaluate(el=>el.style.outlineWidth),'7px','preserve unrelated page-owned changes');
-  await page.locator('#name').evaluate(el=>el.removeAttribute('style'));views.browser.observeScreenshot=captureBeforeFailure;
-  let applied;const applying=new Promise(resolve=>{applied=resolve;});views.browser.observeScreenshot=()=>{applied();return new Promise(()=>{});};
-  const cancellation=new AbortController(),cancelled=manager.annotationStylePreview('annotation-test',styleInput(),cancellation.signal);await applying;cancellation.abort();await assert.rejects(cancelled,/abort/i);
-  assert.equal(await page.locator('#name').getAttribute('style'),originalStyle,'cancel restores before acknowledging completion');views.browser.observeScreenshot=captureBeforeFailure;
+  try{
+    await assert.rejects(manager.annotationStylePreview('annotation-test',styleInput()),/injected capture failure/);
+    assert.equal(await page.locator('#name').evaluate(el=>el.style.width),'');assert.equal(await page.locator('#name').evaluate(el=>el.style.color),'rgb(70, 80, 90)','preserve page-owned changes to a previewed property');
+    assert.equal(await page.locator('#name').evaluate(el=>el.style.outlineWidth),'7px','preserve unrelated page-owned changes');
+    await page.locator('#name').evaluate(el=>el.removeAttribute('style'));
+  }finally{views.browser.observeScreenshot=originalObserve;}
+  let applied;const applying=new Promise(resolve=>{applied=resolve;}),blockedStyle=hold();
+  views.browser.observeScreenshot=()=>{applied();return blockedStyle.promise;};
+  const cancellation=new AbortController();controllers.add(cancellation);
+  const cancelled=manager.annotationStylePreview('annotation-test',styleInput(),cancellation.signal);
+  t.diagnostic('Annotation injected style observation pending');
+  try{
+    await applying;cancellation.abort();await assert.rejects(cancelled,/abort/i);
+    assert.equal(await page.locator('#name').getAttribute('style'),originalStyle,'cancel restores before acknowledging completion');
+  }finally{
+    cancellation.abort();controllers.delete(cancellation);blockedStyle.release();views.browser.observeScreenshot=originalObserve;
+    await cancelled.catch(()=>{});
+    t.diagnostic('Annotation injected style observation released');
+  }
   const send=view.cdp.send.bind(view.cdp);let failRestore=true;
   view.cdp.send=(method,params)=>method==='Runtime.callFunctionOn'&&params.functionDeclaration.includes('return this.restore()')&&failRestore?Promise.reject(new Error('injected restore failure')):send(method,params);
-  await assert.rejects(manager.annotationStylePreview('annotation-test',styleInput()),/injected restore failure/);assert.ok(view.stylePreview);
-  await assert.rejects(manager.resume('annotation-test'),/Stopping|恢复/);
-  await assert.rejects(manager.stop('annotation-test'),/injected restore failure/);assert.ok(view.stylePreview,'failed cleanup keeps the transaction available for retry');
-  if(backend==='extension'){await new Promise(resolve=>setTimeout(resolve,5100));assert.equal(await page.locator('#name').getAttribute('style'),originalStyle,'renderer lease also restores if transport confirmation is lost');}
-  failRestore=false;await manager.stop('annotation-test');assert.equal(view.stylePreview,null);assert.equal(await page.locator('#name').getAttribute('style'),originalStyle);view.cdp.send=send;
+  try{
+    await assert.rejects(manager.annotationStylePreview('annotation-test',styleInput()),/injected restore failure/);assert.ok(view.stylePreview);
+    await assert.rejects(manager.resume('annotation-test'),/Stopping|恢复/);
+    await assert.rejects(manager.stop('annotation-test'),/injected restore failure/);assert.ok(view.stylePreview,'failed cleanup keeps the transaction available for retry');
+    if(backend==='extension'){await new Promise(resolve=>setTimeout(resolve,5100));assert.equal(await page.locator('#name').getAttribute('style'),originalStyle,'renderer lease also restores if transport confirmation is lost');}
+    failRestore=false;await manager.stop('annotation-test');assert.equal(view.stylePreview,null);assert.equal(await page.locator('#name').getAttribute('style'),originalStyle);
+  }finally{failRestore=false;view.cdp.send=originalSend;if(view.stylePreview)await manager.stop('annotation-test').catch(()=>{});}
   await view.cdp.send('Emulation.setPageScaleFactor',{pageScaleFactor:1.5});
   const zoomed=await capture(),zoomName=zoomed.elements.find(e=>e.id==='name'),zoomBox=await page.locator('#name').boundingBox();
   assert.equal(zoomed.frame.geometry.scale,1.5);assert.ok(zoomName);
@@ -79,12 +115,21 @@ for(const backend of ['managed','extension'])test(backend+': annotation captures
   await view.cdp.send('Emulation.setPageScaleFactor',{pageScaleFactor:1});
   await assert.rejects(manager.annotationSnapshot('annotation-test',{...input(),actor:'stale'}),/已改变/);
   // Navigation during capture must reject, not pair the old DOM with new pixels.
-  const original=views.browser.observeScreenshot;let navigated=false;
-  views.browser.observeScreenshot=async(...args)=>{if(!navigated){navigated=true;await page.goto(fixture.url+'/changed');}return original.apply(views.browser,args);};
-  await assert.rejects(capture(),/changed|改变|变化/i);views.browser.observeScreenshot=original;
-  let entered;const started=new Promise(resolve=>{entered=resolve;});views.browser.observeScreenshot=()=>{entered();return new Promise(()=>{});};
-  const pending=capture();await started;const rejected=assert.rejects(pending,/closed|关闭|改变/i);await manager.setEnabled(false);await rejected;views.browser.observeScreenshot=original;
+  let navigated=false;
+  views.browser.observeScreenshot=async(...args)=>{if(!navigated){navigated=true;await page.goto(fixture.url+'/changed');}return originalObserve.apply(views.browser,args);};
+  try{await assert.rejects(capture(),/changed|改变|变化/i);}finally{views.browser.observeScreenshot=originalObserve;}
+  let entered;const started=new Promise(resolve=>{entered=resolve;}),blockedClose=hold();
+  views.browser.observeScreenshot=()=>{entered();return blockedClose.promise;};
+  const pending=capture();
+  t.diagnostic('Annotation injected shutdown observation pending');
+  try{
+    await started;const rejected=assert.rejects(pending,/closed|关闭|改变/i);await manager.setEnabled(false);await rejected;
+  }finally{
+    blockedClose.release();views.browser.observeScreenshot=originalObserve;
+    await pending.catch(()=>{});
+    t.diagnostic('Annotation injected shutdown observation released');
+  }
   await assert.rejects(capture(),/已关闭/);await close();await manager.setEnabled(true);await assert.rejects(capture(),/已改变|断开/);
   })(),new Promise((_,reject)=>{acceptanceTimer=setTimeout(()=>reject(new Error('Annotation acceptance exceeded 30000ms after setup')),30000);})]);}
-  finally{clearTimeout(acceptanceTimer);}
+  finally{clearTimeout(acceptanceTimer);releaseInjected();t.diagnostic('Annotation acceptance cleanup after '+Math.round(performance.now()-began)+'ms');}
 });
