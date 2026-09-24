@@ -180,20 +180,35 @@ test('a late screenshot from another target cannot overwrite the selected pane',
   const first = await manager.dispatch('test','createBrowserTab',['browser',fixture.url]);
   const second = await manager.dispatch('test','createBrowserTab',['browser',fixture.url+'/frame']);
   t.diagnostic('Both targets ready in ' + Math.round(performance.now() - began) + 'ms');
-  const screenshot = manager.browser.capture.bind(manager.browser);
+  const screenshot = manager.browser.capture.bind(manager.browser), abort = new AbortController();
   let release, entered, timer; const ready = new Promise(resolve => { entered = resolve; }), finish = new Promise(resolve => { release = resolve; });
-  manager.browser.capture = async (...args) => { const image = await screenshot(...args); if (args[0].id === first.id) { entered(); await finish; } return image; };
-  const slow = manager.dispatch('test','target',[first,'getScreenshot']);
-  const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Screenshot target race exceeded 15000ms after browser startup')), 15000); });
+  manager.browser.capture = async (...args) => {
+    const target = args[0].id === first.id ? 'first' : 'second';
+    t.diagnostic(target + ' capture entered');
+    const image = await screenshot(...args);
+    t.diagnostic(target + ' capture returned');
+    if (args[0].id === first.id) { entered(); await finish; }
+    return image;
+  };
+  const slow = manager.dispatch('test','target',[first,'getScreenshot'],abort.signal);
+  const deadline = new Promise((_, reject) => { timer = setTimeout(() => {
+    const error = new Error('Screenshot target race exceeded 15000ms after browser startup');
+    abort.abort(error); reject(error);
+  }, 15000); });
   const completedEarly = slow.then(() => { throw new Error('The delayed screenshot completed before its release'); });
   try {
     await Promise.race([ready, completedEarly, deadline]);
-    const current = await Promise.race([manager.dispatch('test','target',[second,'getScreenshot']), deadline]);
+    const current = await Promise.race([manager.dispatch('test','target',[second,'getScreenshot'],abort.signal), deadline]);
+    t.diagnostic('second screenshot dispatched');
     assert.equal(manager.status('test').target.id,second.id);
     assert.equal(manager.preview.get('test').data,current.screenshot);
     release(); const old = await Promise.race([slow, deadline]); assert.notEqual(old.screenshot,current.screenshot);
     assert.equal(manager.status('test').target.id,second.id);
     assert.equal(manager.preview.get('test').target.id,second.id,'the pane image must describe its currently selected target');
     assert.equal(manager.preview.get('test').data,current.screenshot);
-  } finally { clearTimeout(timer); release(); await slow.catch(() => {}); }
+  } finally {
+    clearTimeout(timer); release(); abort.abort(new Error('Screenshot race fixture finished'));
+    // Do not let a stuck CDP request hide the test's actual deadline failure.
+    await Promise.race([slow.catch(() => {}), delay(1000)]);
+  }
 });
