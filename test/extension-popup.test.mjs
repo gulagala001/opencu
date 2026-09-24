@@ -1,4 +1,5 @@
 import test from 'node:test';
+import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
@@ -38,3 +39,30 @@ for (const { action, button } of [
     await page.waitForFunction(expected => window.popupProbe.calls.some(call => call.action === expected), action, { timeout: 2000 });
   });
 }
+
+test('popup keeps the Stop button through a status refresh between pointer down and up', async t => {
+  const browser = await chromium.launch({ headless: true });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.setContent(html);
+  await page.evaluate(() => {
+    const calls = [], current = { connected: true, controls: [{ id: 71, title: 'Fixture tab', url: 'https://example.test/' }] };
+    window.popupProbe = { calls, poll: null };
+    window.chrome = { runtime: { sendMessage: message => {
+      calls.push(message);
+      return Promise.resolve(message.action === 'stop' ? { ...current, controls: [] } : current);
+    } } };
+    window.setInterval = callback => { window.popupProbe.poll = callback; return 1; };
+  });
+  await page.addScriptTag({ type: 'module', content: script });
+  const stop = page.getByRole('button', { name: '停止', exact: true });
+  await stop.waitFor();
+  const original = await stop.elementHandle(), box = await stop.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.evaluate(() => window.popupProbe.poll());
+  const sameButton = await original.evaluate(element => element.isConnected);
+  await page.mouse.up();
+  const stopSent = await page.evaluate(() => window.popupProbe.calls.some(call => call.action === 'stop' && call.tabId === 71));
+  assert.deepEqual({ sameButton, stopSent }, { sameButton: true, stopSent: true });
+});
