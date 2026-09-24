@@ -26,6 +26,10 @@ jobs:
             node: '24'
           - os: windows-latest
             node: '24'
+            shard: '1/2'
+          - os: windows-latest
+            node: '24'
+            shard: '2/2'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -42,11 +46,16 @@ jobs:
       # Real browser fixtures are resource intensive and some exercise the
       # shared desktop. Keep platform results independent and run files in order.
       - run: node --test --test-concurrency=1 test/*.test.mjs
+        if: runner.os != 'Windows'
+        env:
+          TRISOUL_CU_UI_ARTIFACTS: '1'
+      - run: node --test --test-concurrency=1 --test-shard=${{ matrix.shard }} test/*.test.mjs
+        if: runner.os == 'Windows'
         env:
           TRISOUL_CU_UI_ARTIFACTS: '1'
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: test-evidence-${{ matrix.os }}-${{ matrix.node }}
+          name: test-evidence-${{ matrix.os }}-${{ matrix.node }}-${{ strategy.job-index }}
           path: cu-artifacts/
           retention-days: 7

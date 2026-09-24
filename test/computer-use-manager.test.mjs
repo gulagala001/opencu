@@ -180,7 +180,19 @@ test('a late screenshot from another target cannot overwrite the selected pane',
   const first = await manager.dispatch('test','createBrowserTab',['browser',fixture.url]);
   const second = await manager.dispatch('test','createBrowserTab',['browser',fixture.url+'/frame']);
   t.diagnostic('Both targets ready in ' + Math.round(performance.now() - began) + 'ms');
-  const screenshot = manager.browser.capture.bind(manager.browser), abort = new AbortController();
+  const connection=await manager.browser.connection('test'),cdpSend=[];
+  for(const [label,target] of [['first',first],['second',second]]){
+    const record=connection.pages.get(target.id);assert.ok(record,`${label} target must have a CDP record`);
+    const cdp=record.cdp,original=cdp.send,own=Object.hasOwn(cdp,'send');let active=true;
+    cdp.send=async function(method,...args){
+      const started=performance.now();if(active)t.diagnostic(`${label} CDP ${method} entered`);
+      try{const result=await original.call(this,method,...args);if(active)t.diagnostic(`${label} CDP ${method} returned in ${Math.round(performance.now()-started)}ms`);return result;}
+      catch(error){if(active)t.diagnostic(`${label} CDP ${method} rejected in ${Math.round(performance.now()-started)}ms`);throw error;}
+    };
+    cdpSend.push(()=>{active=false;if(own)cdp.send=original;else delete cdp.send;});
+  }
+  const originalCapture=manager.browser.capture,captureOwn=Object.hasOwn(manager.browser,'capture');
+  const screenshot = originalCapture.bind(manager.browser), abort = new AbortController();
   let release, entered, timer; const ready = new Promise(resolve => { entered = resolve; }), finish = new Promise(resolve => { release = resolve; });
   manager.browser.capture = async (...args) => {
     const target = args[0].id === first.id ? 'first' : 'second';
@@ -208,6 +220,8 @@ test('a late screenshot from another target cannot overwrite the selected pane',
     assert.equal(manager.preview.get('test').data,current.screenshot);
   } finally {
     clearTimeout(timer); release(); abort.abort(new Error('Screenshot race fixture finished'));
+    for(const restore of cdpSend)restore();
+    if(captureOwn)manager.browser.capture=originalCapture;else delete manager.browser.capture;
     // Do not let a stuck CDP request hide the test's actual deadline failure.
     await Promise.race([slow.catch(() => {}), delay(1000)]);
   }
