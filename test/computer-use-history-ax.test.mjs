@@ -15,7 +15,9 @@ test('history restores fresh AX observations and form values after nested cross-
   const tab = await host.create('history', fixture.url);
   const record = await host.target('history', tab.id);
   let restores = 0;
+  const notRestored = [];
   record.cdp.on('Page.frameNavigated', event => { if (event.type === 'BackForwardCacheRestore') restores++; });
+  record.cdp.on('Page.backForwardCacheNotUsed', event => { notRestored.push(event); });
   const call = (method, ...args) => host.invoke('history', tab.id, method, args);
   const element = (state, role, name) => {
     const line = state.split('\n').find(line => line.includes(`${role} ${JSON.stringify(name)}`));
@@ -42,6 +44,10 @@ test('history restores fresh AX observations and form values after nested cross-
   assert.deepEqual(record.page.frames().map(frame => frame.url()), [fixture.url + '/cross-frames', fixture.url.replace('127.0.0.1', 'localhost') + '/cross-middle', fixture.url + '/frame']);
   assert.match(state, /\[iframe "http:\/\/localhost:\d+\/cross-middle"\]/);
   assert.match(state, /\[iframe "http:\/\/127\.0\.0\.1:\d+\/frame"\]/);
+  if (restores !== 2) {
+    const navigation = await record.page.evaluate(() => performance.getEntriesByType('navigation').map(entry => ({ type: entry.type, notRestoredReasons: entry.notRestoredReasons }))).catch(error => ({ error: error.message }));
+    t.diagnostic('BFCache history navigation: ' + JSON.stringify({ restores, notRestored, navigation }));
+  }
   assert.equal(restores, 2, 'both history steps actually restore BFCache documents');
   await call('setValue', element(state, 'textbox', '外层输入'), '恢复后外层仍可操作');
   await call('setValue', element(state, 'textbox', '框架输入'), '恢复后内层仍可操作');

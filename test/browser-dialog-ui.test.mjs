@@ -28,15 +28,26 @@ for (const backend of ['managed', 'extension']) test(backend + ' browser dialogs
       profile: join(root, 'chrome-profile'), extensionPath: prepared.extension.installation.extensionPath, prepared: true });
     browserId = external.browser.id;
   }
-  let sent = false;
+  let sent = false, replies = 0;
   f.replyWith(() => {
+    replies++;
     if (sent) return { delta: { role: 'assistant', content: '对话框页面就绪。' }, finish_reason: 'stop' };
     sent = true;
     return { delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'dialog-browser', type: 'function', function: { name: 'computer_use',
       arguments: JSON.stringify({ title: '打开对话框测试页面', code: `var tab = await cua.createBrowserTab(${JSON.stringify(browserId)}, ${JSON.stringify(fixture.url)}); await tab.markDeliverable(); await tab.getScreenshot();` }) } }] }, finish_reason: 'tool_calls' };
   });
+  const setupStarted = performance.now();
   await f.rpc('session/prompt', { requestId: crypto.randomUUID(), sessionId, mode: 'queue', content: [{ type: 'text', text: '准备对话框页面' }] });
-  await page.getByText('对话框页面就绪。', { exact: true }).waitFor();
+  // Cold launch, navigation, screenshot and the next model step exceed a
+  // single locator's default budget; the successful tool result stays required.
+  try {
+    await page.getByText('对话框页面就绪。', { exact: true }).waitFor({ timeout: process.platform === 'win32' ? 60000 : 45000 });
+  } catch (error) {
+    const snapshot = await page.request.get(endpoint('state'), { timeout: 2000 }).then(r => r.json()).catch(e => ({ error: e.message }));
+    t.diagnostic(JSON.stringify({ backend, replies, state: snapshot, pageErrors: f.errors }));
+    throw error;
+  }
+  t.diagnostic(backend + ' tool setup completed in ' + Math.round(performance.now() - setupStarted) + 'ms');
   assert.ok((await state()).target, JSON.stringify(await state()));
   await until(async () => (await state()).previewAt);
   if (!external) {

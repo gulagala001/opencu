@@ -159,8 +159,11 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   await page.getByRole('button', { name: '恢复助手控制', exact: true }).click();
   await page.locator('.tx-cu-pane').getByText('就绪', { exact: true }).waitFor();
   await page.getByRole('button', { name: '收起右侧边栏', exact: true }).click();
+  const finalReplies=page.locator('[data-chat-flow-kind="assistant-step"]').filter({hasText:'Computer Use 界面验收'});
+  const priorReplies=await finalReplies.count();
   await rpc('session/prompt', { requestId: crypto.randomUUID(), sessionId, mode: 'queue', content: [{ type: 'text', text: 'Computer Use 界面验收' }] });
   await until(async () => { const state = await (await fetch(origin + '/trisoul-x/computer-use/state?session=' + sessionId, { headers: { cookie } })).json(); return state.previewAt && state.status === 'idle'; });
+  await until(async()=>await finalReplies.count()>priorReplies);
   if (external) controlled = { contexts: () => [external.context], close: async () => {} };
   else {
   const [port, endpoint] = (await readFile(join(home, 'trisoul-x/computer-use/browser-profile/DevToolsActivePort'), 'utf8')).trim().split('\n');
@@ -178,6 +181,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
     await preview.waitFor();await preview.locator('.tx-cu-preview-open').first().hover();await preview.getByRole('button',{name:'关闭操控预览',exact:true}).click();await preview.waitFor({state:'hidden'});
     const group = page.locator('button[data-turn-process-tool-calls="1"]');
     await group.waitFor();
+    await until(async()=>await group.getAttribute('aria-expanded')==='false');
     assert.equal(await group.getAttribute('aria-expanded'), 'false');
     assert.equal(await page.locator('.tx-cu-card').isVisible(), false, 'closed operation summaries hide individual rows');
     await group.click();

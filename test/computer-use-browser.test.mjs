@@ -41,6 +41,7 @@ test('browser: exact observed objects, frames, forms, files and cancellation', {
   const call = (method,...args) => host.invoke(session,id,method,args);
   const locator = (chain,action,...args) => call('locator',chain,action,args);
   const role = (name) => [{method:'getByRole',args:['button',{name,exact:true}]}];
+  await locator([{method:'frameLocator',args:['iframe']},{method:'getByLabel',args:['框架输入']}], 'waitFor', { state: 'visible' });
   let state = (await call('getAXState')).state;
   const element = (role,name) => { const line = state.split('\n').find(l=>l.includes(`${role} ${JSON.stringify(name)}`)); assert.ok(line,`${role}: ${name}\n${state}`);return Number(line.trim().split(' ')[0]); };
 

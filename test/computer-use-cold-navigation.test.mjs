@@ -39,6 +39,7 @@ test('cold browser targets commit their first requested URL exactly once', { tim
     try {
       const tab = await host.create('cold', fixture.url);
       assert.ok(host.child.spawnargs.includes('--disable-field-trial-config'));
+      assert.ok(host.child.spawnargs.includes('--enable-features=CDPScreenshotNewSurface'));
       assert.ok(host.child.spawnargs.includes('--enable-blink-features=WebMCP'));
       assert.ok(!host.child.spawnargs.includes('--disable-back-forward-cache'));
       assert.ok(!host.child.spawnargs.includes('--disable-extensions'));
