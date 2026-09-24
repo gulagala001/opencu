@@ -7,6 +7,7 @@ import { observeNetwork, listNetwork, networkRequest, networkResponseBody } from
 import { listPageAssets, bundlePageAssets, exportPageContent } from './browser-content.mjs';
 import { fetchWebMcpTools, callWebMcpTool, cancelWebMcp, webMcpAvailable } from './browser-webmcp.mjs';
 import { captureViewport, captureFullPage, observeScreenshot, withViewportTransaction, screenshotGeometry, sameScreenshotGeometry, staleScreenshot } from './browser-screenshot.mjs';
+import { snapshotContexts } from './snapshot-context.mjs';
 
 const stale = () => Object.assign(new Error('This element belongs to an old or detached page. Read the current state again.'), { code: 'STALE_ELEMENT' });
 const keys = { cmd: 'Meta', super: 'Meta', ctrl: 'Control', control: 'Control', alt: 'Alt', option: 'Alt', shift: 'Shift', return: 'Enter', enter: 'Enter', esc: 'Escape', escape: 'Escape', backspace: 'Backspace', delete: 'Delete', tab: 'Tab', space: 'Space', left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown', home: 'Home', end: 'End', pageup: 'PageUp', pagedown: 'PageDown' };
@@ -217,21 +218,31 @@ export class BrowserActions {
       const visit = node => { if (!node || visited.has(node.nodeId)) return; visited.add(node.nodeId); ordered.push(node); for (const id of node.childIds ?? []) visit(byId.get(id)); };
       for (const node of nodes) if (!node.parentId || !byId.has(node.parentId)) visit(node);
       for (const node of nodes) visit(node);
+      const rows = [], entries = [];
       for (const node of ordered) {
         if (node.ignored) continue;
         const role = text(node.role), name = text(node.name), value = text(node.value);
         if (!name && !value && ['none','generic','InlineTextBox'].includes(role)) continue;
         if (role === 'InlineTextBox') continue;
-        if (lines.size >= maxElements) { truncated = true; break; }
+        if (lines.size + entries.length >= maxElements) { truncated = true; break; }
         const key = `${record.frameGenerations.get(record.page.mainFrame()) ?? 0}:${frameGeneration}:${frameKey}:${node.backendDOMNodeId ?? node.nodeId}`;
         if (!record.ids.has(key)) record.ids.set(key, ++this.nextElementId);
         const id = record.ids.get(key); let depth = 0, parent = node.parentId;
         while (parent && depth < 25) { const p = byId.get(parent); if (!p) break; if (!p.ignored) depth++; parent = p.parentId; }
         const props = (node.properties ?? []).filter(p => ['checked','selected','expanded','disabled','required','readonly','focused','multiselectable'].includes(p.name)).map(p => `${p.name}=${text(p.value)}`);
         const frameLabel = role === 'RootWebArea' && frame !== record.page.mainFrame() ? ' [iframe ' + JSON.stringify(frame.url()) + ']' : '';
-        const line = `${'  '.repeat(depth)}${id} ${role}${name ? ' ' + JSON.stringify(name) : ''}${value ? ' value=' + JSON.stringify(value) : ''}${props.length ? ' [' + props.join(', ') + ']' : ''}${frameLabel}`;
-        lines.set(id, line);
+        entries.push({ id, depth, role, name, value, props, frameLabel, node });
+        rows.push({ node, role, name });
         if (node.backendDOMNodeId) elements.set(id, { backendNodeId: node.backendDOMNodeId, frame, cdp, frameGeneration, role });
+      }
+      // A repeated name is annotated with the one label that tells its rows
+      // apart; unique names stay exactly as before. The evidence comes from the
+      // AX nodes already collected above, so no extra protocol traffic runs.
+      const contexts = snapshotContexts(rows, byId);
+      for (const { id, depth, role, name, value, props, frameLabel, node } of entries) {
+        const context = contexts.get(node.nodeId);
+        const line = `${'  '.repeat(depth)}${id} ${role}${name ? ' ' + JSON.stringify(name) : ''}${value ? ' value=' + JSON.stringify(value) : ''}${context ? ' [ctx: ' + context + ']' : ''}${props.length ? ' [' + props.join(', ') + ']' : ''}${frameLabel}`;
+        lines.set(id, line);
       }
     }
     const title = await record.page.title(), url = record.page.url();
