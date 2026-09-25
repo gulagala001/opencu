@@ -4,6 +4,7 @@ import { chmod, cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:f
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ExtensionInstaller } from '../src/computer-use/extension-install.mjs';
+import { ExtensionHub, extensionSocketPath } from '../src/computer-use/extension-hub.mjs';
 
 async function installerFor(t) {
   const root = await mkdtemp(join(tmpdir(), "trisoul-cu-install-中文-'"));
@@ -44,6 +45,72 @@ test('Chrome setup preserves another instance registration', { skip: process.pla
   await assert.rejects(installer.prepare(), /其他实例/);
   assert.equal(await readFile(installer.registration, 'utf8'), other);
   assert.equal((await installer.status()).prepared, false);
+});
+
+test('a fresh installation migrates our old registration, preserves its extension path and prevents startup stealing it back', { skip: process.platform === 'win32' }, async t => {
+  const { installer: old, root, source } = await installerFor(t);
+  await old.prepare();
+  const next = new ExtensionInstaller(join(root, 'next'), join(root, 'next.sock'), { source, chromeUserDataDir: old.profile });
+  await next.prepare();
+  assert.equal((await next.status()).prepared, true);
+  assert.equal(next.extensionPath, old.extensionPath);
+  assert.equal(JSON.parse(await readFile(old.receipt, 'utf8')).supersededBy, next.launcher);
+  assert.equal(JSON.parse(await readFile(join(next.directory, 'connection-backup.json'), 'utf8')).registration.path, old.launcher);
+  await assert.rejects(old.prepare(), /迁移/);
+  assert.equal(JSON.parse(await readFile(next.registration, 'utf8')).path, next.launcher);
+  const restarted = new ExtensionInstaller(join(root, 'next'), join(root, 'next.sock'), { source, chromeUserDataDir: old.profile });
+  assert.equal((await restarted.status()).extensionPath, old.extensionPath);
+  await old.prepare({ takeover: true });
+  assert.equal((await old.status()).prepared, true);
+  await assert.rejects(next.prepare(), /迁移/);
+});
+
+test('migration does not trust a matching host name without an owned receipt and matching extension identity', { skip: process.platform === 'win32' }, async t => {
+  const { installer: old, root, source } = await installerFor(t); await old.prepare();
+  const record = JSON.parse(await readFile(old.receipt, 'utf8'));
+  await writeFile(old.receipt, JSON.stringify({ ...record, extensionId: 'unrelated' }));
+  const before = await readFile(old.registration);
+  const next = new ExtensionInstaller(join(root, 'next'), join(root, 'next.sock'), { source, chromeUserDataDir: old.profile });
+  await assert.rejects(next.prepare({ takeover: true }), /其他实例/);
+  assert.deepEqual(await readFile(old.registration), before);
+});
+
+test('live Chrome automatically leaves the old installation and connects to the new owner without losing tabs', { timeout: process.platform === 'win32' ? 180000 : 30000 }, async t => {
+  let next, hub;
+  t.after(async () => { await next?.unregister(); await hub?.close(); });
+  const { extensionFixture } = await import('./fixtures/computer-use/extension.mjs');
+  const env = await extensionFixture(t, { install: true, args: ['--password-store=basic', '--use-mock-keychain'] });
+  const page = await env.context.newPage(); await page.goto(env.fixture.url);
+  await page.evaluate(() => localStorage.setItem('migration', 'keep'));
+  const target = (await env.hub.call(env.browser.id, 'tabs.list')).find(tab => tab.url === env.fixture.url + '/');
+  const leaseId = 'migration-input-lease';
+  await env.hub.call(env.browser.id, 'attach', { tabId: Number(target.id), leaseId });
+  await page.evaluate(() => { window.migrationKeyUps = []; addEventListener('keyup', event => migrationKeyUps.push(event.code)); });
+  await env.hub.call(env.browser.id, 'command', { tabId: Number(target.id), leaseId, method: 'Input.dispatchKeyEvent', params: { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16, modifiers: 8 } });
+  const directory = join(env.root, 'next'), socket = extensionSocketPath(directory);
+  next = new ExtensionInstaller(directory, socket, { source: env.installer.source, chromeUserDataDir: env.installer.profile, hostName: env.installer.hostName });
+  await next.windows?.ensure();
+  hub = new ExtensionHub(socket, { windowsRuntime: next.windows }); await hub.start();
+  await next.prepare();
+  for (let i = 0; i < 100 && (!hub.list().length || env.hub.list().length); i++) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal(env.hub.list().length, 0, 'old bridge disconnected');
+  assert.equal(hub.list().length, 1, 'browser reconnected automatically');
+  assert.equal(next.extensionPath, env.installer.extensionPath, 'Chrome keeps its loaded directory');
+  assert.equal((await next.status(hub.list())).reloadRequired, false);
+  assert.equal(await page.evaluate(() => localStorage.getItem('migration')), 'keep');
+  assert.ok((await page.evaluate(() => migrationKeyUps)).includes('ShiftLeft'), 'held input is released before switching owners');
+  assert.ok((await hub.call(hub.list()[0].id, 'tabs.list')).some(tab => tab.url === env.fixture.url + '/'));
+  await env.popup.getByRole('button', { name: '断开连接', exact: true }).click();
+  await env.popup.getByRole('button', { name: '连接 Oh My DSH', exact: true }).waitFor();
+  await new Promise(resolve => setTimeout(resolve, 750));
+  assert.equal(hub.list().length, 0, 'explicit disconnect is never undone by reconnect');
+});
+
+test('desktop Electron runtime starts the native bridge as Node', { skip: process.platform !== 'darwin' || !process.env.OPENCU_ELECTRON_EXECUTABLE, timeout: 30000 }, async t => {
+  const { extensionFixture } = await import('./fixtures/computer-use/extension.mjs');
+  const env = await extensionFixture(t, { install: true, nodePath: process.env.OPENCU_ELECTRON_EXECUTABLE, args: ['--password-store=basic', '--use-mock-keychain'] });
+  assert.equal(env.hub.list().length, 1);
+  assert.equal((await env.installer.status(env.hub.list())).prepared, true);
 });
 
 test('a failed first Chrome registration can be retried without claiming unrelated files', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, async t => {

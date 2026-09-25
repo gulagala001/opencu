@@ -23,7 +23,7 @@ export async function extensionFixture(t, options = {}) {
   let extension=options.extensionPath??fileURLToPath(new URL('../../../browser-extension',import.meta.url));
   if(options.install){
     const source=join(root,'source');await cp(extension,source,{recursive:true});
-    installer=new ExtensionInstaller(join(root,'runtime'),options.socketPath??hub.socketPath,{chromeUserDataDir:profile,source});
+    installer=new ExtensionInstaller(join(root,'runtime'),options.socketPath??hub.socketPath,{chromeUserDataDir:profile,source,nodePath:options.nodePath});
     await installer.prepare();extension=installer.extensionPath;
   }
   const manifest=JSON.parse(await readFile(join(extension,'manifest.json'),'utf8'));

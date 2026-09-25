@@ -69,6 +69,36 @@ test('Windows installer never overwrites another instance in either registry vie
   await assert.rejects(readFile(installer.receipt), { code: 'ENOENT' });
 });
 
+test('Windows migrates an owned installation in both registry views and retains the loaded extension directory', async t => {
+  const old = await fixture(t), next = await fixture(t);
+  await old.installer.prepare();
+  for (const method of ['lock', 'read', 'set', 'restore']) next.runtime[method] = old.runtime[method].bind(old.runtime);
+  await next.installer.prepare();
+  assert.ok(old.runtime.records.every(entry => entry.value === next.installer.registration));
+  assert.equal(next.installer.extensionPath, old.installer.extensionPath);
+  assert.equal((await next.installer.status()).prepared, true);
+  await assert.rejects(old.installer.prepare(), /迁移/);
+  await next.installer.unregister();
+  assert.ok(old.runtime.records.every(entry => !entry.hasValue), 'uninstall does not resurrect the superseded registration');
+});
+
+test('failed Windows migration restores the old registry, shared files and receipt', async t => {
+  const old = await fixture(t), next = await fixture(t);
+  await old.installer.prepare();
+  const before = structuredClone(old.runtime.records), receipt = await readFile(old.installer.receipt);
+  const popup = await readFile(join(old.installer.extensionPath, 'popup.js'));
+  await writeFile(join(next.source, 'popup.js'), Buffer.concat([popup, Buffer.from('\n// migration update\n')]));
+  for (const method of ['lock', 'read', 'set', 'restore']) next.runtime[method] = old.runtime[method].bind(old.runtime);
+  old.runtime.failRegistration = true;
+  await assert.rejects(next.installer.prepare(), /Injected registry/);
+  assert.deepEqual(old.runtime.records, before);
+  assert.deepEqual(await readFile(old.installer.receipt), receipt);
+  assert.deepEqual(await readFile(join(old.installer.extensionPath, 'popup.js')), popup);
+  old.runtime.failRegistration = false;
+  await next.installer.prepare();
+  assert.equal((await next.installer.status()).prepared, true);
+});
+
 test('Windows failed registration rolls back files and a partial first installation remains repairable', async t => {
   const { installer, runtime } = await fixture(t);
   const before = structuredClone(runtime.records); runtime.failRegistration = true;
