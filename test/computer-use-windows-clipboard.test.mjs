@@ -29,7 +29,7 @@ test('Windows paste delivers real clipboard formats and preserves newer copies',
     finally {
       if (fixture && !fixture.closed) await fixture.request('fixture', { action: 'clipboard-restore' });
       await fixture?.close();
-      await rm(root, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
     }
   });
   const output = join(root, 'native');
