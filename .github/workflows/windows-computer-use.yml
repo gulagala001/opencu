@@ -49,7 +49,7 @@ jobs:
       - name: Windows bridge and native protocols
         shell: pwsh
         run: |
-          node --test --test-reporter=tap --test-concurrency=1 test/computer-use-exec-file.test.mjs test/computer-use-setup-status.test.mjs test/computer-use-native-lock.test.mjs test/computer-use-windows-install.test.mjs test/computer-use-windows-bridge.test.mjs test/computer-use-windows-native-runtime.test.mjs test/computer-use-windows-native-protocol.test.mjs test/computer-use-windows-input-events.test.mjs test/computer-use-windows-input-recovery.test.mjs *> cu-artifacts/windows-protocols.log
+          node --test --test-reporter=tap --test-concurrency=1 test/computer-use-exec-file.test.mjs test/computer-use-setup-status.test.mjs test/computer-use-native-lock.test.mjs test/computer-use-windows-install.test.mjs test/computer-use-windows-bridge.test.mjs test/computer-use-windows-native-runtime.test.mjs test/computer-use-wsl-native.test.mjs test/computer-use-windows-native-protocol.test.mjs test/computer-use-windows-input-events.test.mjs test/computer-use-windows-input-recovery.test.mjs *> cu-artifacts/windows-protocols.log
           $testExit = $LASTEXITCODE
           Get-Content cu-artifacts/windows-protocols.log
           exit $testExit

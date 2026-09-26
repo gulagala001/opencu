@@ -35,3 +35,34 @@ test('Windows setup exposes runtime removal, retains failures and offers reinsta
   assert.deepEqual(f.errors, []);
   if (process.env.TRISOUL_UI_ARTIFACTS) { await page.locator('.tx-cu-setup').screenshot({ path: join(f.root, 'windows-runtime-removal.png') }); t.diagnostic('Windows removal UI: ' + f.root); }
 });
+
+test('WSL external desktop shows Windows availability and manual recovery without managed install actions', { timeout: 60000 }, async t => {
+  const f = await frontendFixture(t), { page } = f;
+  let native = { platform: 'win32', bridge: true, external: true, supported: true, installed: false, removable: false };
+  await page.route('**/trisoul-x/computer-use/setup?*', async route => {
+    assert.equal(route.request().method(), 'GET');
+    await route.fulfill({ json: { browser: { installed: true, name: 'Fixture' }, extension: { browsers: [] }, native } });
+  });
+  await page.getByRole('button', { name: '打开 Computer Use', exact: true }).click();
+  const toggle = page.getByRole('button', { name: '运行环境与权限', exact: true });
+  await toggle.click();
+  await page.getByText('未找到指定的桌面程序，请检查桌面控制程序路径。', { exact: true }).waitFor();
+  const noManagedActions = async () => assert.equal(await page.getByRole('button', { name: /^(安装|更新|修复|重启|移除)桌面控制$/ }).count(), 0);
+  await noManagedActions();
+  native = { ...native, installed: true, interactive: true, captureSupported: true, version: '0.1.1' };
+  await toggle.click(); await toggle.click();
+  await page.getByText('Windows 桌面', { exact: true }).waitFor();
+  await page.getByText('窗口捕获', { exact: true }).waitFor();
+  assert.equal(await page.getByText('辅助功能', { exact: true }).count(), 0);
+  await noManagedActions();
+  native = { ...native, restartRequired: true };
+  await toggle.click(); await toggle.click();
+  await page.getByText('桌面程序已替换，请重启 DSH 服务或完整重启应用与 Host 后重新选择应用。', { exact: true }).waitFor();
+  await noManagedActions();
+  native = { ...native, restartRequired: false, repairRequired: true, error: '测试：协议不匹配' };
+  await toggle.click(); await toggle.click();
+  await page.getByRole('alert').filter({ hasText: '协议不匹配' }).waitFor();
+  await page.getByText('请手动更新或修复指定的桌面程序，再重启 DSH 服务或完整重启应用与 Host。', { exact: true }).waitFor();
+  await noManagedActions();
+  assert.deepEqual(f.errors, []);
+});

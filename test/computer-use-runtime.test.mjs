@@ -44,6 +44,20 @@ test('first-use documentation is scoped, suppressible results stay quiet, and re
   assert.equal(reset.blocks.length,1);assert.match(reset.blocks[0].text,/# Computer Use JavaScript API/);
 });
 
+test('native backend platform selects both first-use and reread documentation after runtime reset',async t=>{
+  const runtime=new ComputerRuntime(async method=>method==='getApp'?{id:'app-one',kind:'app'}:{state:'fixture'}, {nativePlatform:'win32'});
+  t.after(()=>runtime.reset());
+  for(let i=0;i<2;i++){
+    const first=await runtime.execute("await cua.getApp('fixture');");
+    assert.equal(first.error,undefined);
+    const documentation=first.blocks.find(block=>block.text?.startsWith('# Native app API'))?.text;
+    assert.match(documentation,/Windows desktop behavior/);
+    const reread=await runtime.execute("nodeRepl.write(await cua.documentation('app'));");
+    assert.equal(reread.blocks[0].text,documentation);
+    await runtime.reset();
+  }
+});
+
 test('documentation rereads do not operate the computer or discard partial-call bindings',async t=>{
   const calls=[];
   const runtime=new ComputerRuntime(async method=>{calls.push(method);return [];});
