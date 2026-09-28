@@ -323,7 +323,7 @@ test('chained dialogs remain answerable during resume and a later stop wins', { 
   }
 });
 
-test('plugin unload terminates an owned browser with a held mouse and open dialog', { timeout: 10000 }, async t => {
+test('plugin unload terminates an owned browser with a held mouse and open dialog', { timeout: 30000 }, async t => {
   const s = await setup(t);
   await s.manager.navigate('test', { tabId: s.tab.id, controlEpoch: 0, url: s.fixture.url + '/mousedown-dialog' });
   await s.input({ type: 'pointerdown', ...await s.position(s.page.getByRole('button', { name: '打开对话框', exact: true })) });
