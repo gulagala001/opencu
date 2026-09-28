@@ -27,6 +27,24 @@ test('compiled Windows bridge preserves framed bytes, isolates connections and c
   // The portable fixture runs the DLL through dotnet; the self-contained
   // launcher is exercised separately by the real Windows browser fixture.
   await run(dotnet, ['build', fileURLToPath(new URL('../native/computer-use/windows/TrisoulBrowserBridge.csproj', import.meta.url)), '-p:UseAppHost=false', '-p:OutputPath=' + msbuildValue(join(root, 'out')) + '/', '-p:BaseIntermediateOutputPath=' + msbuildValue(join(root, 'obj')) + '/', '--nologo'], { timeout: 40000, env: { ...process.env, DOTNET_CLI_TELEMETRY_OPTOUT: '1', DOTNET_NOLOGO: '1' } });
+  if (process.platform === 'win32') await t.test('native registry migration compares both inspected views and restores them', async () => {
+    const host = 'ai.trisoul.test_' + randomUUID().replaceAll('-', '');
+    const registry = async (...args) => JSON.parse((await run(dotnet, [dll, ...args])).stdout);
+    const before = await registry('registry-read', host), first = join(root, 'first.json'), second = join(root, 'second.json');
+    let owned = first;
+    try {
+      await registry('registry-set', host, first, JSON.stringify(before));
+      const inspected = await registry('registry-read', host);
+      await assert.rejects(registry('registry-set', host, second), error => error.code === 1);
+      assert.deepEqual(await registry('registry-read', host), inspected, 'legacy writes still cannot replace another path');
+      await registry('registry-set', host, second, JSON.stringify(inspected)); owned = second;
+      const migrated = await registry('registry-read', host);
+      assert.ok(migrated.every(entry => entry.value === second));
+      await assert.rejects(registry('registry-set', host, first, JSON.stringify(inspected)), /changed after inspection/);
+      assert.deepEqual(await registry('registry-read', host), migrated, 'stale inspected values never overwrite the current owner');
+    } finally { await registry('registry-restore', host, owned, JSON.stringify(before)); }
+    assert.deepEqual(await registry('registry-read', host), before, 'all test registration views are restored');
+  });
   const runtime = { command: async () => ({ command: dotnet, args: [dll] }) }, pipe = 'omd-' + randomUUID().replaceAll('-', '').slice(0, 20);
   const origin = 'chrome-extension://' + 'a'.repeat(32) + '/';
   await writeFile(join(root, 'out', 'bridge.json'), JSON.stringify({ pipe, origin }));

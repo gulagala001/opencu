@@ -29,6 +29,9 @@ test('Windows inspection and registry actions survive a console-hiding execFile 
     ['set', ['test-host', 'C:/test/host.json'], 'registry-set'],
     ['restore', ['test-host', 'C:/test/host.json', []], 'registry-restore'],
   ]) assert.deepEqual(await bridge[method](...args), [{ view: 64, value: command }]);
+  const inspected = [{ view: 256, keyExists: true, hasValue: true, value: "C:/旧连接 ' /host.json" }];
+  await bridge.set('test-host', 'C:/next/host.json', inspected);
+  assert.deepEqual(calls.at(-1).args, ['registry-set', 'test-host', 'C:/next/host.json', JSON.stringify(inspected)]);
   assert.ok(calls.slice(1).every(call => call.options.windowsHide === true), 'console hiding is preserved');
 });
 
