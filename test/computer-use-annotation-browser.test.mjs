@@ -11,13 +11,8 @@ import{cleanupFixture}from'./fixtures/process.mjs';
 
 for(const backend of ['managed','extension'])test(backend+': annotation captures matching DOM and pixels without changing model control',{timeout:process.platform==='win32'?90000:30000},async t=>{
   const began=performance.now();
-  const root=await mkdtemp(join(tmpdir(),'trisoul-cu-dom-annotation-')),fixture=await startFixture();
-  const external=backend==='extension'?await extensionFixture(t,{fixture}):null;
-  const launcher=join(root,'browser'),quote=s=>"'"+s.replaceAll("'","'\\''")+"'";
-  if(process.platform==='darwin')await writeFile(launcher,'#!/bin/sh\nexec '+quote(chromium.executablePath())+' --use-mock-keychain "$@"\n',{mode:0o700});
-  const manager=new ComputerUseManager(root,{...(external?{extensionHub:external.hub}:{}),browser:process.platform==='darwin'?{executablePath:launcher}:{},native:{binary:join(root,'missing')}});
-  let close, views, view, originalObserve, originalSend;
-  const gates=new Set(),controllers=new Set();
+  let root,fixture,manager,preparing,close,views,view,originalObserve,originalSend;
+  const externalCleanups=[],gates=new Set(),controllers=new Set();
   const hold=()=>{let resume;const promise=new Promise(resolve=>{resume=resolve;});gates.add(resume);return{promise,release:()=>{gates.delete(resume);resume();}};};
   const releaseInjected=()=>{
     for(const controller of controllers)controller.abort();controllers.clear();
@@ -27,15 +22,33 @@ for(const backend of ['managed','extension'])test(backend+': annotation captures
   };
   t.after(async()=>{
     t.diagnostic('Annotation cleanup start after '+Math.round(performance.now()-began)+'ms');
+    // A cancelled test still owns resources acquired by an in-flight setup.
+    // Settle that setup before draining every cleanup, including partial failures.
+    await preparing?.catch(()=>{});
     releaseInjected();
     try{await cleanupFixture([
       async()=>{if(close){t.diagnostic('Annotation closing preview');await close();}},
-      async()=>{t.diagnostic('Annotation closing manager');await manager.close();},
-      async()=>{t.diagnostic('Annotation closing fixture');await fixture.close();},
-      ()=>rm(root,{recursive:true,force:true}),
+      async()=>{if(manager){t.diagnostic('Annotation closing manager');await manager.close();}},
+      ...externalCleanups,
+      async()=>{if(fixture){t.diagnostic('Annotation closing fixture');await fixture.close();}},
+      ()=>root&&rm(root,{recursive:true,force:true,maxRetries:20,retryDelay:100}),
     ]);}finally{t.diagnostic('Annotation cleanup complete after '+Math.round(performance.now()-began)+'ms');}
   });
-  const tab=await manager.dispatch('annotation-test','createBrowserTab',[external?.browser.id??'browser',fixture.url]);
+  const {external,launcher}=await(preparing=(async()=>{
+    root=await mkdtemp(join(tmpdir(),'trisoul-cu-dom-annotation-'));
+    t.signal.throwIfAborted();
+    fixture=await startFixture();
+    t.signal.throwIfAborted();
+    const external=backend==='extension'?await extensionFixture({after:fn=>externalCleanups.push(fn)},{fixture}):null;
+    t.signal.throwIfAborted();
+    const launcher=join(root,'browser'),quote=s=>"'"+s.replaceAll("'","'\\''")+"'";
+    if(process.platform==='darwin')await writeFile(launcher,'#!/bin/sh\nexec '+quote(chromium.executablePath())+' --use-mock-keychain "$@"\n',{mode:0o700});
+    return{external,launcher};
+  })());
+  t.signal.throwIfAborted();
+  manager=new ComputerUseManager(root,{...(external?{extensionHub:external.hub}:{}),browser:process.platform==='darwin'?{executablePath:launcher}:{},native:{binary:join(root,'missing')}});
+  const tab=await manager.dispatch('annotation-test','createBrowserTab',[external?.browser.id??'browser',fixture.url],t.signal);
+  t.signal.throwIfAborted();
   t.diagnostic('Annotation page ready after '+Math.round(performance.now()-began)+'ms');
   let frame,actor,firstFrame,frameError,lastViewFailure;
   const ready=new Promise((resolve,reject)=>{firstFrame=resolve;frameError=reject;});
@@ -43,7 +56,8 @@ for(const backend of ['managed','extension'])test(backend+': annotation captures
   close=await manager.watchBrowser('annotation-test',tab.id,(event,value)=>{
     if(event==='frame'){frame=value;firstFrame(value);}if(event==='ready')actor=value.actor;
     if(event==='failure'){lastViewFailure=value.message;frameError(new Error(value.message));}
-  });
+  },t.signal);
+  t.signal.throwIfAborted();
   views=manager.viewsFor(manager.status('annotation-test').target);view=views.views.get(tab.id);
   const page=view.record.page;
   originalObserve=views.browser.observeScreenshot;originalSend=view.cdp.send;
@@ -52,6 +66,7 @@ for(const backend of ['managed','extension'])test(backend+': annotation captures
   try{await Promise.race([ready,new Promise((_,reject)=>{frameTimer=setTimeout(()=>reject(new Error('No annotation frame within the observation deadline')),views.observationTimeoutMs);})]);}
   catch(error){t.diagnostic('Annotation first-frame state: '+JSON.stringify({error:error.message,viewFailure:lastViewFailure,closed:view.closed,loaderId:view.loaderId,record:!!view.record,cdp:!!view.cdp,initialGeometry:!!view.initialGeometry,latest:!!view.latest,pending:!!view.pending,flushing:!!view.flushing,navigationPending:!!view.navigationPending,dialog:!!view.dialog,listeners:view.listeners?.size,observationTimeoutMs:views.observationTimeoutMs}));throw error;}
   finally{clearTimeout(frameTimer);}assert.ok(frame);
+  t.signal.throwIfAborted();
   t.diagnostic('Annotation frame ready after '+Math.round(performance.now()-began)+'ms');
   let acceptanceTimer;
   try{await Promise.race([(async()=>{

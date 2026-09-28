@@ -698,6 +698,39 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
     assert.equal(second.isClosed(), false);
     assert.equal(await page.getByRole('alert').count(), 0);
   } else {
+  // Exercise a stale background layout while the preview is still mounted:
+  // forwarding only an expired actor makes the real manager reject the request
+  // without changing the viewport or aborting the frontend's pending handler.
+  markStage('stale automatic layout response before browser exit');
+  const live=page.locator('.tx-cu-pane .tx-cu-live'),layoutPattern='**/trisoul-x/computer-use/view-layout?*';
+  let layoutTask,layoutResponse,layoutFailure,releaseLayout;
+  const heldLayout=new Promise(resolve=>{releaseLayout=resolve;});
+  const interceptLayout=route=>{
+    if(layoutTask)return route.continue();
+    layoutTask=(async()=>{
+      const request=route.request().postDataJSON();
+      const response=await route.fetch({postData:JSON.stringify({...request,actor:'expired-layout-regression'})});
+      layoutResponse={request,status:response.status(),body:await response.json()};
+      await heldLayout;await route.fulfill({response});
+    })();
+    return layoutTask.catch(error=>{layoutFailure=error;});
+  };
+  const viewport=page.viewportSize();
+  await page.route(layoutPattern,interceptLayout);
+  try{
+    await page.setViewportSize({...viewport,height:viewport.height-40});
+    await until(()=>{if(layoutFailure)throw layoutFailure;return layoutResponse;});
+    assert.equal(layoutResponse.request.tabId,newId);
+    assert.ok(layoutResponse.request.actor,'the automatic request carries its real preview actor');
+    assert.equal(layoutResponse.status,400);assert.equal(layoutResponse.body.code,'VIEW_CHANGED');
+    assert.equal(await live.getAttribute('data-layout-busy'),'true','the response remains pending in the mounted preview');
+    releaseLayout();await layoutTask;
+    await until(async()=>await live.getAttribute('data-layout-busy')==='false');
+    assert.equal(await page.getByRole('alert').count(),0,'an expired automatic layout must not leave an error that masks browser exit');
+  }finally{
+    releaseLayout();await layoutTask?.catch(()=>{});await page.unroute(layoutPattern,interceptLayout);
+    await page.setViewportSize(viewport);
+  }
   const endingBrowser = await controlled.newBrowserCDPSession();
   await endingBrowser.send('Browser.close').catch(() => {});
   await page.getByRole('alert').filter({ hasText: '浏览器已退出' }).waitFor();

@@ -7,6 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { ComputerUseManager } from '../src/computer-use/manager.mjs';
 import { startFixture } from './fixtures/computer-use/server.mjs';
 import { navigationTrace } from './fixtures/computer-use/navigation-trace.mjs';
+import { testBrowserExecutable } from './fixtures/computer-use/test-browser.mjs';
 
 async function until(fn) {
   const end = Date.now() + 10000;
@@ -19,7 +20,8 @@ const viewportSize = page => page.evaluate(() => ({ width: document.documentElem
 
 async function setup(t) {
   const directory = await mkdtemp(join(tmpdir(), 'trisoul-cu-view-'));
-  const manager = new ComputerUseManager(directory, { native: { binary: join(directory, 'absent') } });
+  const browser = process.platform === 'darwin' ? { executablePath: await testBrowserExecutable(directory) } : {};
+  const manager = new ComputerUseManager(directory, { browser, native: { binary: join(directory, 'absent') } });
   const fixture = await startFixture();
   const trace = navigationTrace(manager.browser);
   t.after(async () => {
