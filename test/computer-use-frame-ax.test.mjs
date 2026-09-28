@@ -117,9 +117,12 @@ test('snapshot retries remain bounded during continuous changes and abort prompt
   const actions = new BrowserActions(), record = { page: { isClosed: () => false }, generation: 0 };
   let reads = 0;
   actions.readSnapshot = async () => { reads++; record.generation++; throw Object.assign(new Error('changing'), { code: 'STALE_ELEMENT' }); };
-  const start = performance.now();
+  // Use the same millisecond clock as the retry deadline: its integer boundary
+  // can elapse just before a performance.now() interval reaches exactly 2000.
+  const start = Date.now();
   await assert.rejects(actions.snapshot(record, {}), /changing/);
-  assert.ok(performance.now() - start >= 2000);
+  const elapsed = Date.now() - start;
+  assert.ok(elapsed >= 2000, `retry window elapsed ${elapsed}ms`);
   assert.ok(reads > 1);
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(new Error('cancel observation')), 60);
   try { await assert.rejects(actions.snapshot(record, {}, controller.signal), /cancel observation|aborted/); }
