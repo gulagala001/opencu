@@ -28,8 +28,13 @@ for (const backend of ['managed', 'extension']) test(backend + ' browser dialogs
       profile: join(root, 'chrome-profile'), extensionPath: prepared.extension.installation.extensionPath, prepared: true });
     browserId = external.browser.id;
   }
-  let sent = false, replies = 0;
-  f.replyWith(() => {
+  let sent = false, replies = 0; const toolResults = [];
+  f.replyWith(payload => {
+    for (const message of payload.messages ?? []) if (message.role === 'tool') {
+      const text = typeof message.content === 'string' ? message.content : (message.content ?? []).filter(part => part.type === 'text').map(part => part.text).join('\n');
+      toolResults.push({ tool_call_id: message.tool_call_id, text: text.slice(0, 12000) });
+    }
+    if (toolResults.length > 3) toolResults.splice(0, toolResults.length - 3);
     replies++;
     if (sent) return { delta: { role: 'assistant', content: '对话框页面就绪。' }, finish_reason: 'stop' };
     sent = true;
@@ -44,11 +49,12 @@ for (const backend of ['managed', 'extension']) test(backend + ' browser dialogs
     await page.getByText('对话框页面就绪。', { exact: true }).waitFor({ timeout: process.platform === 'win32' ? 60000 : 45000 });
   } catch (error) {
     const snapshot = await page.request.get(endpoint('state'), { timeout: 2000 }).then(r => r.json()).catch(e => ({ error: e.message }));
-    t.diagnostic(JSON.stringify({ backend, replies, state: snapshot, pageErrors: f.errors }));
+    t.diagnostic(JSON.stringify({ backend, replies, state: snapshot, pageErrors: f.errors, toolResults }));
     throw error;
   }
   t.diagnostic(backend + ' tool setup completed in ' + Math.round(performance.now() - setupStarted) + 'ms');
-  assert.ok((await state()).target, JSON.stringify(await state()));
+  const preparedState = await state();
+  assert.ok(preparedState.target, JSON.stringify({ state: preparedState, replies, toolResults }));
   await until(async () => (await state()).previewAt);
   if (!external) {
     const [port, path] = (await readFile(join(home, 'trisoul-x/computer-use/browser-profile/DevToolsActivePort'), 'utf8')).trim().split('\n');

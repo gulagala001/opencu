@@ -669,9 +669,27 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   // connection is only an observer; the new browser is opened by the real UI.
   if (external) {
     markStage('extension popup stop');
+    await external.popup.evaluate(() => {
+      const send = chrome.runtime.sendMessage.bind(chrome.runtime); window.__stopRequests = [];
+      chrome.runtime.sendMessage = async (message, ...args) => {
+        if (message.action !== 'stop') return send(message, ...args);
+        const entry = { message, startedAt: Date.now() }; window.__stopRequests.push(entry);
+        try { const result = await send(message, ...args); entry.result = result; return result; }
+        catch (error) { entry.error = error.message; throw error; }
+        finally { entry.finishedAt = Date.now(); }
+      };
+    });
     await external.popup.locator('.tab').filter({ hasText: await second.title() }).getByRole('button', { name: '停止', exact: true }).click();
     markStage('await extension stop notification');
-    await page.getByRole('alert').filter({ hasText: 'Control ended' }).waitFor();
+    try { await page.getByRole('alert').filter({ hasText: 'Control ended' }).waitFor(); }
+    catch (error) {
+      const popup = await external.popup.evaluate(async () => ({ requests: window.__stopRequests,
+        state: await Promise.race([chrome.runtime.sendMessage({ action: 'status' }), new Promise(resolve => setTimeout(() => resolve({ pending: true }), 500))]),
+        text: document.body.innerText,
+      })).catch(cause => ({ error: cause.message }));
+      const state = await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie},signal:AbortSignal.timeout(2000)}).then(r=>r.json()).catch(cause=>({error:cause.message}));
+      t.diagnostic(JSON.stringify({ popupStop: popup, computerState: state })); throw error;
+    }
     markStage('reselect retained Chrome tab');
     const existing = page.getByLabel('选择已有标签页');
     await until(async () => (await existing.locator('option').allTextContents()).includes(await second.title()));
