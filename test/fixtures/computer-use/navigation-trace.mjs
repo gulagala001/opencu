@@ -3,7 +3,7 @@ import { resolve, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { BrowserTransport } from '../../../src/computer-use/browser-transport.mjs';
 
-const methods = new Set(['Page.navigate', 'Page.stopLoading', 'Page.getFrameTree', 'Page.setLifecycleEventsEnabled', 'Target.createTarget', 'Browser.getVersion', 'Browser.close']);
+const methods = new Set(['Page.navigate', 'Page.stopLoading', 'Page.getFrameTree', 'Page.setLifecycleEventsEnabled', 'Target.createTarget', 'Target.setAutoAttach', 'Runtime.runIfWaitingForDebugger', 'Browser.getVersion', 'Browser.close']);
 const events = /^(Page\.(frameNavigated|frameStartedNavigating|frameRequestedNavigation|frameStartedLoading|frameStoppedLoading|lifecycleEvent)|Target\.(targetCreated|targetDestroyed|attachedToTarget|detachedFromTarget)|Network\.(loadingFailed|loadingFinished|requestWillBeSent|responseReceived))$/;
 const errorInfo = error => error && ({ name: error.name, message: error.message, stack: error.stack });
 
@@ -38,7 +38,7 @@ export function navigationTrace(host) {
   BrowserTransport.prototype.open = open; BrowserTransport.prototype.write = write;
   return {
     stage: name => record({ stage: name }),
-    beforeClose: () => { evidence.beforeClose = run(); },
+    beforeClose: diagnostics => { evidence.beforeClose = run(); if (diagnostics) evidence.diagnostics = diagnostics; },
     async finish(t, cleanupErrors = []) {
       evidence.afterClose = run();
       if (BrowserTransport.prototype.open === open) BrowserTransport.prototype.open = previousOpen;

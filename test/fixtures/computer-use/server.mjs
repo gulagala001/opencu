@@ -6,7 +6,18 @@ export async function startFixture(port = 0) {
   const page = await readFile(new URL('./page.html', import.meta.url)), visual = await readFile(new URL('./visual.html', import.meta.url)), geometry = await readFile(new URL('./geometry.html', import.meta.url));
   const zoomPage = await readFile(new URL('./zoom-workbench.html', import.meta.url));
   const navigationRequests = [];
+  const traffic = [];
+  const observe = event => { if (traffic.length < 512) traffic.push({ at: Date.now(), ...event }); };
+  let previousTick = Date.now();
+  const lagTimer = setInterval(() => {
+    const now = Date.now(), lag = now - previousTick - 100; previousTick = now;
+    if (lag > 200) observe({ event: 'event-loop-delay', milliseconds: lag });
+  }, 100); lagTimer.unref();
   const server = createServer((req, res) => {
+    const request = { event: 'request', method: req.method, url: req.url, port: req.socket.remotePort };
+    observe(request);
+    res.once('finish', () => observe({ event: 'response-finish', url: req.url, status: res.statusCode }));
+    res.once('close', () => observe({ event: 'response-close', url: req.url, finished: res.writableFinished }));
     if (req.url === '/zoom-workbench') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(zoomPage);
     } else if (req.url === '/zoom-frame') {
@@ -41,10 +52,15 @@ export async function startFixture(port = 0) {
   // localhost may resolve to ::1 in Chromium. Preserve the two distinct
   // hostnames used by cross-origin tests without relying on IPv4 fallback.
   const ipv6 = createServer(server.listeners('request')[0]);
+  for (const listener of [server, ipv6]) listener.on('connection', socket => {
+    observe({ event: 'connection', address: socket.remoteAddress, port: socket.remotePort });
+    socket.once('close', hadError => observe({ event: 'connection-close', port: socket.remotePort, hadError }));
+  });
   try {
     await new Promise((resolve, reject) => { ipv6.once('error', reject); ipv6.listen({ port: server.address().port, host: '::1', ipv6Only: true }, resolve); });
-  } catch (error) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); throw error; }
-  return { url: `http://127.0.0.1:${server.address().port}`, navigationRequests, close: async () => {
+  } catch (error) { clearInterval(lagTimer); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); throw error; }
+  return { url: `http://127.0.0.1:${server.address().port}`, navigationRequests, traffic, close: async () => {
+    clearInterval(lagTimer);
     server.closeAllConnections(); ipv6.closeAllConnections();
     await Promise.all([new Promise(resolve => server.close(resolve)), new Promise(resolve => ipv6.close(resolve))]);
   } };

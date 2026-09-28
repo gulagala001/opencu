@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -23,7 +23,8 @@ async function setup(t) {
   const fixture = await startFixture();
   const trace = navigationTrace(manager.browser);
   t.after(async () => {
-    const errors = []; trace.beforeClose();
+    const errors = [];
+    trace.beforeClose({ traffic: fixture.traffic, browserLog: await readFile(join(manager.browser.directory, 'startup.log'), 'utf8').then(text => text.slice(-32768)).catch(error => error.code === 'ENOENT' ? '' : String(error)) });
     for (const cleanup of [() => manager.close(), () => fixture.close(), () => rm(directory, { recursive: true, force: true })]) {
       try { await cleanup(); } catch (error) { errors.push(error); }
     }
