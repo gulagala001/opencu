@@ -25,6 +25,18 @@ test('generic job calls and failures join file operations and retain details acr
   await until(()=>requests>=2);
   assert.equal(await readFile(join(f.root,'workspace','first.txt'),'utf8'),'FIRST_GROUP_FIXTURE');
   const group=page.getByRole('button',{name:/4 次操作/});
+  for(const id of ['generic','job-error','write-one','write-two'])await page.locator(`[data-chat-call-id="${id}"]`).waitFor();
+  assert.equal(await group.count(),0,'default Detailed shows the open turn directly without a drawer header');
+  assert.equal(await page.locator('.tx-cu-group[data-group-expanded-mode="true"]').filter({has:page.locator('[data-chat-call-id="write-one"]')}).count(),1);
+  await page.getByRole('button',{name:'设置',exact:true}).click();
+  const settings=page.getByRole('dialog');
+  await settings.getByRole('button',{name:'通用设置',exact:true}).click();
+  const workDetails=settings.getByText('工作步骤展示',{exact:true}).locator('..').locator('..').getByRole('button');
+  assert.equal(await workDetails.innerText(),'详细','the fresh Web preference uses Detailed');
+  await workDetails.click();
+  await page.getByRole('menuitem',{name:'标准',exact:true}).click();
+  await until(async()=>await workDetails.innerText()==='标准');
+  await page.keyboard.press('Escape');await settings.waitFor({state:'hidden'});
   await group.waitFor({timeout:10000});
   assert.equal(await group.getAttribute('aria-expanded'),'false');
   assert.equal(await page.locator('[data-chat-call-id="write-one"] :is(button,[role="button"]):not(.tx-cu-group-toggle):visible').count(),0);

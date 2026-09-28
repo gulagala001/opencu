@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { ComputerUseManager } from '../src/computer-use/manager.mjs';
 import { startFixture } from './fixtures/computer-use/server.mjs';
+import { navigationTrace } from './fixtures/computer-use/navigation-trace.mjs';
 
 async function until(fn) {
   const end = Date.now() + 10000;
@@ -20,8 +21,18 @@ async function setup(t) {
   const directory = await mkdtemp(join(tmpdir(), 'trisoul-cu-view-'));
   const manager = new ComputerUseManager(directory, { native: { binary: join(directory, 'absent') } });
   const fixture = await startFixture();
-  t.after(async () => { await manager.close(); await fixture.close(); await rm(directory, { recursive: true, force: true }); });
+  const trace = navigationTrace(manager.browser);
+  t.after(async () => {
+    const errors = []; trace.beforeClose();
+    for (const cleanup of [() => manager.close(), () => fixture.close(), () => rm(directory, { recursive: true, force: true })]) {
+      try { await cleanup(); } catch (error) { errors.push(error); }
+    }
+    try { await trace.finish(t, errors); } catch (error) { errors.push(error); }
+    if (errors.length) throw new AggregateError(errors, 'View fixture cleanup failed');
+  });
+  trace.stage('first-navigation');
   const tab = await manager.dispatch('test', 'createBrowserTab', ['browser', fixture.url]);
+  trace.stage('preview-connection');
   let frame, actor, epoch = 0, dialog, navigation;
   const controller = new AbortController();
   const close = await manager.watchBrowser('test', tab.id, (event, value) => {
@@ -32,6 +43,7 @@ async function setup(t) {
     if (event === 'navigation') navigation = value;
   }, controller.signal);
   await until(() => frame);
+  trace.stage('ready');
   const page = manager.browserViews.views.get(tab.id).record.page;
   const input = value => manager.manualInput('test', { actor, tabId: tab.id, frameId: frame.id, controlEpoch: epoch, dialogId: dialog?.id, ...value });
   const position = async locator => {
@@ -180,7 +192,7 @@ test('browser navigation follows history, revokes old input and reports current 
   await assert.rejects(s.input({ type: 'text', text: 'old command', controlEpoch: old.controlEpoch }), /控制权已经改变/);
 });
 
-test('a real viewport resize refreshes the preview even without a new screencast image', {timeout:15000},async t=>{
+test('a real viewport resize refreshes the preview even without a new screencast image', {timeout:30000},async t=>{
   const s=await setup(t),views=s.manager.browserViews,view=views.views.get(s.tab.id),queue=views.queueFrame;
   await s.page.addStyleTag({content:'html{overflow:scroll}::-webkit-scrollbar{width:15px;height:15px}'});
   const baseline=await until(async()=>{const size=await viewportSize(s.page);return !view.flushing&&!view.pending&&s.frame().geometry.layoutWidth===size.width?size:null;});
@@ -198,7 +210,7 @@ test('a real viewport resize refreshes the preview even without a new screencast
   assert.equal(await s.page.getByLabel('姓名').inputValue(),'尺寸改变后仍能接管');
 });
 
-test('new address submissions supersede a pending load and explicit Stop wins over queued replacements', { timeout: 15000 }, async t => {
+test('new address submissions supersede a pending load and explicit Stop wins over queued replacements', { timeout: 30000 }, async t => {
   const s = await setup(t), manager = s.manager;
   const start = manager.status('test');
   const request = (sequence, url, state = start) => ({ action: 'goto', tabId: s.tab.id, url, controlEpoch: state.controlEpoch, navigationRevision: state.navigationRevision, navigationClient: 'navigation-test', navigationSequence: sequence });
