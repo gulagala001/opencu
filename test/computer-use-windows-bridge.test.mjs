@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +16,7 @@ const enabled = process.platform === 'win32' || !!process.env.TRISOUL_CU_DOTNET;
 async function until(fn) { for (let i = 0; i < 400; i++) { const value = fn(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error('Windows bridge observation timed out'); }
 
 test('compiled Windows bridge preserves framed bytes, isolates connections and cancels on EOF', { skip: !enabled, timeout: 60000 }, async t => {
-  const root = await mkdtemp(join(tmpdir(), "oh-my-dsh-win-中文-'-"));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "oh-my-dsh-win-中文-'-")));
   const dll = join(root, 'out', 'OhMyDsh.BrowserBridge.dll');
   let hub; const children = [];
   t.after(async () => {
@@ -39,7 +39,7 @@ test('compiled Windows bridge preserves framed bytes, isolates connections and c
       assert.deepEqual(await registry('registry-read', host), inspected, 'legacy writes still cannot replace another path');
       await registry('registry-set', host, second, JSON.stringify(inspected)); owned = second;
       const migrated = await registry('registry-read', host);
-      assert.ok(migrated.every(entry => entry.value === second));
+      assert.ok(migrated.every(entry => entry.value === second), JSON.stringify({ expected: second, migrated }));
       await assert.rejects(registry('registry-set', host, first, JSON.stringify(inspected)), /changed after inspection/);
       assert.deepEqual(await registry('registry-read', host), migrated, 'stale inspected values never overwrite the current owner');
     } finally { await registry('registry-restore', host, owned, JSON.stringify(before)); }
