@@ -1,13 +1,12 @@
 allowBuilds:
-  '@deepseek-ai/dsh-subprocess-local': true
-  '@google/genai': true
+  "@deepseek-ai/dsh-subprocess-local": true
+  "@google/genai": true
   esbuild: true
   koffi: true
   node-pty: true
   protobufjs: true
 minimumReleaseAgeExclude:
-  - '@deepseek-ai/*'
-
-# DSH office preview transitively pins a vulnerable ZIP parser.
+  - "@deepseek-ai/*"
 overrides:
-  'fflate@<0.8.3': 0.8.3
+  fflate@<0.8.3: 0.8.3
+  "@deepseek-ai/dsh-client-ui-settings-account@0.2.0-rc.2": file:vendor/dsh-sdk/deepseek-ai-dsh-client-ui-settings-account-0.2.0-rc.2.tgz
