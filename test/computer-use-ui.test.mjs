@@ -679,7 +679,12 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
         finally { entry.finishedAt = Date.now(); }
       };
     });
-    await external.popup.locator('.tab').filter({ hasText: await second.title() }).getByRole('button', { name: '停止', exact: true }).click();
+    // Both fixture tabs share a title. Wait for the popup's polled URL to
+    // identify the retained tab, rather than stopping its stale, closed sibling.
+    const stopRow = external.popup.locator('.tab').filter({
+      has: external.popup.locator('span[title=' + JSON.stringify(second.url()) + ']'),
+    });
+    await stopRow.getByRole('button', { name: '停止', exact: true }).click();
     markStage('await extension stop notification');
     try { await page.getByRole('alert').filter({ hasText: 'Control ended' }).waitFor(); }
     catch (error) {
