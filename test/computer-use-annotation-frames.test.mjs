@@ -1,6 +1,6 @@
 import {testBrowserExecutable} from './fixtures/computer-use/test-browser.mjs';
 import test from'node:test';import assert from'node:assert/strict';import{createServer}from'node:http';
-import{mkdtemp,writeFile,rm}from'node:fs/promises';import{join}from'node:path';import{tmpdir}from'node:os';import{chromium}from'playwright';import sharp from'sharp';
+import { mkdtemp, rm } from "node:fs/promises";import{join}from'node:path';import{tmpdir}from'node:os';import sharp from'sharp';
 import{ComputerUseManager}from'../src/computer-use/manager.mjs';import{extensionFixture}from'./fixtures/computer-use/extension.mjs';
 import{pointInPolygon,compareAnnotationPaint}from'../src/computer-use/annotation-geometry.mjs';
 
