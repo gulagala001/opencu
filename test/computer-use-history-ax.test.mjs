@@ -19,25 +19,35 @@ test('history restores fresh AX observations and form values after nested cross-
   record.cdp.on('Page.frameNavigated', event => { if (event.type === 'BackForwardCacheRestore') restores++; });
   record.cdp.on('Page.backForwardCacheNotUsed', event => { notRestored.push(event); });
   const call = (method, ...args) => host.invoke('history', tab.id, method, args);
+  const waitRootFrame = () => record.page.frameLocator('iframe[title="测试框架"]').getByRole('textbox', { name: '框架输入', exact: true }).waitFor();
+  const waitCrossFrames = async () => {
+    const outer = record.page.frameLocator('iframe[title="跨源外层"]');
+    await outer.getByRole('textbox', { name: '外层输入', exact: true }).waitFor();
+    await outer.frameLocator('iframe[title="跨源内层"]').getByRole('textbox', { name: '框架输入', exact: true }).waitFor();
+  };
   const element = (state, role, name) => {
     const line = state.split('\n').find(line => line.includes(`${role} ${JSON.stringify(name)}`));
     assert.ok(line, `${role} ${name}\n${state}`); return Number(line.trim().split(' ')[0]);
   };
+  await waitRootFrame();
   let state = (await call('getAXState', { disableDiffing: true })).state;
   const oldNote = element(state, 'textbox', '备注');
   await call('setValue', oldNote, '后退保留\n中文备注');
   await call('goto', fixture.url + '/cross-frames');
+  await waitCrossFrames();
   state = (await call('getAXState', { disableDiffing: true })).state;
   await call('setValue', element(state, 'textbox', '外层输入'), '外层甲');
   await call('setValue', element(state, 'textbox', '框架输入'), '跨源内层乙');
   await call('click', element(state, 'button', '框架按钮'));
   await call('getAXState');
   await call('back');
+  await waitRootFrame();
   state = (await call('getAXState', { disableDiffing: true })).state;
   assert.match(state, /textbox "备注" value="后退保留\\n中文备注"/);
   await assert.rejects(call('setValue', oldNote, '不应使用旧引用'), /old or detached/);
   await call('setValue', element(state, 'textbox', '框架输入'), '后退框架仍可操作');
   await call('forward');
+  await waitCrossFrames();
   state = (await call('getAXState', { disableDiffing: true })).state;
   assert.match(state, /textbox "外层输入" value="外层甲"/);
   assert.match(state, /textbox "框架输入" value="跨源内层乙"/);

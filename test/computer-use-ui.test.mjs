@@ -342,6 +342,20 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   }
   // Open a real Document PiP window through a user gesture, not a mocked popup.
   if(backend==='managed')await until(layoutMatches); // Finish the preceding find-bar layout before attributing writes to floating controls.
+  const hideComputerPaneForPreview=async()=>{
+    const state=await(await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json();
+    await page.locator('.tx-cu-pane').waitFor();
+    assert.equal(await page.getByRole('button',{name:'悬浮预览',exact:true}).count(),0,'a visible computer pane hides the inline preview entry');
+    await page.getByRole('button',{name:'收起右侧边栏',exact:true}).click();
+    await page.locator('.tx-cu-pane').waitFor({state:'hidden'});
+    await page.getByRole('button',{name:'悬浮预览',exact:true}).waitFor();
+    const after=await(await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json();
+    assert.equal(after.target?.id??null,state.target?.id??null,'hiding the pane preserves the assistant target, including no target');
+    assert.equal(after.viewTarget?.id??null,state.viewTarget?.id??null,'hiding the pane preserves the user-selected view');
+    assert.equal(after.status,state.status,'hiding the pane does not stop or resume the assistant');
+    assert.equal(after.controlEpoch,state.controlEpoch,'hiding the pane does not take control');
+  };
+  await hideComputerPaneForPreview();
   await page.getByRole('button',{name:'悬浮预览',exact:true}).click();
   await page.getByLabel('悬浮操控预览').waitFor();
   assert.equal(await page.evaluate(()=>!!documentPictureInPicture.window),false,'the default preview lives in the conversation page');
@@ -363,6 +377,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   assert.ok(Math.abs(afterDrag.x-beforeDrag.x+100)<2&&Math.abs(afterDrag.y-beforeDrag.y+80)<2,'dragging the header moves the preview by the pointer delta: '+JSON.stringify({beforeDrag,dragStart,afterDrag}));
   await inlinePreview.getByRole('button',{name:'放大预览',exact:true}).click();
   await until(async()=>await inlinePreview.evaluate(element=>element.classList.contains('is-zoomed')));
+  await until(async()=>{const box=await inlinePreview.boundingBox();return box.width>afterDrag.width&&box.height>afterDrag.height;});
   const zoomBox=await inlinePreview.boundingBox();assert.ok(zoomBox.width>afterDrag.width&&zoomBox.height>afterDrag.height,'clicking the card enlarges the actual preview: '+JSON.stringify({afterDrag,zoomBox}));
   const controlAfter=(await (await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json());
   assert.equal(controlAfter.target.id,controlBefore.target.id);assert.equal(controlAfter.status,controlBefore.status);assert.equal(controlAfter.controlEpoch,controlBefore.controlEpoch);
@@ -407,13 +422,16 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   });
   await until(()=>pip.isClosed());
   assert.equal(target.isClosed(),false,'closing a preview preserves the actual browser tab');
+  await page.locator('.tx-cu-pane').waitFor({state:'hidden'});
   await page.getByRole('button',{name:'悬浮预览',exact:true}).waitFor();
+  await inlinePreview.waitFor();
   const beforeOpen=await (await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json();
   await inlinePreview.locator('.tx-cu-preview-open').first().click();
   await inlinePreview.waitFor({state:'hidden'});
   await page.getByLabel('浏览器实时画面').waitFor();
+  await page.getByRole('button',{name:'悬浮预览',exact:true}).waitFor({state:'hidden'});
   const afterOpen=await (await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json();
-  assert.equal(afterOpen.target.id,beforeOpen.target.id);assert.equal(afterOpen.controlEpoch,beforeOpen.controlEpoch,'opening the current page does not take control');
+  assert.equal(afterOpen.target.id,beforeOpen.target.id);assert.equal(afterOpen.status,beforeOpen.status);assert.equal(afterOpen.controlEpoch,beforeOpen.controlEpoch,'opening the current page does not take control');
   // Annotating a frozen preview must never send input to the controlled page.
   let annotationInputs=0;
   const countAnnotationInput=request=>{if(new URL(request.url()).pathname==='/trisoul-x/computer-use/input')annotationInputs++;};
@@ -618,16 +636,18 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   await picker.locator('[aria-selected="true"]').press('Home');await until(async()=>await selectedTabId()===availableTabIds[0]);
   await picker.locator('[aria-selected="true"]').press('End');await until(async()=>await selectedTabId()===availableTabIds.at(-1));
   await picker.locator('[data-tab-id="'+newId+'"]').click();await until(async()=>await selectedTabId()===newId);
+  await hideComputerPaneForPreview();
   await page.getByRole('button',{name:'悬浮预览',exact:true}).click();
   const oldPreview=inlinePreview.locator('.tx-cu-preview-card[data-target="'+originalTabId+'"]');
   await oldPreview.locator('img').waitFor();
   await oldPreview.getByRole('button').click({position:{x:3,y:30}});
   await until(()=>inlinePreview.locator('.tx-cu-preview-card').first().getAttribute('data-target').then(id=>id===originalTabId));
-  assert.equal(await selectedTabId(),newId,'promoting a back card must not select its browser target');
-  if(process.env.TRISOUL_CU_UI_ARTIFACTS)await page.screenshot({path:join(root,'inline-preview-promoted.png')});
   const beforeViewingOld=await (await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json();
+  assert.equal(beforeViewingOld.viewTarget.id,newId,'promoting a back card must not select its browser target while the pane is hidden');
+  if(process.env.TRISOUL_CU_UI_ARTIFACTS)await page.screenshot({path:join(root,'inline-preview-promoted.png')});
   await oldPreview.getByRole('button').click();
   await inlinePreview.waitFor({state:'hidden'});
+  await picker.waitFor();
   await until(async () => (await selectedTabId()) === originalTabId);
   const afterViewingOld=await (await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json();
   assert.equal(afterViewingOld.viewTarget.id,originalTabId);assert.equal(afterViewingOld.target.id,beforeViewingOld.target.id);assert.equal(afterViewingOld.controlEpoch,beforeViewingOld.controlEpoch,'opening an old preview only changes the viewed tab');
@@ -649,9 +669,27 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   // connection is only an observer; the new browser is opened by the real UI.
   if (external) {
     markStage('extension popup stop');
+    await external.popup.evaluate(() => {
+      const send = chrome.runtime.sendMessage.bind(chrome.runtime); window.__stopRequests = [];
+      chrome.runtime.sendMessage = async (message, ...args) => {
+        if (message.action !== 'stop') return send(message, ...args);
+        const entry = { message, startedAt: Date.now() }; window.__stopRequests.push(entry);
+        try { const result = await send(message, ...args); entry.result = result; return result; }
+        catch (error) { entry.error = error.message; throw error; }
+        finally { entry.finishedAt = Date.now(); }
+      };
+    });
     await external.popup.locator('.tab').filter({ hasText: await second.title() }).getByRole('button', { name: '停止', exact: true }).click();
     markStage('await extension stop notification');
-    await page.getByRole('alert').filter({ hasText: 'Control ended' }).waitFor();
+    try { await page.getByRole('alert').filter({ hasText: 'Control ended' }).waitFor(); }
+    catch (error) {
+      const popup = await external.popup.evaluate(async () => ({ requests: window.__stopRequests,
+        state: await Promise.race([chrome.runtime.sendMessage({ action: 'status' }), new Promise(resolve => setTimeout(() => resolve({ pending: true }), 500))]),
+        text: document.body.innerText,
+      })).catch(cause => ({ error: cause.message }));
+      const state = await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie},signal:AbortSignal.timeout(2000)}).then(r=>r.json()).catch(cause=>({error:cause.message}));
+      t.diagnostic(JSON.stringify({ popupStop: popup, computerState: state })); throw error;
+    }
     markStage('reselect retained Chrome tab');
     const existing = page.getByLabel('选择已有标签页');
     await until(async () => (await existing.locator('option').allTextContents()).includes(await second.title()));
@@ -660,6 +698,39 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
     assert.equal(second.isClosed(), false);
     assert.equal(await page.getByRole('alert').count(), 0);
   } else {
+  // Exercise a stale background layout while the preview is still mounted:
+  // forwarding only an expired actor makes the real manager reject the request
+  // without changing the viewport or aborting the frontend's pending handler.
+  markStage('stale automatic layout response before browser exit');
+  const live=page.locator('.tx-cu-pane .tx-cu-live'),layoutPattern='**/trisoul-x/computer-use/view-layout?*';
+  let layoutTask,layoutResponse,layoutFailure,releaseLayout;
+  const heldLayout=new Promise(resolve=>{releaseLayout=resolve;});
+  const interceptLayout=route=>{
+    if(layoutTask)return route.continue();
+    layoutTask=(async()=>{
+      const request=route.request().postDataJSON();
+      const response=await route.fetch({postData:JSON.stringify({...request,actor:'expired-layout-regression'})});
+      layoutResponse={request,status:response.status(),body:await response.json()};
+      await heldLayout;await route.fulfill({response});
+    })();
+    return layoutTask.catch(error=>{layoutFailure=error;});
+  };
+  const viewport=page.viewportSize();
+  await page.route(layoutPattern,interceptLayout);
+  try{
+    await page.setViewportSize({...viewport,height:viewport.height-40});
+    await until(()=>{if(layoutFailure)throw layoutFailure;return layoutResponse;});
+    assert.equal(layoutResponse.request.tabId,newId);
+    assert.ok(layoutResponse.request.actor,'the automatic request carries its real preview actor');
+    assert.equal(layoutResponse.status,400);assert.equal(layoutResponse.body.code,'VIEW_CHANGED');
+    assert.equal(await live.getAttribute('data-layout-busy'),'true','the response remains pending in the mounted preview');
+    releaseLayout();await layoutTask;
+    await until(async()=>await live.getAttribute('data-layout-busy')==='false');
+    assert.equal(await page.getByRole('alert').count(),0,'an expired automatic layout must not leave an error that masks browser exit');
+  }finally{
+    releaseLayout();await layoutTask?.catch(()=>{});await page.unroute(layoutPattern,interceptLayout);
+    await page.setViewportSize(viewport);
+  }
   const endingBrowser = await controlled.newBrowserCDPSession();
   await endingBrowser.send('Browser.close').catch(() => {});
   await page.getByRole('alert').filter({ hasText: '浏览器已退出' }).waitFor();
@@ -733,6 +804,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   assert.equal(overflow, false, 'the narrow pane must not hide controls in horizontal overflow');
   if (process.env.TRISOUL_CU_UI_ARTIFACTS) { await page.screenshot({ path: join(root, 'pane-narrow.png') }); console.log('Computer Use UI artifacts:', root); }
   markStage('layout complete; reopen final preview');
+  await hideComputerPaneForPreview();
   await page.getByRole('button',{name:'悬浮预览',exact:true}).click();
   await page.getByLabel('悬浮操控预览').waitFor();
   assert.equal(await page.evaluate(()=>!!documentPictureInPicture.window),false,'the default preview lives in the conversation page');
@@ -741,7 +813,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   const stopPip=await until(()=>context.pages().find(p=>p!==page&&p.url()==='about:blank'));
   const retainedPages=controlled.contexts()[0].pages().filter(p=>!p.isClosed());assert.ok(retainedPages.length);
   const stoppedBefore=await (await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json();
-  if(stoppedBefore.status==='stopped')await page.getByRole('button',{name:'恢复助手控制',exact:true}).click();
+  if(stoppedBefore.status==='stopped')await stopPip.getByRole('button',{name:'从预览恢复助手',exact:true}).click();
   markStage('stop from final preview');
   await stopPip.getByRole('button',{name:'停止操作',exact:true}).click();
   await stopPip.getByText('已停止 · 可手动操作',{exact:true}).waitFor();

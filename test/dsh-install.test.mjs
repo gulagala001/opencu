@@ -10,7 +10,7 @@ import { chromium } from 'playwright';
 import { testBrowserExecutable } from './fixtures/computer-use/test-browser.mjs';
 import { stopFixtureProcess } from './fixtures/process.mjs';
 const repo = fileURLToPath(new URL('../', import.meta.url));
-const cli = join(repo, 'node_modules/@deepseek-ai/dsh/lib/bin.js');
+const cli = process.env.OMD_DSH_CLI || join(repo, 'node_modules/@deepseek-ai/dsh/lib/bin.js');
 const cuSource = process.env.OPENCU_SOURCE || `file:${repo}`;
 const ohmySource = process.env.OPENCU_OHMY_SOURCE;
 async function until(fn, ms = 30000) {

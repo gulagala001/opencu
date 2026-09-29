@@ -23,7 +23,16 @@ test('Windows discovers installed apps, launches exact executables and Start men
   const otherExecutable = join(fixtureOutput, 'OhMyDsh.OtherFixture.Standalone.exe');
   const title = 'Oh My DSH App Fixture ' + randomUUID();
   const env = { ...process.env, OMD_TEST_EXE: executable, OMD_TEST_OTHER_EXE: otherExecutable, OMD_TEST_SHORTCUT: title, OMD_SHORTCUT_SOURCE: fileURLToPath(new URL('./fixtures/computer-use/windows-shortcut.cs', import.meta.url)) };
-  const ps = source => run('pwsh', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', "$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);\n" + source], { env, windowsHide: true, timeout: 20000 });
+  const ps = async source => {
+    const started = Date.now();
+    try { return await run('pwsh', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', "$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);\n" + source], { env, windowsHide: true, timeout: 20000 }); }
+    catch (error) {
+      const diagnostic = { elapsed: Date.now() - started, code: error.code, signal: error.signal, killed: error.killed, stdout: error.stdout, stderr: error.stderr };
+      await writeFile(join(artifacts, 'powershell-failure-' + started + '.json'), JSON.stringify(diagnostic, null, 2));
+      t.diagnostic('Fixture PowerShell failure: ' + JSON.stringify(diagnostic));
+      throw error;
+    }
+  };
   let host; const calls = [];
   t.after(async () => {
     const connections = await Promise.all(Array.from(host?.connections.values() ?? [], pending => pending.catch(() => null)));
@@ -89,12 +98,18 @@ if (Test-Path -LiteralPath $link) { Remove-Item -LiteralPath $link }`);
   await host.release('app-launch');
   const shortcutCreated = await ps(`$ErrorActionPreference='Stop'
 $link = Join-Path ([Environment]::GetFolderPath('Programs')) ($env:OMD_TEST_SHORTCUT + '.lnk')
+[Console]::Error.WriteLine('shortcut: PowerShell=' + $PSVersionTable.PSVersion + '; apartment=' + [Threading.Thread]::CurrentThread.GetApartmentState() + '; programsExists=' + (Test-Path -LiteralPath (Split-Path -Parent $link)))
 if (Test-Path -LiteralPath $link) { throw 'Refusing to replace an existing shortcut' }
+[Console]::Error.WriteLine('shortcut: compile helper')
 Add-Type -Path $env:OMD_SHORTCUT_SOURCE
+[Console]::Error.WriteLine('shortcut: create native link')
 $target=[OhMyDshTestShortcut]::Create($link,[IO.Path]::GetFullPath($env:OMD_TEST_EXE))
 if(!(Test-Path -LiteralPath $link)){throw 'The fixture shortcut was not created'}
+[Console]::Error.WriteLine('shortcut: open shell folder')
 $shellFolder=(New-Object -ComObject Shell.Application).NameSpace((Split-Path -Parent $link))
+[Console]::Error.WriteLine('shortcut: parse shell item')
 $item=$shellFolder.ParseName((Split-Path -Leaf $link))
+[Console]::Error.WriteLine('shortcut: read shell link')
 [pscustomobject]@{file=$link;target=$target;name=$item.Name;shellTarget=$item.GetLink.Path;programs=[Environment]::GetFolderPath('Programs')} | ConvertTo-Json -Compress`);
   await writeFile(join(artifacts, 'shortcut-created.json'), shortcutCreated.stdout);
   assert.match(JSON.parse(shortcutCreated.stdout).target, /中文/, 'the native shortcut retains its Unicode target path');

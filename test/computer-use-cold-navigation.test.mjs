@@ -12,7 +12,7 @@ test('cold browser targets commit their first requested URL exactly once', { tim
   const fixture = await startFixture(); t.after(() => fixture.close());
   const open = BrowserTransport.prototype.open, write = BrowserTransport.prototype.write;
   const traces = new WeakMap(); let active;
-  const methods = new Set(['Page.navigate', 'Page.stopLoading', 'Page.getFrameTree', 'Page.setLifecycleEventsEnabled', 'Target.createTarget', 'Browser.getVersion', 'Browser.close']);
+  const methods = new Set(['Page.navigate', 'Page.stopLoading', 'Page.getFrameTree', 'Page.setLifecycleEventsEnabled', 'Target.createTarget', 'Target.setAutoAttach', 'Runtime.runIfWaitingForDebugger', 'Browser.getVersion', 'Browser.close']);
   BrowserTransport.prototype.open = function () {
     const state = { evidence: active, pending: new Set() }; traces.set(this, state);
     open.call(this);
@@ -29,6 +29,7 @@ test('cold browser targets commit their first requested URL exactly once', { tim
   t.after(() => { BrowserTransport.prototype.open = open; BrowserTransport.prototype.write = write; });
   const runtimes = process.platform === 'darwin' ? ['test'] : ['installed', 'test'];
   for (const runtime of runtimes) for (let attempt = 0; attempt < 10; attempt++) await t.test(runtime + ' fresh profile ' + (attempt + 1), async () => {
+    fixture.traffic.length = 0;
     const root = await mkdtemp(join(tmpdir(), 'opencu-cold-navigation-'));
     active = { runtime, attempt, protocol: [] }; const evidence = active;
     // Production may choose installed Chrome while annotation/WebMCP tests
@@ -52,7 +53,8 @@ test('cold browser targets commit their first requested URL exactly once', { tim
       t.diagnostic(JSON.stringify({ runtime, attempt, error: error.message, recentProtocol: evidence.protocol.slice(-8) })); throw error;
     } finally {
       evidence.runtimePath = host.runtimePath;
-      evidence.browserLog = await readFile(join(root, 'browser-profile', 'browser-startup.log'), 'utf8').catch(() => '');
+      evidence.traffic = [...fixture.traffic];
+      evidence.browserLog = await readFile(join(host.directory, 'startup.log'), 'utf8').catch(() => '');
       evidence.run = host.run && { browserPid: host.run.browserPid, guardianPid: host.run.child?.pid, lost: host.run.lost, phase: host.run.phase, stderr: host.run.stderr };
       try {
         if (process.env.TRISOUL_CU_UI_ARTIFACTS) {

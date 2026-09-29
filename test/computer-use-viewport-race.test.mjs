@@ -54,7 +54,7 @@ test('viewport reset and resize survive an in-flight screenshot restoration', { 
         return result;
       };
       // Distinct records for one target must still share the transaction.
-      const capture = actions.observeScreenshot({ ...record }, {});
+      const capture = actions.observeScreenshot({ ...record }, { fullPage: true });
       capture.catch(() => {});
       await started;
       const expected = operation === 'reset' ? original : { width: 640, height: 360 };

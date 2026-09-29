@@ -29,7 +29,8 @@ test('Windows native installation, read-only observation and input operate on re
     await native?.close();
     for (const client of clients) await client.close();
     await writeFile(join(artifact, 'processes.json'), JSON.stringify(clients.map(client => ({ pid: client.child.pid, exitCode: client.child.exitCode, signal: client.child.signalCode, stderr: client.stderr })), null, 2));
-    await rm(root, { recursive: true, force: true });
+    assert.ok(clients.every(client => client.child.exitCode === 0), 'owned native clients must exit normally before directory cleanup');
+    await rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
     t.diagnostic('Windows native observation artifacts: ' + artifact);
   });
   const output = join(root, 'native');

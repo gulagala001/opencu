@@ -9,7 +9,7 @@ permissions:
 jobs:
   cold-start:
     runs-on: windows-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -21,4 +21,13 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
-      - run: node --test --test-concurrency=1 test/computer-use-cold-navigation.test.mjs test/computer-use-initial-navigation.test.mjs
+      - run: node --test --test-concurrency=1 test/computer-use-cold-navigation.test.mjs test/computer-use-initial-navigation.test.mjs test/computer-use-view.test.mjs
+        env:
+          TRISOUL_CU_UI_ARTIFACTS: '1'
+          TRISOUL_CU_BROWSER_DIAGNOSTICS: '1'
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: browser-compatibility-evidence
+          path: cu-artifacts/
+          retention-days: 7

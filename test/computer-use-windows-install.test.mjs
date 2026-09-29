@@ -20,8 +20,9 @@ async function fixture(t) {
     async valid() { return this.present; },
     async lock() { assert.equal(this.locked, false); this.locked = true; return async () => { this.locked = false; }; },
     async read() { return structuredClone(this.records); },
-    async set(host, path) {
+    async set(host, path, expected) {
       assert.equal(this.locked, true);
+      assert.deepEqual(expected, this.records, 'native writer receives the exact inspected registry snapshot');
       if (this.failRegistration) throw new Error('Injected registry write failure');
       this.records = this.records.map(entry => ({ ...entry, keyExists: true, hasValue: true, value: path }));
       if (this.afterRegistration) await this.afterRegistration();
