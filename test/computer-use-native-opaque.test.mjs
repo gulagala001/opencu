@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {join} from 'node:path';import {homedir} from 'node:os';
+import test from 'node:test';import assert from 'node:assert/strict';import {join} from 'node:path';
 import {keyboardFixture} from './fixtures/computer-use/keyboard.mjs';import {ComputerUseManager} from '../src/computer-use/manager.mjs';
 const socket=process.env.TRISOUL_CU_NATIVE_SOCKET;
 test('window-bound input supports apps without AX control focus but rejects unknown window focus',{skip:!socket||process.platform!=='darwin',timeout:20000},async t=>{

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {join} from 'node:path';
-import {homedir} from 'node:os';
+
 import {setTimeout as delay} from 'node:timers/promises';
 import {writeFile} from 'node:fs/promises';
 import {keyboardFixture} from './fixtures/computer-use/keyboard.mjs';

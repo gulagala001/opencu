@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {join} from 'node:path';
-import {homedir} from 'node:os';
+
 import {keyboardFixture} from './fixtures/computer-use/keyboard.mjs';
 import {ComputerUseManager} from '../src/computer-use/manager.mjs';
 const socket=process.env.TRISOUL_CU_NATIVE_SOCKET;
