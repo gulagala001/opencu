@@ -38,3 +38,24 @@ test('page annotation route authenticates, respects disablement and aborts a dis
   const controller=new AbortController(),pending=fetch(url,{...request,signal:controller.signal});await ready;controller.abort();await assert.rejects(pending);
   for(let i=0;i<100&&!aborted;i++)await delay(10);assert.equal(aborted,true);
 });
+
+test('computer input uses bounded UTF-8 JSON transport', async () => {
+  const { Readable } = await import('node:stream');
+  let handler, calls = 0;
+  const hub = { config: () => ({}), computerUse: { manualInput: async (_id, input) => { calls++; return input; } } };
+  mountComputerUseHttp({ inject: (_, run) => run({ effect: run => run(),
+    webServer: { register: route => { handler = route.handler; } }, connection: { requestRejection: () => undefined } }) }, hub);
+  const value = { type: 'text', text: '中文路径/😀' }, bytes = Buffer.from(JSON.stringify(value));
+  for (const [chunks, status, expected] of [
+    [Array.from(bytes, byte => Buffer.from([byte])), 200, value],
+    [[Buffer.from('  \n ')], 200, {}], [[Buffer.alloc(65537, 32)], 413],
+    [[Buffer.from([0xff])], 400], [[Buffer.from('{bad')], 400],
+  ]) {
+    const req = Object.assign(Readable.from(chunks), { method: 'POST', url: '/trisoul-x/computer-use/input?session=fixture' });
+    const res = { writeHead(code, headers) { this.status = code; this.headers = headers; }, end(body) { this.body = JSON.parse(body); } };
+    await handler(req, res); assert.equal(res.status, status);
+    if (expected) assert.deepEqual(res.body, expected);
+    if (status === 413) assert.equal(res.headers.Connection, 'close');
+  }
+  assert.equal(calls, 2, 'invalid payloads never reach the computer controller');
+});
