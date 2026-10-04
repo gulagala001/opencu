@@ -15,7 +15,7 @@ const run = promisify(execFile), dotnet = process.env.TRISOUL_CU_DOTNET || 'dotn
 const enabled = process.platform === 'win32' || !!process.env.TRISOUL_CU_DOTNET;
 async function until(fn) { for (let i = 0; i < 400; i++) { const value = fn(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error('Windows bridge observation timed out'); }
 
-test('compiled Windows bridge preserves framed bytes, isolates connections and cancels on EOF', { skip: !enabled, timeout: 60000 }, async t => {
+test('compiled Windows bridge preserves framed bytes, isolates connections and cancels on EOF', { skip: !enabled, timeout: 180000 }, async t => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "oh-my-dsh-win-中文-'-")));
   const dll = join(root, 'out', 'OhMyDsh.BrowserBridge.dll');
   let hub; const children = [];
@@ -26,7 +26,9 @@ test('compiled Windows bridge preserves framed bytes, isolates connections and c
   });
   // The portable fixture runs the DLL through dotnet; the self-contained
   // launcher is exercised separately by the real Windows browser fixture.
-  await run(dotnet, ['build', fileURLToPath(new URL('../native/computer-use/windows/TrisoulBrowserBridge.csproj', import.meta.url)), '-p:UseAppHost=false', '-p:OutputPath=' + msbuildValue(join(root, 'out')) + '/', '-p:BaseIntermediateOutputPath=' + msbuildValue(join(root, 'obj')) + '/', '--nologo'], { timeout: 40000, env: { ...process.env, DOTNET_CLI_TELEMETRY_OPTOUT: '1', DOTNET_NOLOGO: '1' } });
+  // Cold SDK/NuGet fixture compilation uses a startup allowance; protocol
+  // observation and cancellation deadlines below stay unchanged.
+  await run(dotnet, ['build', fileURLToPath(new URL('../native/computer-use/windows/TrisoulBrowserBridge.csproj', import.meta.url)), '-p:UseAppHost=false', '-p:OutputPath=' + msbuildValue(join(root, 'out')) + '/', '-p:BaseIntermediateOutputPath=' + msbuildValue(join(root, 'obj')) + '/', '--nologo'], { timeout: 120000, env: { ...process.env, DOTNET_CLI_TELEMETRY_OPTOUT: '1', DOTNET_NOLOGO: '1' } }).catch(error=>{t.diagnostic(JSON.stringify({phase:'fixture-build',code:error.code,signal:error.signal,killed:error.killed,stdout:error.stdout,stderr:error.stderr}));throw error;});
   if (process.platform === 'win32') await t.test('native registry migration compares both inspected views and restores them', async () => {
     const host = 'ai.trisoul.test_' + randomUUID().replaceAll('-', '');
     const registry = async (...args) => JSON.parse((await run(dotnet, [dll, ...args])).stdout);

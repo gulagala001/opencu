@@ -23,9 +23,9 @@ test('Windows discovers installed apps, launches exact executables and Start men
   const otherExecutable = join(fixtureOutput, 'OhMyDsh.OtherFixture.Standalone.exe');
   const title = 'Oh My DSH App Fixture ' + randomUUID();
   const env = { ...process.env, OMD_TEST_EXE: executable, OMD_TEST_OTHER_EXE: otherExecutable, OMD_TEST_SHORTCUT: title, OMD_SHORTCUT_SOURCE: fileURLToPath(new URL('./fixtures/computer-use/windows-shortcut.cs', import.meta.url)) };
-  const ps = async source => {
+  const ps = async (source, timeout = 20000) => {
     const started = Date.now();
-    try { return await run('pwsh', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', "$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);\n" + source], { env, windowsHide: true, timeout: 20000 }); }
+    try { return await run('pwsh', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', "$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);\n" + source], { env, windowsHide: true, timeout }); }
     catch (error) {
       const diagnostic = { elapsed: Date.now() - started, code: error.code, signal: error.signal, killed: error.killed, stdout: error.stdout, stderr: error.stderr };
       await writeFile(join(artifacts, 'powershell-failure-' + started + '.json'), JSON.stringify(diagnostic, null, 2));
@@ -96,6 +96,9 @@ if (Test-Path -LiteralPath $link) { Remove-Item -LiteralPath $link }`);
   await closeApp(again);
   await assert.rejects(host.bind('app-launch', target.bundleId), error => error.code === 'STALE_PROCESS');
   await host.release('app-launch');
+  // This command compiles the test-only C# helper before creating a shortcut.
+  // Keep ordinary shell/cleanup commands at 20 seconds; cold compilation has
+  // its own allowance and retains stage diagnostics on failure.
   const shortcutCreated = await ps(`$ErrorActionPreference='Stop'
 $link = Join-Path ([Environment]::GetFolderPath('Programs')) ($env:OMD_TEST_SHORTCUT + '.lnk')
 [Console]::Error.WriteLine('shortcut: PowerShell=' + $PSVersionTable.PSVersion + '; apartment=' + [Threading.Thread]::CurrentThread.GetApartmentState() + '; programsExists=' + (Test-Path -LiteralPath (Split-Path -Parent $link)))
@@ -110,7 +113,7 @@ $shellFolder=(New-Object -ComObject Shell.Application).NameSpace((Split-Path -Pa
 [Console]::Error.WriteLine('shortcut: parse shell item')
 $item=$shellFolder.ParseName((Split-Path -Leaf $link))
 [Console]::Error.WriteLine('shortcut: read shell link')
-[pscustomobject]@{file=$link;target=$target;name=$item.Name;shellTarget=$item.GetLink.Path;programs=[Environment]::GetFolderPath('Programs')} | ConvertTo-Json -Compress`);
+[pscustomobject]@{file=$link;target=$target;name=$item.Name;shellTarget=$item.GetLink.Path;programs=[Environment]::GetFolderPath('Programs')} | ConvertTo-Json -Compress`, 60000);
   await writeFile(join(artifacts, 'shortcut-created.json'), shortcutCreated.stdout);
   assert.match(JSON.parse(shortcutCreated.stdout).target, /中文/, 'the native shortcut retains its Unicode target path');
   let installed, catalog;

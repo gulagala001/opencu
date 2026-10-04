@@ -106,7 +106,11 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   if (backend === 'extension') {
     const prepared = await (await fetch(origin + '/trisoul-x/computer-use/setup?session=' + sessionId, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ action: 'install-extension' }) })).json();
     assert.equal(prepared.extension?.installation?.prepared, true, JSON.stringify(prepared));
-    external = await extensionFixture(t, { socketPath: extensionSocketPath(join(home, 'trisoul-x/computer-use')), fixture, profile: join(root, 'external-profile'), extensionPath: prepared.extension.installation.extensionPath, prepared: true }); browserId = external.browser.id;
+    // Playwright forces headless hover/pointer Blink preferences at launch.
+    // Linux touch reset returns native preferences, so use a native baseline
+    // for this real-browser restore assertion instead of a launch override.
+    const ignoreDefaultArgs=process.platform==='linux'?['--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4']:undefined;
+    external = await extensionFixture(t, { socketPath: extensionSocketPath(join(home, 'trisoul-x/computer-use')), fixture, profile: join(root, 'external-profile'), extensionPath: prepared.extension.installation.extensionPath, prepared: true, ignoreDefaultArgs }); browserId = external.browser.id;
   }
   await rpc('session/prompt', { requestId: crypto.randomUUID(), sessionId, mode: 'queue', content: [{ type: 'text', text: '入口验收' }] });
   browser = await chromium.launch({ headless: true, executablePath: chromium.executablePath() });
@@ -348,6 +352,17 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   const emulationState=async()=>await(await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json();
   const pageDevice=()=>target.evaluate(()=>({dpr:devicePixelRatio,ua:navigator.userAgent,touch:navigator.maxTouchPoints,coarse:matchMedia('(pointer: coarse)').matches,hoverNone:matchMedia('(hover: none)').matches}));
   const nativeDevice=await pageDevice();
+  const expectNativeDevice=async phase=>{
+    try{await until(async()=>JSON.stringify(await pageDevice())===JSON.stringify(nativeDevice));}
+    catch(error){
+      const actual=await pageDevice(),state=await emulationState(),artifact=join(process.cwd(),'cu-artifacts',`browser-ui-emulation-${process.platform}-${backend}-${Date.now()}`);
+      const mismatches=Object.fromEntries(Object.keys(nativeDevice).filter(key=>nativeDevice[key]!==actual[key]).map(key=>[key,{expected:nativeDevice[key],actual:actual[key]}]));
+      await mkdir(artifact,{recursive:true});
+      await writeFile(join(artifact,'restoration.json'),JSON.stringify({phase,platform:process.platform,node:process.version,backend,expected:nativeDevice,actual,mismatches,state:{status:state.status,viewEmulation:state.viewEmulation,viewViewport:state.viewViewport,controlEpoch:state.controlEpoch},metrics:await cdp.send('Page.getLayoutMetrics')},null,2));
+      await page.locator('.tx-cu-pane').screenshot({path:join(artifact,'restoration.png')});
+      error.message+=`; ${phase} device restoration: ${JSON.stringify(mismatches)}; evidence: ${artifact}`;throw error;
+    }
+  };
   await target.evaluate(()=>{
     const viewport=document.createElement('meta');viewport.name='viewport';viewport.content='width=device-width, initial-scale=1';viewport.id='cu-emulation-viewport';document.head.append(viewport);
     const button=document.createElement('button');button.id='cu-emulation-touch';button.textContent='触摸模拟验收';button.style.cssText='position:fixed;left:20px;top:20px;width:160px;height:44px;z-index:9999';document.body.append(button);
@@ -392,7 +407,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   assert.deepEqual(await pageDevice(),{dpr:2,ua:requestedSimulation.userAgent,touch:1,coarse:true,hoverNone:true});
   await page.getByRole('button',{name:'重置',exact:true}).click();
   await until(async()=>{const state=await emulationState();return !state.viewEmulation&&!state.viewViewport.overridden;});
-  await until(async()=>JSON.stringify(await pageDevice())===JSON.stringify(nativeDevice));
+  await expectNativeDevice('reset');
   assert.equal(await page.getByRole('group',{name:'设备工具栏',exact:true}).isVisible(),true,'reset keeps the toolbar open');
   if(process.env.TRISOUL_CU_UI_ARTIFACTS)await page.locator('.tx-cu-pane').screenshot({path:join(root,'browser-device-emulation-reset.png')});
   // Reapply and close so closing is verified with active simulation rather
@@ -400,7 +415,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   await page.getByLabel('模拟触摸',{exact:true}).selectOption('true');await page.getByLabel('模拟设备像素比',{exact:true}).fill('2');await page.getByLabel('模拟 User Agent',{exact:true}).fill(requestedSimulation.userAgent);
   await page.getByRole('button',{name:'应用设备模拟',exact:true}).click();await until(async()=>(await emulationState()).viewEmulation?.settings.hasTouch===true);
   await page.getByRole('button',{name:'关闭设备工具栏',exact:true}).click();await page.getByRole('group',{name:'设备工具栏',exact:true}).waitFor({state:'hidden'});
-  await until(async()=>JSON.stringify(await pageDevice())===JSON.stringify(nativeDevice));
+  await expectNativeDevice('close');
   assert.equal((await emulationState()).viewEmulation,null);
   assert.equal((await emulationState()).viewViewport.overridden,false);
   if(backend==='managed')await until(layoutMatches);
