@@ -143,6 +143,22 @@ test('temporary-tab screenshots emit images without adding reply or handoff inst
  const silent=await runtime.execute('await tab.getScreenshot({emit:false});');assert.equal(silent.blocks.length,0);
 });
 
+test('automatically attached screenshot is not attached twice by emitImage in the same call',async t=>{
+ const png=Buffer.alloc(24);png.writeUInt32BE(0x89504e47,0);png.writeUInt32BE(100,16);png.writeUInt32BE(80,20);
+ const runtime=new ComputerRuntime(async(method,args)=>method==='createBrowserTab'?{id:'one',kind:'tab',browserId:'browser'}:method==='target'&&args[1]==='getScreenshot'?{screenshot:png.toString('base64')}:{state:'page'});
+ t.after(()=>runtime.reset());await runtime.execute("const tab=await cua.createBrowserTab('browser','about:blank');");
+ const auto=await runtime.execute('const shot=await tab.getScreenshot();await nodeRepl.emitImage(shot);');
+ assert.equal(auto.error,undefined);assert.equal(auto.blocks.length,1);assert.equal(auto.blocks[0].capture.width,100);
+ const later=await runtime.execute('await nodeRepl.emitImage(shot);');
+ assert.equal(later.blocks.length,1,'explicit reuse in a later call remains visible');
+ const silent=await runtime.execute('const quiet=await tab.screenshot();await nodeRepl.emitImage(quiet);');
+ assert.equal(silent.blocks.length,1,'silent capture followed by explicit display still works');
+ const changed=await runtime.execute('const edited=await tab.getScreenshot();edited[23]=81;await nodeRepl.emitImage(edited);');
+ assert.equal(changed.blocks.length,2,'changed bytes must still be emitted');assert.equal(changed.blocks[1].capture,undefined);
+ const fresh=await runtime.execute('await tab.getScreenshot();await tab.getScreenshot();');
+ assert.equal(fresh.blocks.length,2,'independent observations keep their individual capture metadata');
+});
+
 test('large AX output retains its beginning and allows reading the omitted remainder',async t=>{
  const tree='Search field [1]\n'+'中文 🌿\n'.repeat(12000)+'TAIL [2]';
  const runtime=new ComputerRuntime(async(method)=>method==='getApp'?{id:'app',kind:'app'}:{state:tree});t.after(()=>runtime.reset());
