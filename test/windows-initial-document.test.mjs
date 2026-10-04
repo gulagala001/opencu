@@ -11,10 +11,10 @@ function fixture({ initialize = async () => {} } = {}) {
     goto: async (url, options) => { calls.push({ url, options }); if (url === 'about:blank') { initialized(); await initialize(); } current = url; },
     url: () => current, title: async () => 'Fixture', close: async () => { calls.push({ closed: true }); },
   };
-  const host = { connection: async () => ({ context: { newPage: async () => page } }),
+  const host = Object.assign(new BrowserHost('fixture-browser-profile'), { connection: async () => ({ context: { newPage: async () => page } }),
     bind: async () => ({ id: 'new-page', page, cdp: { send: async method => { assert.equal(method, 'Page.stopLoading'); assert.equal(current, 'about:blank'); } } }),
-    claim() {}, checkConnection() {}, viewportPresets: new Map(), records: new Map(), disconnect: async () => {},
-  };
+    claim() {}, checkConnection() {}, disconnect: async () => {},
+  });
   return { host, calls, entering };
 }
 

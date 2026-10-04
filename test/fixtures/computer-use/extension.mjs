@@ -35,7 +35,7 @@ export async function extensionFixture(t, options = {}) {
   const directory=join(profile,'NativeMessagingHosts');await mkdir(directory,{recursive:true});
   await writeFile(join(directory,'ai.trisoul.computer_use.json'),JSON.stringify({name:'ai.trisoul.computer_use',description:'Isolated Trisoul CDP test',path:launcher,type:'stdio',allowed_origins:[origin]}));
   }
-  context=await chromium.launchPersistentContext(profile,{channel:'chromium',headless:options.headless??true,...(options.viewport!==undefined?{viewport:options.viewport}:{}),args:['--site-per-process','--disable-extensions-except='+extension,'--load-extension='+extension,...(options.args??[])]});
+  context=await chromium.launchPersistentContext(profile,{channel:'chromium',headless:options.headless??true,...(options.ignoreDefaultArgs?{ignoreDefaultArgs:options.ignoreDefaultArgs}:{}),...(options.viewport!==undefined?{viewport:options.viewport}:{}),args:['--site-per-process','--disable-extensions-except='+extension,'--load-extension='+extension,...(options.args??[])]});
   context.on('dialog',()=>{});popup=await context.newPage();await popup.goto(origin+'popup.html');
   await popup.getByText('已连接 Oh My DSH',{exact:true}).waitFor({timeout:10000});
   const worker=context.serviceWorkers().find(worker=>worker.url()===origin+'worker.js');
@@ -69,7 +69,7 @@ async function windowsFixture(t, root, options) {
   await installer.prepare(); await hub?.start();
   fixture = options.fixture ?? await startFixture();
   const installation = await installer.status(), origin = 'chrome-extension://' + installation.extensionId + '/';
-  context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: options.headless ?? true, ...(options.viewport !== undefined ? { viewport: options.viewport } : {}), args: ['--site-per-process', '--disable-extensions-except=' + installer.extensionPath, '--load-extension=' + installer.extensionPath, ...(options.args ?? [])] });
+  context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: options.headless ?? true, ...(options.ignoreDefaultArgs?{ignoreDefaultArgs:options.ignoreDefaultArgs}:{}), ...(options.viewport !== undefined ? { viewport: options.viewport } : {}), args: ['--site-per-process', '--disable-extensions-except=' + installer.extensionPath, '--load-extension=' + installer.extensionPath, ...(options.args ?? [])] });
   context.on('dialog', () => {});
   const popup = await context.newPage(); await popup.goto(origin + 'popup.html');
   await popup.getByText('已连接 Oh My DSH', { exact: true }).waitFor({ timeout: 10000 });

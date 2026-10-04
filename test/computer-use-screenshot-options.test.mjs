@@ -8,13 +8,14 @@ import sharp from 'sharp';
 import {ComputerUseManager} from '../src/computer-use/manager.mjs';
 import {extensionFixture} from './fixtures/computer-use/extension.mjs';
 import {startFixture} from './fixtures/computer-use/server.mjs';
+import {testBrowserExecutable} from './fixtures/computer-use/test-browser.mjs';
 import {panViewport} from './fixtures/computer-use/viewport.mjs';
 
 async function setup(t,backend){
   const root=await mkdtemp(join(tmpdir(),'trisoul-cu-screenshot-')),cleanups=[];let manager;
   t.after(async()=>{try{await manager?.close();}finally{for(const close of cleanups)await close();await rm(root,{recursive:true,force:true});}});
   const external=backend==='extension'?await extensionFixture({after:close=>cleanups.push(close)},{headless:true,viewport:null}):null,fixture=external?.fixture??await startFixture();if(!external)cleanups.push(()=>fixture.close());
-  manager=new ComputerUseManager(root,{native:{binary:join(root,'absent')},...(external?{extensionHub:external.hub}:{})});
+  manager=new ComputerUseManager(root,{browser:{executablePath:await testBrowserExecutable(root)},native:{binary:join(root,'absent')},...(external?{extensionHub:external.hub}:{})});
   const browserId=external?.browser.id??'browser';let tab;
   const run=async code=>{const result=await manager.execute('test',code);assert.equal(result.error,undefined,JSON.stringify(result.error));return result;};
   await run(`const browser=await cua.getBrowser({id:${JSON.stringify(browserId)}});const tab=await cua.createBrowserTab(${JSON.stringify(browserId)},${JSON.stringify(fixture.url+'/geometry')});await tab.markDeliverable();`);tab=manager.status('test').target;
@@ -126,11 +127,15 @@ for(const backend of ['managed','extension']){
     const rejected=await s.manager.execute('test',`await tab.click([20,${meta.height-10}]);`);assert.match(rejected.error?.message??'',/outside the visible viewport/);
     }
   });
-  test(backend+' viewport reset failure still releases the control connection',{timeout:15000,skip:backend==='extension'&&process.platform==='win32'},async t=>{
+  test(backend+' viewport reset failure retains a stopped connection for a verified retry',{timeout:15000,skip:backend==='extension'&&process.platform==='win32'},async t=>{
     const s=await setup(t,backend);await s.run('await tab.viewport.set({width:800,height:600});');
-    const send=s.record.cdp.send.bind(s.record.cdp);s.record.cdp.send=(method,...args)=>method==='Emulation.clearDeviceMetricsOverride'?Promise.reject(new Error('fixture reset failure')):send(method,...args);
+    const send=s.record.cdp.send.bind(s.record.cdp);let fail=true,clears=0;
+    s.record.cdp.send=(method,...args)=>{if(method==='Emulation.clearDeviceMetricsOverride'){clears++;if(fail){fail=false;return Promise.reject(new Error('fixture reset failure'));}}return send(method,...args);};
     await assert.rejects(s.manager.stop('test'),/fixture reset failure/);
-    assert.equal(s.browser.connections.has('test'),false);assert.equal(s.page.isClosed(),false);
+    assert.equal(s.browser.connections.has('test'),true);assert.equal(s.page.isClosed(),false);
+    await assert.rejects(s.manager.resume('test'),/Stopping has not been confirmed/);
+    await s.manager.stop('test');assert.equal(clears,2,'retry actually submits the metrics restoration');
+    assert.equal(s.browser.connections.has('test'),false);assert.equal(s.record.viewportOverride,false);
     if(backend==='extension')assert.equal(s.browser.entries.size,0);
   });
 }

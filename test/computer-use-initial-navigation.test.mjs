@@ -19,12 +19,12 @@ function fixture({ retire = async () => {}, initialUrl = 'about:blank' } = {}) {
     assert.equal(method, 'Page.stopLoading'); assert.equal(current, 'about:blank');
     calls.push('retire'); retiring(); await retire();
   } } };
-  const host = {
+  const host = Object.assign(new BrowserHost('fixture-browser-profile'), {
     connection: async () => ({ context: { newPage: async () => page } }),
-    bind: async () => record, claim: () => {}, viewportPresets: new Map(),
+    bind: async () => record, claim: () => {},
     disconnect: async () => { fail(new Error('connection closed')); },
-    records: new Map(), checkConnection: () => {},
-  };
+    checkConnection: () => {},
+  });
   return { host, calls, waiting, ready, stopped };
 }
 test('the first requested URL waits for the initial document and is sent exactly once', async () => {
