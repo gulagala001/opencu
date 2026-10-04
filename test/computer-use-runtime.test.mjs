@@ -14,7 +14,7 @@ test('persistent JavaScript keeps bindings and emits only requested output',asyn
   await runtime.reset();r=await runtime.execute('nodeRepl.write(answer)');assert.match(r.error.message,/answer is not defined/);
 });
 
-test('first-use documentation is scoped, suppressible results stay quiet, and reset restores the docs',async t=>{
+test('first-use documentation is scoped, suppressible results stay quiet, and reset retains sent docs',async t=>{
   let failed=false;
   const runtime=new ComputerRuntime(async(method,args)=>{
     if(method==='listApps'&&!failed){failed=true;throw new Error('inventory unavailable');}
@@ -41,16 +41,18 @@ test('first-use documentation is scoped, suppressible results stay quiet, and re
   assert.deepEqual(again.blocks.map(b=>b.text),['1 textbox Name']);
   await runtime.reset();
   const reset=await runtime.execute('await cua.listBrowsers({emit:false});');
-  assert.equal(reset.blocks.length,1);assert.match(reset.blocks[0].text,/# Computer Use JavaScript API/);
+  assert.equal(reset.blocks.length,0);
 });
 
 test('native backend platform selects both first-use and reread documentation after runtime reset',async t=>{
   const runtime=new ComputerRuntime(async method=>method==='getApp'?{id:'app-one',kind:'app'}:{state:'fixture'}, {nativePlatform:'win32'});
   t.after(()=>runtime.reset());
+  let documentation;
   for(let i=0;i<2;i++){
     const first=await runtime.execute("await cua.getApp('fixture');");
     assert.equal(first.error,undefined);
-    const documentation=first.blocks.find(block=>block.text?.startsWith('# Native app API'))?.text;
+    if(i===0)documentation=first.blocks.find(block=>block.text?.startsWith('# Native app API'))?.text;
+    else assert.equal(first.blocks.filter(block=>block.text?.startsWith('# ')).length,0);
     assert.match(documentation,/Windows desktop behavior/);
     const reread=await runtime.execute("nodeRepl.write(await cua.documentation('app'));");
     assert.equal(reread.blocks[0].text,documentation);

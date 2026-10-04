@@ -340,6 +340,74 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
     await findInput.press('Escape');await page.getByRole('search').waitFor({state:'hidden'});
     await page.getByRole('button',{name:'恢复助手控制',exact:true}).click();
   }
+  // Exercise device simulation through the real DSH UI and authenticated HTTP
+  // route for both browser hosts. Observer reads are not a substitute for the
+  // UI writes or the actual pointer event sequence reaching the target page.
+  if(backend==='managed')await until(layoutMatches);
+  markStage('device emulation apply');
+  const emulationState=async()=>await(await fetch(origin+'/trisoul-x/computer-use/state?session='+sessionId,{headers:{cookie}})).json();
+  const pageDevice=()=>target.evaluate(()=>({dpr:devicePixelRatio,ua:navigator.userAgent,touch:navigator.maxTouchPoints,coarse:matchMedia('(pointer: coarse)').matches,hoverNone:matchMedia('(hover: none)').matches}));
+  const nativeDevice=await pageDevice();
+  await target.evaluate(()=>{
+    const viewport=document.createElement('meta');viewport.name='viewport';viewport.content='width=device-width, initial-scale=1';viewport.id='cu-emulation-viewport';document.head.append(viewport);
+    const button=document.createElement('button');button.id='cu-emulation-touch';button.textContent='触摸模拟验收';button.style.cssText='position:fixed;left:20px;top:20px;width:160px;height:44px;z-index:9999';document.body.append(button);
+    window.cuEmulationTouches=[];
+    for(const type of ['touchstart','touchend','click'])button.addEventListener(type,()=>window.cuEmulationTouches.push(type));
+  });
+  await page.getByRole('button',{name:'浏览器选项',exact:true}).click();await page.getByRole('menuitem',{name:'显示设备工具栏',exact:true}).click();
+  await page.getByLabel('视口尺寸预设').selectOption('phone');await until(()=>target.evaluate(()=>innerWidth===390&&innerHeight===844));
+  assert.equal((await emulationState()).viewEmulation,null,'phone size does not implicitly enable emulation');
+  await page.getByRole('button',{name:'设备模拟',exact:true}).click();
+  await page.getByLabel('模拟触摸',{exact:true}).selectOption('true');await page.getByLabel('模拟移动布局',{exact:true}).selectOption('true');
+  await page.getByLabel('模拟设备像素比',{exact:true}).fill('2');await page.getByLabel('模拟 User Agent',{exact:true}).fill('OpenCU Isolated Mobile UI Fixture');
+  const requestedSimulation={deviceScaleFactor:2,userAgent:'OpenCU Isolated Mobile UI Fixture',hasTouch:true,isMobile:true};
+  const applySimulation=page.waitForResponse(response=>new URL(response.url()).pathname==='/trisoul-x/computer-use/view-emulation'&&response.request().method()==='POST');
+  await page.getByRole('button',{name:'应用设备模拟',exact:true}).click();
+  const appliedSimulation=await applySimulation;assert.equal(appliedSimulation.status(),200,await appliedSimulation.text());
+  assert.deepEqual(appliedSimulation.request().postDataJSON().settings,requestedSimulation);
+  assert.deepEqual((await appliedSimulation.json()).viewEmulation,{settings:requestedSimulation});
+  await until(async()=>JSON.stringify(await pageDevice())===JSON.stringify({dpr:2,ua:requestedSimulation.userAgent,touch:1,coarse:true,hoverNone:true})).catch(async error=>{error.message+='; page device: '+JSON.stringify(await pageDevice());throw error;});
+  markStage('device emulation page properties confirmed');
+  assert.deepEqual((await emulationState()).viewEmulation,{settings:requestedSimulation});
+  await until(()=>page.getByRole('button',{name:'应用设备模拟',exact:true}).isEnabled());
+  // A raw UI mouse gesture must become actual touchstart/touchend in the
+  // emulated page. DPR is verified above; JPEG screencast frames carry
+  // viewport geometry without a devicePixelRatio field.
+  await until(async()=>{
+    const displayed=await image.evaluate(element=>window.__cuDisplayedFrames?.get(element.src.split(',')[1]));
+    return displayed&&sameScreenshotGeometry(displayed.geometry,viewportGeometry(await cdp.send('Page.getLayoutMetrics')));
+  });
+  const touchBox=await target.locator('#cu-emulation-touch').boundingBox();
+  const touchFrame=await image.evaluate(element=>window.__cuDisplayedFrames.get(element.src.split(',')[1]));
+  const touchImage=await image.boundingBox();
+  await image.click({position:{x:(touchBox.x+touchBox.width/2)*touchImage.width/touchFrame.width,y:(touchBox.y+touchBox.height/2)*touchImage.height/touchFrame.height}});
+  await until(()=>target.evaluate(()=>cuEmulationTouches.includes('click')));
+  assert.deepEqual(await target.evaluate(()=>cuEmulationTouches),['touchstart','touchend','click'],'default left click reaches the page as a real touch gesture');
+  markStage('device emulation touch gesture confirmed');
+  if(process.env.TRISOUL_CU_UI_ARTIFACTS)await page.locator('.tx-cu-pane').screenshot({path:join(root,'browser-device-emulation-applied.png')});
+  await page.getByRole('button',{name:'恢复助手控制',exact:true}).click();await page.getByRole('button',{name:'停止并接管',exact:true}).waitFor();
+  const stopSimulation=page.waitForResponse(response=>new URL(response.url()).pathname==='/trisoul-x/computer-use/stop'&&response.request().method()==='POST');
+  await page.getByRole('button',{name:'停止并接管',exact:true}).click();assert.equal((await stopSimulation).status(),200);
+  assert.deepEqual((await emulationState()).viewEmulation,{settings:requestedSimulation},'stopping the assistant preserves manually applied device simulation');
+  assert.deepEqual(await pageDevice(),{dpr:2,ua:requestedSimulation.userAgent,touch:1,coarse:true,hoverNone:true});
+  await page.getByRole('button',{name:'重置',exact:true}).click();
+  await until(async()=>{const state=await emulationState();return !state.viewEmulation&&!state.viewViewport.overridden;});
+  await until(async()=>JSON.stringify(await pageDevice())===JSON.stringify(nativeDevice));
+  assert.equal(await page.getByRole('group',{name:'设备工具栏',exact:true}).isVisible(),true,'reset keeps the toolbar open');
+  if(process.env.TRISOUL_CU_UI_ARTIFACTS)await page.locator('.tx-cu-pane').screenshot({path:join(root,'browser-device-emulation-reset.png')});
+  // Reapply and close so closing is verified with active simulation rather
+  // than an already-default state.
+  await page.getByLabel('模拟触摸',{exact:true}).selectOption('true');await page.getByLabel('模拟设备像素比',{exact:true}).fill('2');await page.getByLabel('模拟 User Agent',{exact:true}).fill(requestedSimulation.userAgent);
+  await page.getByRole('button',{name:'应用设备模拟',exact:true}).click();await until(async()=>(await emulationState()).viewEmulation?.settings.hasTouch===true);
+  await page.getByRole('button',{name:'关闭设备工具栏',exact:true}).click();await page.getByRole('group',{name:'设备工具栏',exact:true}).waitFor({state:'hidden'});
+  await until(async()=>JSON.stringify(await pageDevice())===JSON.stringify(nativeDevice));
+  assert.equal((await emulationState()).viewEmulation,null);
+  assert.equal((await emulationState()).viewViewport.overridden,false);
+  if(backend==='managed')await until(layoutMatches);
+  await target.evaluate(()=>{document.querySelector('#cu-emulation-touch').remove();document.querySelector('#cu-emulation-viewport').remove();});
+  if(process.env.TRISOUL_CU_UI_ARTIFACTS)await page.locator('.tx-cu-pane').screenshot({path:join(root,'browser-device-emulation-closed.png')});
+  await page.getByRole('button',{name:'恢复助手控制',exact:true}).click();
+  markStage('device emulation complete');
   // Open a real Document PiP window through a user gesture, not a mocked popup.
   if(backend==='managed')await until(layoutMatches); // Finish the preceding find-bar layout before attributing writes to floating controls.
   const hideComputerPaneForPreview=async()=>{
