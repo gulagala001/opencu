@@ -130,7 +130,7 @@ test('snapshot retries remain bounded during continuous changes and abort prompt
   const stopped = reads; await delay(50); assert.equal(reads, stopped);
 });
 
-test('a same-process child appearing after the frame-tree read retries observation with fresh ownership', async () => {
+for (const cached of [false, true]) test('a same-process child appearing after the frame-tree read retries observation with fresh ownership; cached=' + cached, async () => {
   const actions = new BrowserActions(), main = {}, child = { url: () => 'https://fixture.test/child' };
   let trees = 0, axReads = 0;
   const cdp = { send: async (method, parameters) => {
@@ -147,6 +147,7 @@ test('a same-process child appearing after the frame-tree read retries observati
     title: async () => 'fixture', url: () => 'https://fixture.test',
     context: () => ({ newCDPSession: async () => { throw Error("This frame does not have a separate CDP session, it is a part of the parent frame's session"); } }),
   } };
+  if (cached) record.frames.set(child, cdp);
   actions.resolveElement = async () => ({ contentFrame: async () => child, dispose: async () => {} });
   const state = await actions.snapshot(record, { disableDiffing: true });
   assert.match(state.state, /textbox "main note"/); assert.match(state.state, /textbox "child note"/);
