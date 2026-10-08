@@ -4,6 +4,12 @@ on:
     branches: ['main']
     paths: ['src/computer-use/browser.mjs', 'test/computer-use-cold-navigation.test.mjs', 'test/computer-use-initial-navigation.test.mjs', '.github/workflows/browser-compatibility.yml']
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Browser verification suite
+        type: choice
+        default: cold-start
+        options: [cold-start, frame-ownership]
 permissions:
   contents: read
 jobs:
@@ -22,9 +28,33 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - run: node --test --test-concurrency=1 test/computer-use-cold-navigation.test.mjs test/computer-use-initial-navigation.test.mjs test/computer-use-view.test.mjs
+        if: github.event_name != 'workflow_dispatch' || inputs.suite != 'frame-ownership'
         env:
           TRISOUL_CU_UI_ARTIFACTS: '1'
           TRISOUL_CU_BROWSER_DIAGNOSTICS: '1'
+      - name: Verify nested frame ownership on Windows
+        if: github.event_name == 'workflow_dispatch' && inputs.suite == 'frame-ownership'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force cu-artifacts | Out-Null
+          git rev-parse HEAD | Out-File cu-artifacts/frame-ownership-head.txt
+          node --test --test-concurrency=1 test/computer-use-frame-ax.test.mjs test/computer-use-crop-frames.test.mjs test/computer-use-ax-context.test.mjs test/computer-use-ax-context-unit.test.mjs 2>&1 | Tee-Object cu-artifacts/frame-ownership.log
+          exit $LASTEXITCODE
+        env:
+          TRISOUL_CU_UI_ARTIFACTS: '1'
+          TRISOUL_CU_BROWSER_DIAGNOSTICS: '1'
+      - name: Collect disposable frame fixture evidence
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.suite == 'frame-ownership'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force cu-artifacts | Out-Null
+          Get-ChildItem $env:TEMP -Directory -Filter opencu-crop-frames-* | ForEach-Object {
+            $destination = Join-Path cu-artifacts $_.Name
+            New-Item -ItemType Directory -Force $destination | Out-Null
+            Get-ChildItem $_.FullName -File -Filter *.png | Copy-Item -Destination $destination
+            $startup = Join-Path $_.FullName browser-profile/startup.log
+            if (Test-Path $startup) { Copy-Item $startup -Destination $destination }
+          }
       - uses: actions/upload-artifact@v7
         if: always()
         with:

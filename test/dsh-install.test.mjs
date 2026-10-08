@@ -26,7 +26,7 @@ for (const order of scenarios) test('stock DSH install, restart and uninstall: '
   const run = args => execFileSync(process.execPath, [cli, ...args], { cwd: workspace, env, encoding: 'utf8', stdio: 'pipe', timeout: 120000 });
   const payloads = [];
   const provider = createServer(async (req, res) => {
-    let body = ''; for await (const chunk of req) body += chunk;
+    req.setEncoding('utf8'); let body = ''; for await (const chunk of req) body += chunk;
     const p = JSON.parse(body); payloads.push(p);
     const done = p.messages.at(-1).role === 'tool' || !p.tools?.some(t => t.function.name === 'computer_use');
     const delta = done ? { content: 'OpenCU installation verified' } : { tool_calls: [{ index: 0, id: 'install-' + payloads.length, type: 'function', function: { name: 'computer_use', arguments: JSON.stringify({ title: '检查已安装的 OpenCU', code: "const installedTab = await cua.createBrowserTab('browser', 'data:text/html,<title>OpenCU installation</title><h1>OpenCU installed</h1>');" }) } }] };
