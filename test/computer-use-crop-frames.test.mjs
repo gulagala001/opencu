@@ -36,7 +36,49 @@ for (const backend of ['managed', 'extension']) test(backend + ': cropped coordi
   t.after(async () => { try { await manager?.close(); } finally { for (const cleanup of cleanups) await cleanup(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); if (!process.env.TRISOUL_CU_UI_ARTIFACTS) await rm(root, { recursive: true, force: true }); } });
   const external = backend === 'extension' ? await extensionFixture({ after: cleanup => cleanups.push(cleanup) }, { fixture, headless: true }) : null;
   manager = new ComputerUseManager(root, { browser: { executablePath: await testBrowserExecutable(root) }, ...(external ? { extensionHub: external.hub } : {}), native: { binary: join(root, 'missing-native') } });
-  const run = async (code, coordinateFrames) => { const result = await manager.execute('frames', code, { coordinateFrames }); assert.equal(result.error, undefined, JSON.stringify(result.error)); return result; };
+  const diagnoseFailure = async error => {
+    try {
+      // Inspect existing records and sessions only; diagnostics must not repair
+      // frame ownership or create additional CDP sessions before the assertion.
+      const safeUrl = value => {
+        if (!value || value === 'about:blank') return value;
+        try { const url = new URL(value); return ['127.0.0.1', 'localhost'].includes(url.hostname) && url.port === String(server.address().port) ? value : '[outside disposable fixture]'; }
+        catch { return '[invalid URL]'; }
+      };
+      const treeSummary = tree => ({ id: tree.frame.id, parentId: tree.frame.parentId, url: safeUrl(tree.frame.url), childFrames: (tree.childFrames ?? []).map(treeSummary) });
+      const browsers = [];
+      for (const browser of manager.browsers()) {
+        const records = [];
+        for (const [id, info] of browser.records) {
+          const bound = [...browser.connections.values()].flatMap(connection => [...connection.pages.values()]).filter(record => record.id === id);
+          const sessions = [];
+          for (const record of bound) {
+            const frames = record.page.frames(), frameIds = new Map(frames.map((frame, index) => [frame, index]));
+            const cdps = [...new Set([record.cdp, ...record.frames.values()])], cdpIds = new Map(cdps.map((cdp, index) => [cdp, index]));
+            const frameState = frames.map(frame => ({ frame: frameIds.get(frame), url: safeUrl(frame.url()), parent: frameIds.get(frame.parentFrame()) ?? null, parentUrl: safeUrl(frame.parentFrame()?.url()), cachedCdp: cdpIds.get(record.frames.get(frame)) ?? null }));
+            const trees = [];
+            for (const cdp of cdps) {
+              try { const result = await cdp.send('Page.getFrameTree'); trees.push({ cdp: cdpIds.get(cdp), frameTree: treeSummary(result.frameTree) }); }
+              catch (failure) { trees.push({ cdp: cdpIds.get(cdp), error: { name: failure.name, message: failure.message, code: failure.code } }); }
+            }
+            sessions.push({ mainCdp: cdpIds.get(record.cdp), frames: frameState, cachedFrames: [...record.frames].map(([frame, cdp]) => ({ frame: frameIds.get(frame) ?? null, url: safeUrl(frame.url()), cdp: cdpIds.get(cdp) })), trees });
+          }
+          records.push({ id, url: safeUrl(info.url), sessions });
+        }
+        browsers.push({ id: browser.id, records });
+      }
+      t.diagnostic(JSON.stringify({ frameOwnershipFailure: { backend, error: { name: error?.name, message: error?.message, code: error?.code }, browsers } }));
+    } catch (failure) {
+      t.diagnostic(JSON.stringify({ frameOwnershipDiagnosticError: { name: failure.name, message: failure.message } }));
+    }
+  };
+  const run = async (code, coordinateFrames) => {
+    let result;
+    try { result = await manager.execute('frames', code, { coordinateFrames }); }
+    catch (error) { await diagnoseFailure(error); throw error; }
+    if (result.error) await diagnoseFailure(result.error);
+    assert.equal(result.error, undefined, JSON.stringify(result.error)); return result;
+  };
   await run(`const tab = await cua.createBrowserTab(${JSON.stringify(external?.browser.id ?? 'browser')}, ${JSON.stringify(fixture.url)}); await tab.markDeliverable(); await tab.playwright.waitForLoadState('load');`);
   const target = manager.status('frames').target, host = manager.browserForTab(target.id, target.browserId), record = await host.target('frames', target.id), page = record.page;
   await page.setViewportSize({ width: 1200, height: 900 });

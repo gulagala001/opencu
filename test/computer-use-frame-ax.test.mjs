@@ -156,3 +156,32 @@ for (const cached of [false, true]) test('a same-process child appearing after t
   assert.equal(record.frames.get(child), cdp, 'same-process child keeps its actual parent CDP');
   const ids = [...record.elements.keys()]; assert.equal(new Set(ids).size, 2);
 });
+
+test('an out-of-process frame uses its own complete tree to discover nested same-process children', async () => {
+  const actions = new BrowserActions(), main = {}, outer = { url: () => 'https://outer.test' }, inner = { url: () => 'https://inner.test' };
+  const reads = [];
+  const ax = frameId => ({ nodes: [{ nodeId: 'root', role: { value: 'RootWebArea' }, name: { value: frameId }, childIds: ['input'] }, { nodeId: 'input', parentId: 'root', role: { value: 'textbox' }, name: { value: frameId + ' note' }, backendDOMNodeId: 20 }] });
+  const rootCdp = { send: async (method, parameters) => {
+    if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main' }, childFrames: [{ frame: { id: 'outer' } }] } };
+    if (method === 'DOM.getFrameOwner') return { backendNodeId: 10 };
+    if (method === 'Accessibility.getFullAXTree') { reads.push('root:' + parameters.frameId); return ax(parameters.frameId); }
+    throw Error('Unexpected root protocol read: ' + method);
+  } };
+  const outerCdp = { send: async (method, parameters) => {
+    if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'outer' }, childFrames: [{ frame: { id: 'inner' } }] } };
+    if (method === 'DOM.getFrameOwner') return { backendNodeId: 11 };
+    if (method === 'Accessibility.getFullAXTree') { reads.push('outer:' + parameters.frameId); return ax(parameters.frameId); }
+    throw Error('Unexpected outer protocol read: ' + method);
+  } };
+  const record = { id: 'fixture', cdp: rootCdp, frames: new Map(), frameGenerations: new Map(), generation: 0, ids: new Map(), previous: new Map(), page: {
+    mainFrame: () => main, frames: () => [main, outer, inner], isClosed: () => false,
+    title: async () => 'fixture', url: () => 'https://main.test',
+    context: () => ({ newCDPSession: async frame => { if (frame === outer) return outerCdp; throw Error("This frame is a part of the parent frame's session"); } }),
+  } };
+  actions.resolveElement = async (_cdp, _frame, id) => ({ contentFrame: async () => id === 10 ? outer : inner, dispose: async () => {} });
+  const state = await actions.snapshot(record, { disableDiffing: true });
+  assert.match(state.state, /textbox "inner note"/);
+  assert.deepEqual(reads, ['root:main', 'outer:outer', 'outer:inner']);
+  assert.equal(record.frames.get(inner), outerCdp);
+  assert.equal(record.elements.size, 3, 'opaque IDs remain distinct for all three actual frames');
+});
