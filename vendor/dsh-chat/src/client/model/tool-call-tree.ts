@@ -3,7 +3,6 @@ import type {} from '@deepseek-ai/dsh-tools/types'
 import type {
   ConversationNode, RunningToolCall, ToolCallBlock, ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { PartialArguments } from '@deepseek-ai/dsh-util-values'
 
 interface ProjectedBlock {
   source: ToolCallBlock
@@ -64,7 +63,6 @@ export class ToolCallTree {
         parentCallId: data.parentCallId,
         name: data.name,
         argsRaw: JSON.stringify(data.arguments),
-        args: PartialArguments.fromObject(data.arguments),
         turn: 0,
         step: 0,
         time: event.time,
@@ -88,8 +86,6 @@ export class ToolCallTree {
       time: event.time,
       callId: data.subCallId,
       parentCallId: data.parentCallId,
-      name: data.name,
-      args: started !== undefined && !('kind' in started) ? started.args : PartialArguments.fromObject(data.arguments),
       call: { name: data.name, argsRaw: JSON.stringify(data.arguments) },
       callTime: started?.time ?? null,
       content: data.content,

@@ -305,19 +305,5 @@ export const turnProcessDefinition: ConversationNodeDefinition<TurnProcessState>
  * @param ctx - owning UI Conversation context.
  */
 export function registerTurnProcess(ctx: Context): void {
-  const match = turnProcessDefinition.match.bind(turnProcessDefinition)
-  ctx.uiConversation.events.register({
-    ...turnProcessDefinition,
-    match: {
-      'turn/start': match,
-      'assistant/live-chunk': match,
-      'assistant/message': match,
-      'tool/call': match,
-      'tool/result': match,
-      'llm/retry': match,
-      'step/start': match,
-      'step/end': match,
-      'turn/end': match,
-    },
-  })
+  ctx.uiConversation.events.register(turnProcessDefinition)
 }

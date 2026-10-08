@@ -30,7 +30,7 @@ import { EMPTY_CHAT_SNAPSHOT } from './contract/snapshot.ts'
 import { ApprovalCommand } from './chat/ApprovalCommand.tsx'
 import { ChatView } from './chat/ChatView.tsx'
 import { registerChatNodeRenderers } from './chat/register-node-renderers.ts'
-import { ActivityPill, UsagePill } from './chat/StatsPills.tsx'
+import { StatsPills } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
 import { QuotaNoticeHost } from './chat/QuotaNoticeHost.tsx'
 import { en, NS, zh } from './locale.ts'
@@ -282,16 +282,11 @@ export function apply(ctx: Context, options: { settings?: ConfigForm<ChatSetting
     }),
   }, QuotaNoticeHost))
 
-  // One dock entry per pill, so a plugin replaces or adds a single pill by id.
-  const statPillInject = () => ({ hooks: { performanceUsage } })
-  ctx.slots.inject('conversation.composer.dock', function* () {
-    yield ctx.slots.register({
-      name: 'conversation.composer.dock', id: 'activity', order: 0, locale: NS, inject: statPillInject,
-    }, ActivityPill)
-    yield ctx.slots.register({
-      name: 'conversation.composer.dock', id: 'usage', order: 1, locale: NS, inject: statPillInject,
-    }, UsagePill)
-  })
+  ctx.slots.inject('conversation.composer.dock', () =>
+    ctx.slots.register({
+      name: 'conversation.composer.dock', id: 'stats', order: 0, locale: NS,
+      inject: () => ({ hooks: { performanceUsage } }),
+    }, StatsPills))
 
   ctx.slots.inject('conversation.approval.detail', () =>
     ctx.slots.register({ name: 'conversation.approval.detail' }, ApprovalCommand))
