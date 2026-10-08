@@ -36,7 +36,7 @@ for (const backend of ['managed', 'extension']) test('DSH ' + backend + ' browse
   const visibilitySent=new Set();
   const fixture = await startFixture(); let toolSent = false, cursorSent = false, external, browserId = 'browser',fixtureTabId; const userMessages = [], userPayloads=[];
   const provider = createServer(async (req, res) => {
-    let data = ''; for await (const chunk of req) data += chunk;
+    req.setEncoding('utf8'); let data = ''; for await (const chunk of req) data += chunk;
     const payload = JSON.parse(data);
     userPayloads.push(...(payload.messages??[]).filter(m=>m.role==='user'));
     userMessages.push(...(payload.messages ?? []).filter(m => m.role === 'user').map(m => typeof m.content === 'string' ? m.content : (m.content ?? []).map(c => c.text ?? '').join('\n')));

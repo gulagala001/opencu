@@ -22,7 +22,7 @@ test('DSH native UI: live window, stable stream between turns, cursor and stoppe
   const second=await keyboardFixture();t.after(()=>second.close());
   let sent=false,cursorSent=false,secondSent=false;const requestKinds=[];
   const provider=createServer(async(req,res)=>{
-    let body='';for await(const chunk of req)body+=chunk;const input=JSON.parse(body);let delta={role:'assistant',content:'原生画面验收'},finish='stop';
+    req.setEncoding('utf8'); let body='';for await(const chunk of req)body+=chunk;const input=JSON.parse(body);let delta={role:'assistant',content:'原生画面验收'},finish='stop';
     const text=(input.messages??[]).filter(message=>message.role==='user').map(message=>typeof message.content==='string'?message.content:(message.content??[]).map(part=>part.text??'').join('\n')).join('\n');
     let code;
     const hasComputerTool=input.tools?.some(tool=>tool.function?.name==='computer_use');requestKinds.push({hasComputerTool:!!hasComputerTool,text:text.slice(-100)});
