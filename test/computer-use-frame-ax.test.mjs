@@ -129,3 +129,29 @@ test('snapshot retries remain bounded during continuous changes and abort prompt
   finally { clearTimeout(timer); }
   const stopped = reads; await delay(50); assert.equal(reads, stopped);
 });
+
+test('a same-process child appearing after the frame-tree read retries observation with fresh ownership', async () => {
+  const actions = new BrowserActions(), main = {}, child = { url: () => 'https://fixture.test/child' };
+  let trees = 0, axReads = 0;
+  const cdp = { send: async (method, parameters) => {
+    if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main' }, ...(trees++ ? { childFrames: [{ frame: { id: 'child' } }] } : {}) } };
+    if (method === 'DOM.getFrameOwner') return { backendNodeId: 10 };
+    if (method === 'Accessibility.getFullAXTree') {
+      axReads++;
+      return { nodes: [{ nodeId: 'root', role: { value: 'RootWebArea' }, name: { value: parameters.frameId }, childIds: ['control'] }, { nodeId: 'control', parentId: 'root', role: { value: 'textbox' }, name: { value: parameters.frameId + ' note' }, backendDOMNodeId: 11 }] };
+    }
+    throw Error('Unexpected CDP read: ' + method);
+  } };
+  const record = { id: 'fixture', cdp, frames: new Map(), frameGenerations: new Map(), generation: 0, ids: new Map(), previous: new Map(), page: {
+    mainFrame: () => main, frames: () => [main, child], isClosed: () => false,
+    title: async () => 'fixture', url: () => 'https://fixture.test',
+    context: () => ({ newCDPSession: async () => { throw Error("This frame does not have a separate CDP session, it is a part of the parent frame's session"); } }),
+  } };
+  actions.resolveElement = async () => ({ contentFrame: async () => child, dispose: async () => {} });
+  const state = await actions.snapshot(record, { disableDiffing: true });
+  assert.match(state.state, /textbox "main note"/); assert.match(state.state, /textbox "child note"/);
+  assert.equal(trees, 2, 'refresh discovery after the first stale frame tree');
+  assert.equal(axReads, 2, 'read each recovered frame once');
+  assert.equal(record.frames.get(child), cdp, 'same-process child keeps its actual parent CDP');
+  const ids = [...record.elements.keys()]; assert.equal(new Set(ids).size, 2);
+});
