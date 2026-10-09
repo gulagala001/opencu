@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
-import { decorateSlotComponent } from '../src/client/slot-decoration.mjs';
+import { decorateSlot, decorateSlotComponent } from '../src/client/slot-decoration.mjs';
 
 const host = createRequire(await realpath(process.env.OPENCU_SLOT_HOST || new URL(import.meta.resolve('@deepseek-ai/dsh/package.json'))));
 const slotsPath = host.resolve('@deepseek-ai/dsh-client-ui-slots');
@@ -27,6 +27,42 @@ function decorationFixture() {
   const wrap = label => entry => { const Original = entry.component; return props => ({ label, inner: Original(props) }); };
   return { core, slots, winners, render, wrap };
 }
+
+test('independent decorator modules share refresh identity and coexist with a legacy shadow in either order', async () => {
+  const second = await import('../src/client/slot-decoration.mjs?independent-module');
+  for (const legacyFirst of [false,true]) {
+    const f = decorationFixture();
+    const original = () => 'host';
+    f.core.register({name:'test',key:'one'},original);
+    const entry = f.core.entries('test')[0];
+    const register = f.slots.register;
+    let registrations = 0;
+    f.slots.register = (...args) => {
+      assert(++registrations < 64, 'slot registrations must settle without an unbounded microtask loop');
+      return register(...args);
+    };
+    const legacy = () => decorateSlot(f.slots,'test',() => true, original => ({
+      options:{...original.options,name:'test',priority:(original.options.priority??0)-1},component:f.wrap('legacy')(original),
+    }));
+    const owners = [];
+    if (legacyFirst) owners.push(legacy());
+    owners.push(decorateSlotComponent(f.slots,'test',() => true,f.wrap('A')));
+    owners.push(second.decorateSlotComponent(f.slots,'test',() => true,f.wrap('B')));
+    if (!legacyFirst) owners.push(legacy());
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.core.entries('test').length,2, 'only the native entry and the existing legacy shadow remain');
+    const settled = registrations;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(registrations,settled,'independent refresh probes do not decorate each other');
+    assert.match(f.render(f.core.entriesOfSlot('test')[0].component),/legacy/);
+    assert.equal(f.core.entries('test').includes(entry),true);
+    for (const dispose of owners.reverse()) dispose();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.core.entries('test').length,1);
+    assert.equal(entry.component,original);
+    assert.equal(f.render(entry.component),'host');
+  }
+});
 
 test('component decoration preserves one winner during reentrant refresh, reverse unload and an external wrapper', async () => {
   const f = decorationFixture(), original = () => 'host';
