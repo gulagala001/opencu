@@ -10,7 +10,7 @@ test('unknown capabilities never assert text-only; draft sessions use host defau
 
 test('text-only screenshot results retain the attachment and state the actual limitation',async()=>{
  const {registerComputerTools}=await import('../src/computer-use/tools.mjs');const tools=new Map();
- const ctx={tools:{register:t=>tools.set(t.name,t)},get:name=>name==='attachments'?{saveImage:async()=>({attachmentId:'test-image'})}:undefined,llm:{resolveModelInfo:async()=>({inputModalities:['text']})}};
+ const ctx={on(){},tools:{register:t=>tools.set(t.name,t)},get:name=>name==='attachments'?{saveImage:async()=>({attachmentId:'test-image'})}:undefined,llm:{resolveModelInfo:async()=>({inputModalities:['text']})}};
  registerComputerTools(ctx,{config:()=>({}),computerUse:{execute:async()=>({blocks:[{type:'image',data:'AA==',mediaType:'image/png'}]})}});
  const value=JSON.parse(await tools.get('computer_use').execute({code:''},{agent:{session:{id:'s',requestHeader:()=>({config:{provider:'p',model:'m'}})}}}));
  assert.equal(value.content[0].type,'image');assert.equal(value.content[0].attachment.attachmentId,'test-image');assert.match(value.content[1].text,/host omits this image/);

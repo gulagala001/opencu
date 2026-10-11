@@ -134,7 +134,7 @@ Version 1.3.0 Chrome may request Safe Storage access on first start or version/s
 
 These additions are **locally implemented and unpublished**; OpenCU's public 1.3.0 packages/main do not include the new UI. The local UI uses one **Browser** entry.
 
-This fictional order demo uses a local DSH `0.2.0-rc.2` build. OMD's earlier public 1.6.1 snapshot is not this round's new implementation; a version number alone does not establish feature equivalence.
+This fictional order demo uses a local DSH `0.2.0-rc.2` build. OMD main includes this round's 1.6.1 implementation; public installation packages remain defined by fixed releases, and a version number alone does not establish feature equivalence.
 
 | Capability | Behavior and limits |
 | --- | --- |

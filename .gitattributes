@@ -1,0 +1,2 @@
+# Blank unified-diff context lines retain their required leading space.
+vendor/dsh-chat/changes.patch whitespace=-blank-at-eol

@@ -24,3 +24,11 @@ data/
 /COMPUTER_USE_ASSESSMENT.md
 /PROMPT_CHANGES.md
 /WINDOWS_HANDOFF.md
+
+# Local implementation evidence and retired browser experiments.
+/work/
+/native/browser-engine/
+/scripts/build-plugin-engine.mjs
+/scripts/stage-plugin-engine-release.mjs
+/native/plugin-browser/native-settings-resources.mjs
+/PROMPT_MAINTENANCE.md

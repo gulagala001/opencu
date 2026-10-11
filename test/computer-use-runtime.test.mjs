@@ -100,13 +100,14 @@ test('abort waits for backend cleanup and CPU loops cannot block the host',async
 test('unawaited actions settle before completion and report failures',async t=>{
   let settled=false;
   const runtime=new ComputerRuntime(async()=>{await delay(80);settled=true;throw new Error('action failed');});t.after(()=>runtime.reset());
-  const r=await runtime.execute("cua.listApps().catch(()=>{}); nodeRepl.write('queued')");assert.equal(settled,true);assert.match(r.error.message,/action failed/);
+  const r=await runtime.execute("cua.listApps(); nodeRepl.write('queued')");assert.equal(settled,true);assert.match(r.error.message,/action failed/);
+  const handled=await runtime.execute("cua.listApps().catch(()=>{}); nodeRepl.write('handled')");assert.equal(handled.error,undefined);
 });
 
 test('a syntax error reports its source position without running any preceding UI actions',async t=>{
   const calls=[];const runtime=new ComputerRuntime(async method=>{calls.push(method);return [];});t.after(()=>runtime.reset());
   const result=await runtime.execute('await cua.listApps();\nreturn 42;');
-  assert.match(result.error.message,/SyntaxError: Illegal return statement.*line 2, column 1/);assert.doesNotMatch(result.error.message,/node:inspector|runtime-worker\.mjs/);assert.deepEqual(calls,[]);
+  assert.match(result.error.message,/\[2:0-2:6\]: Illegal return statement/);assert.doesNotMatch(result.error.message,/node:inspector|runtime-worker\.mjs/);assert.deepEqual(calls,[]);
   assert.equal((await runtime.execute('nodeRepl.write(42);')).blocks[0].text,'42');
 });
 
@@ -159,6 +160,46 @@ test('automatically attached screenshot is not attached twice by emitImage in th
  assert.equal(changed.blocks.length,2,'changed bytes must still be emitted');assert.equal(changed.blocks[1].capture,undefined);
  const fresh=await runtime.execute('await tab.getScreenshot();await tab.getScreenshot();');
  assert.equal(fresh.blocks.length,2,'independent observations keep their individual capture metadata');
+});
+
+test('successful downloads attach saved paths once per execution and failed saves attach nothing', async t => {
+  const runtime = new ComputerRuntime(async (method, args) => {
+    if (method === 'createBrowserTab') return {id:'download-tab',kind:'tab',browserId:'browser'};
+    if (args?.[1] === 'getAXState') return {state:'download fixture'};
+    if (args?.[1] === 'downloads.save') {
+      if (args[2][0] === 'failed') throw new Error('download fixture failed');
+      return {path:args[2][1],filename:'fixture.txt'};
+    }
+  });
+  t.after(() => runtime.reset());
+  await runtime.execute("const tab=await cua.createBrowserTab('browser','about:blank');");
+  const saved = await runtime.execute("await tab.downloads.save('ready','/tmp/download-a.txt'); await tab.downloads.save('ready','/tmp/download-a.txt'); await tab.downloads.save('ready','/tmp/download-b.txt');");
+  assert.equal(saved.error, undefined);
+  assert.deepEqual(saved.blocks.filter(block => block.type === 'file'), [{type:'file',path:'/tmp/download-a.txt'},{type:'file',path:'/tmp/download-b.txt'}]);
+  const again = await runtime.execute("await tab.downloads.save('ready','/tmp/download-a.txt');");
+  assert.deepEqual(again.blocks, [{type:'file',path:'/tmp/download-a.txt'}], 'a later execution still delivers an explicitly saved file');
+  const failed = await runtime.execute("await tab.downloads.save('failed','/tmp/not-saved.txt');");
+  assert.match(failed.error?.message, /download fixture failed/);
+  assert.equal(failed.blocks.some(block => block.type === 'file'), false);
+});
+
+test('a download result arriving after cancellation never attaches its path', async t => {
+  let entered, release;
+  const ready = new Promise(resolve => { entered = resolve; });
+  const held = new Promise(resolve => { release = resolve; });
+  const runtime = new ComputerRuntime(async (method, args) => {
+    if (method === 'createBrowserTab') return {id:'download-tab',kind:'tab',browserId:'browser'};
+    if (args?.[1] === 'getAXState') return {state:'download fixture'};
+    entered(); await held; return {path:'/tmp/cancelled.txt',filename:'fixture.txt'};
+  }, {onStop:async () => release()});
+  t.after(() => runtime.reset());
+  await runtime.execute("const tab=await cua.createBrowserTab('browser','about:blank');");
+  const controller = new AbortController();
+  const pending = runtime.execute("await tab.downloads.save('ready','/tmp/cancelled.txt');", {signal:controller.signal});
+  await ready; controller.abort(new Error('download fixture cancelled'));
+  const cancelled = await pending;
+  assert.match(cancelled.error?.message, /download fixture cancelled/);
+  assert.equal(cancelled.blocks.some(block => block.type === 'file'), false);
 });
 
 test('large AX output retains its beginning and allows reading the omitted remainder',async t=>{

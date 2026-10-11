@@ -17,7 +17,7 @@ test('export files stream into durable host attachments with reopenable metadata
     },
     fileHostPath: () => '/durable/attachments/page.mhtml',
   };
-  const ctx = { tools: { register: tool => tools.set(tool.name, tool) }, get: () => attachments };
+  const ctx = { on() {}, tools: { register: tool => tools.set(tool.name, tool) }, get: () => attachments };
   registerComputerTools(ctx, { config: () => ({}), computerUse: { execute: async () => ({ blocks: [{ type: 'file', path }] }) } });
   const tool = tools.get('computer_use');
   const value = await tool.execute({ code: '' }, { agent: { session: { id: 'files' } } });

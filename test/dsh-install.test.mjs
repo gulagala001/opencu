@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { testBrowserExecutable } from './fixtures/computer-use/test-browser.mjs';
+import { isolateTestDownloads, testBrowserExecutable } from './fixtures/computer-use/test-browser.mjs';
 import { stopFixtureProcess } from './fixtures/process.mjs';
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const cli = process.env.OMD_DSH_CLI || join(repo, 'node_modules/@deepseek-ai/dsh/lib/bin.js');
@@ -22,6 +22,7 @@ const scenarios = ohmySource ? [['opencu', 'trisoul_x'], ['trisoul_x', 'opencu']
 for (const order of scenarios) test('stock DSH install, restart and uninstall: ' + order.join(' → '), { timeout: 240000 }, async t => {
   const temp = await mkdtemp(join(tmpdir(), 'opencu-install-')), home = join(temp, 'home'), workspace = join(temp, 'workspace');
   await mkdir(home); await mkdir(workspace);
+  await isolateTestDownloads(temp, join(home, 'trisoul-x/computer-use/browser-profile'));
   const env = { ...process.env, DSH_HOME: home }; delete env.DSH_PERMISSION_MODE;
   const run = args => execFileSync(process.execPath, [cli, ...args], { cwd: workspace, env, encoding: 'utf8', stdio: 'pipe', timeout: 120000 });
   const payloads = [];
@@ -96,6 +97,34 @@ for (const order of scenarios) test('stock DSH install, restart and uninstall: '
   assert.equal(await page.locator('style[data-plugin="trisoul-x-computer-use"]').count(), 1, 'one CU stylesheet');
   if (ohmySource) assert.equal(await page.getByRole('navigation', { name: '工作台导航' }).count(), 1, 'integrates into Oh My workbench');
   assert.deepEqual(errors, []);
+  if (!ohmySource) {
+    const beforeSettings = (await rpc('settings/describe', {})).namespaces.map(({ ns, user }) => ({ ns, user })).sort((a, b) => a.ns.localeCompare(b.ns));
+    const disabled = await rpc('pluginManager/setBundleEnabled', { name: 'opencu', enabled: false });
+    assert.equal(disabled.target, 'opencu'); assert.equal(disabled.enabled, false); assert.equal(disabled.changed, true);
+    assert.equal(disabled.application, 'applied', 'the public plugin manager disables the live bundle');
+    await until(async () => (await fetch(origin + '/trisoul-x/computer-use/state?session=' + id, { headers: { cookie } })).status === 404);
+    await page.reload();
+    await page.getByText('OpenCU installation verified', { exact: true }).first().waitFor();
+    assert.equal(await page.getByRole('button', { name: '打开 Computer Use', exact: true }).count(), 0);
+    assert.equal(await page.locator('style[data-plugin="trisoul-x-computer-use"]').count(), 0, 'live disable releases the CU stylesheet');
+    const enabled = await rpc('pluginManager/setBundleEnabled', { name: 'opencu', enabled: true });
+    assert.equal(enabled.target, 'opencu'); assert.equal(enabled.enabled, true); assert.equal(enabled.changed, true);
+    assert.equal(enabled.application, 'applied', 'the public plugin manager restores the live bundle');
+    await until(async () => (await fetch(origin + '/trisoul-x/computer-use/state?session=' + id, { headers: { cookie } })).status === 200);
+    await page.reload(); await entry.waitFor();
+    assert.equal(await entry.count(), 1, 're-enabling restores exactly one CU entry');
+    assert.equal(await page.locator('style[data-plugin="trisoul-x-computer-use"]').count(), 1);
+    assert.deepEqual(errors, []);
+    const afterSettings = (await rpc('settings/describe', {})).namespaces.map(({ ns, user }) => ({ ns, user })).sort((a, b) => a.ns.localeCompare(b.ns));
+    assert.deepEqual(afterSettings, beforeSettings, 'live enable/disable preserves the active native settings values');
+    // The native host imports this legacy document once, preserving it under
+    // the public compatibility filename before writing its profile entries.
+    let legacy;
+    try { legacy = await readFile(join(home, 'settings.yaml'), 'utf8'); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; legacy = await readFile(join(home, 'settings.yaml.imported'), 'utf8'); }
+    assert.deepEqual(JSON.parse(legacy), settings, 'the native import retains the original complete user document');
+    await exercise();
+  }
   await browser.close(); browser = undefined;
   await stop(); await boot(); await exercise('standard', id);
   await stop();

@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {build} from 'esbuild';
 import {chromium} from 'playwright';
+import {isolateTestDownloads} from './fixtures/computer-use/test-browser.mjs';
 
 test('preview content dragging, keyboard cycling, search and restore preserve controls',async t=>{
   const{outputFiles}=await build({bundle:true,write:false,format:'iife',platform:'browser',loader:{'.css':'text'},define:{'process.env.NODE_ENV':'"production"'},stdin:{resolveDir:process.cwd(),loader:'jsx',contents:`
@@ -11,7 +14,9 @@ test('preview content dragging, keyboard cycling, search and restore preserve co
     const targets=['A','B','C'].map(id=>({kind:'tab',id,title:'Page '+id})),url=(op,id)=>'/stream?session='+id;
     function Harness(){const anchor=useRef(null),[sessionId,setSessionId]=useState('fixture'),[state,setState]=useState({enabled:true,target:targets[2],previewTargets:targets,status:'idle'}),[pane,setPane]=useState(false);window.showPane=setPane;window.switchSession=setSessionId;usePreviewPanePresence(sessionId,pane);const paneVisible=usePreviewPaneVisible(sessionId);window.stopState=()=>setState(value=>({...value,status:'stopped'}));const api=async(op,id,input)=>{window.calls.push({op,id,input});return {...state,status:'idle'};};return <div><div contentEditable suppressContentEditableWarning style={{position:'absolute',left:100,top:650,width:650,height:80}}>Input</div><div ref={anchor} style={{position:'absolute',left:100,top:750}}><FloatingPreview sessionId={sessionId} state={state} url={url} api={api} onState={setState} onError={text=>window.error=text} anchor={anchor} paneVisible={paneVisible}/></div></div>;}createRoot(document.getElementById('root')).render(<Harness/>);
   `}});
-  const browser=await chromium.launch();t.after(()=>browser.close());const page=await browser.newPage({viewport:{width:1000,height:900}});page.setDefaultTimeout(3000);const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const root=await mkdtemp(join(tmpdir(),'opencu-preview-ui-'));await isolateTestDownloads(root,join(root,'profile'));
+  const browser=await chromium.launchPersistentContext(join(root,'profile'),{executablePath:process.env.TRISOUL_CU_TEST_BROWSER_EXECUTABLE||chromium.executablePath(),viewport:{width:1000,height:900},args:['--use-mock-keychain','--password-store=basic'],downloadsPath:join(root,'downloads')});
+  t.after(async()=>{await browser.close();await rm(root,{recursive:true,force:true});});const page=await browser.newPage();page.setDefaultTimeout(3000);const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.setContent('<div id="root"></div>');await page.addStyleTag({content:await readFile(new URL(import.meta.resolve('../src/client/computer-use.css')),'utf8')});await page.addScriptTag({content:outputFiles[0].text});
   const preview=page.getByLabel('悬浮操控预览');await preview.waitFor();await page.waitForFunction(()=>window.streams.length===3);
   const settle=()=>preview.evaluate(node=>Promise.all(node.getAnimations().filter(animation=>animation.effect.getTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{}))));
@@ -23,7 +28,7 @@ test('preview content dragging, keyboard cycling, search and restore preserve co
   await dragFrom(preview.getByRole('button',{name:'打开网页：Page C'}),-70,-50);
   let moved=await preview.boundingBox();assert.ok(Math.abs(moved.x-initial.x+70)<2,JSON.stringify({initial,moved}));assert.ok(Math.abs(moved.y-initial.y+50)<2);assert.deepEqual(await page.evaluate(()=>window.calls),[],'dragging the image must not open the page');
   await dragFrom(preview.locator('footer > span'),-30,-25);
-  moved=await preview.boundingBox();assert.ok(Math.abs(moved.x-initial.x+100)<2);assert.ok(Math.abs(moved.y-initial.y+75)<2);
+  moved=await preview.boundingBox();assert.ok(Math.abs(moved.x-Math.max(12,initial.x-100))<2,JSON.stringify({initial,moved,footer:await preview.locator("footer > span").boundingBox()}));assert.ok(Math.abs(moved.y-initial.y+75)<2);
   await preview.locator('header').dblclick({position:{x:55,y:12}});
   await settle();
   const reset=await preview.boundingBox();assert.ok(Math.abs(reset.x-initial.x)<2&&Math.abs(reset.y-initial.y)<2,'double-clicking the header restores the default position');
