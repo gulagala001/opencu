@@ -51,7 +51,7 @@ node scripts/build-computer-use-windows-native.mjs
 
 macOS本机签名／权限见[native README](../native/computer-use/README.md)，开发签名不代表 Developer ID、公证或更新器完成。Windows保留构建身份与架构；个人签名材料、钥匙串和临时工件不提交。
 
-本地 1.6.1 新实现用官方预编译 Electron 44.7.0，完整包设计带平台原生预构建。本轮改动不在 OpenCU 的公开 1.3.0 中；OMD 已有较早同号快照，不能据此认定实现相同。不要在 1.3.0 照用新增脚本或承诺用户无需编译。
+本地 1.6.1 新实现用官方预编译 Electron 44.7.0，完整包设计带平台原生预构建。本轮改动不在 OpenCU 的公开 1.3.0 中；OMD 主线已整合对应快照，仍须核对具体包内容和宿主。不要在 1.3.0 照用新增脚本或承诺用户无需编译。
 
 ## 测试与验收
 

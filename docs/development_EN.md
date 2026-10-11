@@ -51,7 +51,7 @@ node scripts/build-computer-use-windows-native.mjs
 
 macOS local signing/permissions are documented in [native README](../native/computer-use/README.md). Development signing does not establish Developer ID, notarization, or updater delivery. Preserve Windows build identity/architecture. Do not commit personal signing materials, keychains, or temporary artifacts.
 
-New local 1.6.1 work uses official prebuilt Electron 44.7.0 and complete-package native prebuilds by design. This round's changes are absent from OpenCU's public 1.3.0. OMD has an earlier same-numbered snapshot, which does not establish implementation equivalence. Do not use new scripts against 1.3.0 or promise no compilation for that version.
+New local 1.6.1 work uses official prebuilt Electron 44.7.0 and complete-package native prebuilds by design. This round's changes are absent from OpenCU's public 1.3.0. OMD main includes the corresponding snapshot; package contents and host versions still require verification. Do not use new scripts against 1.3.0 or promise no compilation for that version.
 
 ## Testing and Validation
 

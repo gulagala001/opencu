@@ -76,7 +76,7 @@ OpenCU controls **the machine running the DSH backend and local control programs
 
 New screenshots do not mean these features are in 1.3.0. This documentation update does not release 1.6.1 or provide nonexistent download links. [1.3.0 release notes](docs/release-1.3.0.md) describe the public version.
 
-OMD's public repository already contains an earlier OpenCU snapshot marked 1.6.1. These captures show subsequent local changes. Identical version strings do not establish identical implementations or a new package release.
+OMD main includes the OpenCU 1.6.1 browser and runtime changes. These captures show a corresponding local build. Identical version strings do not establish identical implementations or a new package release.
 
 | Platform | Public 1.3.0 requirements | Scope and limits |
 | --- | --- | --- |

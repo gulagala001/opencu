@@ -17,7 +17,7 @@ function runtimeFixture(t, action, options) {
 test('public budget schema and runtime validation use the same integer range and default', async t => {
   const tools = new Map(), calls = [];
   const docs = new Set();
-  registerComputerTools({ tools: { register: tool => tools.set(tool.name, tool) } }, {
+  registerComputerTools({ on() {}, tools: { register: tool => tools.set(tool.name, tool) } }, {
     config: () => ({}), documentationState: () => docs,
     computerUse: { execute: async (...args) => { calls.push(args); return { blocks: [] }; } },
   });

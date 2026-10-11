@@ -31,7 +31,7 @@ function App(){
  return <div className="tx-cu-pane"><BrowserTools sessionId="fixture" target={target} frame={frame} state={state} api={api} onState={receive} onError={setError} previewScale={scale} onPreviewScale={setScale} onDeviceModeChange={value=>window.probe.modes.push(value)}/><p role="alert">{error}</p></div>;
 }
 createRoot(document.getElementById('root')).render(<App/>);
-`, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, format: 'iife', define: { 'process.env.NODE_ENV': '"production"' } });
+`, resolveDir: process.cwd(), loader: 'jsx' }, bundle: true, write: false, format: 'iife', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' } });
 const css = await readFile(new URL('../src/client/computer-use.css', import.meta.url), 'utf8');
 const artifactRoots=new WeakMap();
 async function fixture(t) {
