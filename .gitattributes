@@ -1,2 +1,3 @@
-# Blank unified-diff context lines retain their required leading space.
-vendor/dsh-chat/changes.patch whitespace=-blank-at-eol
+# Vendored source, licenses and runtime manifests are verified byte for byte.
+# Preserve Git blobs on every platform, including Windows checkouts.
+* -text
