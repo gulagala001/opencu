@@ -76,7 +76,7 @@ function Controls({ browser = false }) {
   if (state) {
     if (browser) {
       items.push({ kind: 'app', id: 'in-app-browser', title: text('inApp', 'Built-in browser'), showEnableToggle: false, icon: <Icon asset={browserAsset} className="icon-md text-secondary" />,
-        description: state.inAppBrowser ? text('inAppReady', 'Uses the real browser tabs in this DSH window') : text('desktopRequired', 'The desktop browser host is unavailable in this window') });
+        description: state.inAppBrowser ? text('inAppReady', 'Uses the real browser tabs in this DSH window') : state.desktopAdapterError || text('desktopRequired', 'The desktop browser host is unavailable in this window') });
       items.push({ kind: 'app', id: 'browserEnabled', title: text('managedBrowser', 'Managed browser'), icon: <Icon asset={browserAsset} className="icon-md text-secondary" />,
         enabled: state.config.browserEnabled, isPending: pending != null, onToggleEnabled: enabled => run('browserEnabled', () => services.capabilities.configure('browserEnabled', enabled)),
         toggleAriaLabel: text('managedBrowserToggle', 'Enable managed browser'),

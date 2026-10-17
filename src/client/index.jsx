@@ -1,4 +1,4 @@
-import { desktopBrowserHost } from './host-compat.mjs';
+import { resolveDesktopBrowserHost } from './host-compat.mjs';
 import { decodeBase64 } from './base64.mjs';
 import { createCoreClient } from './core-client.mjs';
 import { sharedConfigForm, configureCapability } from './configuration.mjs';
@@ -66,7 +66,7 @@ function mountClient(ctx) {
     client.start();
     return () => { client.dispose(); unprovide(); };
   }, 'opencu: core events');
-  const desktop = desktopBrowserHost();
+  const { desktop, error: desktopAdapterError } = resolveDesktopBrowserHost();
   const transport = createBrowserTransport(client, desktop);
   transport.setSessionOwner(() => [ctx.sidebarRight.mounted.getSnapshot()].filter(Boolean));
   ctx.effect(() => ctx.sidebarRight.mounted.subscribe(() => {
@@ -319,7 +319,7 @@ function mountClient(ctx) {
       else console.error('OpenCU settings', message);
     },
     capabilities: {
-      async read() { return { ...await client.request('capabilities'), inAppBrowser: host.service.available }; },
+      async read() { return { ...await client.request('capabilities'), inAppBrowser: host.service.available, desktopAdapterError }; },
       configure: (key, enabled) => configureCapability(capabilitiesConfig, key, enabled),
       openConfiguration: () => openSettings('/settings/computer-use'),
       connectBrowser: (browser, signal) => client.request('connectBrowser', { browser, requestApproval: true }, signal),

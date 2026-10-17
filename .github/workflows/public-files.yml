@@ -17,3 +17,5 @@ jobs:
         with:
           node-version: "24"
       - run: node scripts/check-public-files.mjs
+      - name: Verify native approval availability and lifecycle
+        run: node --test test/desktop-approval-availability.test.mjs test/app-approvals-lifecycle.test.mjs
