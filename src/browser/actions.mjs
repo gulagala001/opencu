@@ -2,7 +2,7 @@ import {stat} from 'node:fs/promises';
 import {isAbsolute} from 'node:path';
 import {checkSignal, fail, finite} from '../protocol.mjs';
 import {elementFor, elementPoint, focusElement} from './observation.mjs';
-import {hitTest, callElement, patchDOM, screenshotPoint} from './dom.mjs';
+import {hitTest, callElement, patchDOM, screenshotPoint, verifyScreenshot} from './dom.mjs';
 import {runCDPLocator} from '../../extension/cdp-locator.js';
 
 export function normalizeBrowserAction(request = {}) {
@@ -36,6 +36,9 @@ export async function actOnPage(record, request, options) {
   request = normalizeBrowserAction(request);
   const {page} = record;
   const signal = request.signal;
+  const screenshotInput = request.elementId == null && ['screenshot', 'screenshot-pixels', 'physical-screenshot-pixels'].includes(request.coordinateSpace);
+  const inputScreenshot = record.screenshot;
+  const checkScreenshot = async () => { if (screenshotInput) await verifyScreenshot(record, request, inputScreenshot); };
   const elementGeneration = ['type', 'press'].includes(request.action) && request.elementId != null ? record.documentGeneration : undefined;
   if (!['background', 'foreground'].includes(request.inputMode ?? 'background')) fail('INVALID_ARGUMENT', 'inputMode must be background or foreground');
   const step = async work => {
@@ -112,12 +115,13 @@ export async function actOnPage(record, request, options) {
   const move = async value => {
     const location = await point(value);
     if (options.cursor) await step(() => options.cursor({...location, visible: true, animateMovement: true}));
-    await input([], () => page.mouse.move(location.x, location.y));
+    await input([], () => page.mouse.move(location.x, location.y), checkScreenshot);
     record.pointer = location;
     return location;
   };
   const checkPointer = async () => {
     if (request.elementId != null) {const entry = elementFor(record, request); if (entry.route) await record.frameRouter.checkPoint(entry,record.pointer);}
+    await checkScreenshot();
   };
   const click = async count => {
     await move(request);
@@ -201,7 +205,7 @@ export async function actOnPage(record, request, options) {
     case 'mouseUp': await mouseUp(request.button); break;
     case 'scroll':
       if (request.x !== undefined || request.elementId !== undefined) await move(request);
-      await input([{type: 'wheel'}], () => page.mouse.wheel(finite(request.deltaX ?? 0, 'deltaX'), finite(request.deltaY ?? 0, 'deltaY')));
+      await input([{type: 'wheel'}], () => page.mouse.wheel(finite(request.deltaX ?? 0, 'deltaX'), finite(request.deltaY ?? 0, 'deltaY')), checkPointer);
       break;
     case 'drag': {
       if (!Array.isArray(request.path) || request.path.length < 2) fail('INVALID_ARGUMENT', 'drag requires at least two path points');
