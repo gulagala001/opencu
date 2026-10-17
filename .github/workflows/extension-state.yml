@@ -1,0 +1,23 @@
+name: Extension state regression
+on:
+  pull_request:
+    paths:
+      - 'host/extensions.ts'
+      - 'test/extension-state.test.mjs'
+      - 'test/fixtures/extension-state.mjs'
+      - 'scripts/bench-extension-state.mjs'
+      - '.github/workflows/extension-state.yml'
+permissions:
+  contents: read
+jobs:
+  extension-state:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: npm install --prefix "$RUNNER_TEMP/opencu-test-deps" --no-save --package-lock=false --ignore-scripts --no-audit --no-fund esbuild@0.25.12
+      - run: node --test test/extension-state.test.mjs
+        env:
+          OPENCU_TEST_ESBUILD_ROOT: ${{ runner.temp }}/opencu-test-deps
