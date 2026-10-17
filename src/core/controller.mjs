@@ -70,8 +70,17 @@ export async function createController({dataDir, browser, native} = {}) {
     if (!backend) fail('BACKEND_UNAVAILABLE', `Backend ${target.backend} is not configured`);
     return {target, backend};
   }
-  async function verify(target, backend, cold = false, operationEpoch = epoch) {
-    const result = await backend.verify(json(target), {cold});
+  async function verify(target, backend, cold = false, operationEpoch = epoch, signal) {
+    let interrupt;
+    const pending = backend.verify(json(target), {cold});
+    const interrupted = signal && new Promise((_, reject) => {
+      interrupt = () => reject(Object.assign(new Error('Target verification interrupted'), {code: 'CONTROL_STOPPED'}));
+      signal.addEventListener('abort', interrupt, {once: true});
+      if (signal.aborted) interrupt();
+    });
+    let result;
+    try { result = await (interrupted ? Promise.race([pending, interrupted]) : pending); }
+    finally { if (interrupt) signal.removeEventListener('abort', interrupt); }
     checkOperation(operationEpoch);
     if (result?.valid !== true) {
       target.verified = false;
@@ -210,7 +219,9 @@ export async function createController({dataDir, browser, native} = {}) {
       const operationEpoch = epoch;
       const {target, backend} = targetFor(request.targetId);
       if (!target.verified || target.cold) fail('RECOVERY_REQUIRED', 'Resume this target before acting');
-      await verify(target, backend);
+      // Only the read-only pre-input verification may be abandoned on stop.
+      // Already-dispatched backend input retains its existing release barriers.
+      await verify(target, backend, false, operationEpoch, aborter.signal);
       controlAllowed();
       let result;
       try { result = await backend.act(json(target), {...request, signal: aborter.signal}); }
@@ -395,3 +406,4 @@ export async function createController({dataDir, browser, native} = {}) {
 }
 
 export {PROTOCOL_VERSION, BACKEND_CONTRACT, BROWSER_ACTIONS, OpenCUError} from '../protocol.mjs';
+
