@@ -82,6 +82,12 @@ function Controls({ browser = false }) {
         toggleAriaLabel: text('managedBrowserToggle', 'Enable managed browser'),
         description: state.browserResources.error || (state.browserResources.installed ? text('browserInstalled', 'Matching browser resources are installed') : text('browserMissing', 'Install the matching browser resources once; DSH manages the browser process')),
         action: manage('/settings/browser-use/managed') });
+      items.push({ kind: 'app', id: 'managedHeadless', title: text('managedHeadless', 'Start a separate headless browser on the DSH server machine'),
+        icon: <Icon asset={browserAsset} className="icon-md text-secondary" />,
+        enabled: state.config.managedHeadless === true, isPending: pending != null,
+        onToggleEnabled: enabled => run('managedHeadless', () => services.capabilities.configure('managedHeadless', enabled)),
+        toggleAriaLabel: text('managedHeadlessToggle', 'Enable the separate headless browser on the DSH server machine'),
+        description: text('managedHeadlessHelp', 'Off by default. Requires the browser capability and matching browser resources. When enabled, tools can use an independent browser on the machine running DSH; it does not use your current browser or provide an embedded page preview here. The setting alone does not confirm that the browser started.') });
     } else {
       const title = intl.formatMessage({ id: 'settings.computerUse.anyApp.title', defaultMessage: 'Any App' });
       items.push({ id: 'nativeEnabled', title, displayName: title,

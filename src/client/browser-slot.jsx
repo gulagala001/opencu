@@ -7,6 +7,9 @@ import { createReaPortal } from './portal-host.mjs';
 import { NativeBrowserSlot } from './native-browser-slot.jsx';
 
 export function BrowserSlot(props) {
+  if (props.browserAvailable === false) return HostReact.createElement('div', {
+    role: 'status', style: { padding: '16px', whiteSpace: 'pre-wrap', lineHeight: 1.6 },
+  }, props.browserUnavailableMessage);
   return props.updateBounds ? HostReact.createElement(NativeBrowserSlot, props) : HostReact.createElement(EmbeddedBrowserSlot, props);
 }
 

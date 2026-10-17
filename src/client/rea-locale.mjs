@@ -2,6 +2,9 @@ import { ue as chinese, de as initializeChinese } from './rea/zh-CN-b05cfd55c534
 
 initializeChinese();
 const english = Object.freeze({
+  'opencu.capabilities.managedHeadless': 'Start a separate headless browser on the DSH server machine',
+  'opencu.capabilities.managedHeadlessToggle': 'Enable the separate headless browser on the DSH server machine',
+  'opencu.capabilities.managedHeadlessHelp': 'Off by default. Requires the browser capability and matching browser resources. When enabled, tools can use an independent browser on the machine running DSH; it does not use your current browser or provide an embedded page preview here. The setting alone does not confirm that the browser started.',
   'opencu.textAnnotation.annotate': 'Annotate',
   'opencu.browser.rendererExited': 'The browser page process exited. Reload the page to continue.',
   'settings.general.openLinkInTargetPreference.inAppBrowser.chatGptLabel': 'DSH',
@@ -80,6 +83,9 @@ const zh = Object.freeze({ ...chinese, ...english,
   'opencu.capabilities.inAppReady': '使用当前 DSH 窗口中的真实浏览器标签',
   'opencu.capabilities.desktopRequired': '当前窗口没有可用的桌面浏览器宿主',
   'opencu.capabilities.managedBrowser': '托管浏览器',
+  'opencu.capabilities.managedHeadless': '在 DSH 服务端机器启动独立无头浏览器',
+  'opencu.capabilities.managedHeadlessToggle': '启用 DSH 服务端机器上的独立无头浏览器',
+  'opencu.capabilities.managedHeadlessHelp': '默认关闭，需要启用浏览器能力并准备匹配的浏览器资源。开启后，工具可使用运行 DSH 的机器上的独立浏览器；不会使用你当前的浏览器，也不会在此提供内嵌页面预览。保存此设置不代表浏览器已成功启动。',
   'opencu.capabilities.browserResources': 'Chromium 运行资源',
   'opencu.capabilities.browserInstalled': '匹配的浏览器资源已安装',
   'opencu.capabilities.browserInstalling': '正在下载匹配的浏览器资源…',
