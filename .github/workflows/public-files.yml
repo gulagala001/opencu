@@ -17,3 +17,53 @@ jobs:
         with:
           node-version: "24"
       - run: node scripts/check-public-files.mjs
+      - run: node --test test/browser-screenshot-consistency.test.mjs
+  screenshot-chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --omit=dev --ignore-scripts --include=optional --no-audit --no-fund
+      - name: Verify Sharp native PNG encoding
+        run: node --input-type=module -e "import sharp from 'sharp'; const bytes = await sharp({create:{width:2,height:2,channels:3,background:'red'}}).png().toBuffer(); const m = await sharp(bytes).metadata(); if (m.width !== 2 || m.height !== 2) throw Error('Sharp PNG smoke failed');"
+      - name: Install official matching Chromium and system dependencies
+        run: node node_modules/playwright/cli.js install --with-deps chromium
+      - name: Confirm the pinned baseline violates exactly four race contracts
+        shell: bash
+        run: |
+          baseline="$RUNNER_TEMP/opencu-screenshot-baseline"
+          git worktree add --detach "$baseline" 73838cce2ef47a2ee92f7791e20bbcc1f73d0454
+          trap 'git worktree remove --force "$baseline"' EXIT
+          cp test/browser-screenshot-chromium.test.mjs "$baseline/test/"
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$baseline/node_modules"
+          set +e
+          (cd "$baseline" && node --test --test-reporter=tap test/browser-screenshot-chromium.test.mjs) > "$RUNNER_TEMP/opencu-baseline.tap" 2>&1
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/opencu-baseline.tap"
+          test "$status" -eq 1
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const output = readFileSync(`${process.env.RUNNER_TEMP}/opencu-baseline.tap`, 'utf8');
+          const failures = [...output.matchAll(/^not ok \d+ - (.+)$/gm)].map(match => match[1]);
+          assert.deepEqual(failures, [
+            'capture race DPR 1: reject geometry change before saving',
+            'cursor race DPR 1: reject input after scrolling',
+            'capture race DPR 2: reject geometry change before saving',
+            'cursor race DPR 2: reject input after scrolling',
+          ]);
+          assert.match(output, /^# tests 10$/m);
+          assert.match(output, /^# pass 6$/m);
+          assert.match(output, /^# fail 4$/m);
+          assert.equal((output.match(/actual click targets: \["B"\]/g) ?? []).length, 4);
+          JS
+      - name: Verify all ten contracts on the candidate production modules
+        run: node --test --test-reporter=tap test/browser-screenshot-chromium.test.mjs
