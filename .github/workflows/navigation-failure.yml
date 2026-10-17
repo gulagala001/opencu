@@ -1,0 +1,42 @@
+name: Browser navigation failure verification
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  navigation-failure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install exact locked dependencies
+        run: npm ci
+      - name: Verify production navigation source with synthetic guests and UI
+        run: >-
+          node --experimental-vm-modules --test
+          test/browser-navigation-failure.test.mjs
+          test/browser-navigation-error-ui.test.mjs
+      - name: Rebuild production frontend without publishing
+        run: npm run build
+      - name: Verify rebuilt navigation surface markers
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+          const surface = await readFile('lib/browser-surface.js', 'utf8');
+          for (const marker of ['ERR_CONNECTION_REFUSED', 'Page connection refused', 'Original error', 'Retry']) {
+            assert(surface.includes(marker), `Missing navigation marker: ${marker}`);
+          }
+          assert((await readFile('lib/browser-surface.html', 'utf8')).includes('browser-surface.js'));
+          console.log('PASS rebuilt navigation surface; real Electron acceptance remains separate');
+          JS

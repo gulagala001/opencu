@@ -15,6 +15,7 @@ import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import styles from './rea-styles.css';
 import { desktopBrowserHost } from './host-compat.mjs';
 import { unwrapOpenCU } from './ipc-result.mjs';
+import { BrowserNavigationError } from './browser-navigation-error.jsx';
 
 const surface = globalThis.opencuSurface, desktop = desktopBrowserHost();
 const bridge = { ...surface, call: (...args) => surface.call(...args).then(unwrapOpenCU) };
@@ -142,10 +143,14 @@ async function mount() {
   const root = createRoot(container, { onUncaughtError: error => { readyReject(error); void bridge.call('publish', { event: { type: 'fault', error: { message: error.message } } }).catch(report); } });
   function Surface() {
     const pages = React.useSyncExternalStore(host.pages.subscribe, host.pages.getSnapshot);
+    const failures = React.useSyncExternalStore(host.navigationFailures.subscribe, host.navigationFailures.getSnapshot);
+    const failure = failures.find(value => value.conversationId === init.sessionId && value.browserTabId === init.tabId);
     const visible = React.useSyncExternalStore(listener => { visibleListeners.add(listener); return () => visibleListeners.delete(listener); }, () => physicalVisible);
     return <><ReaRoot sessionId={init.sessionId} tabId={init.tabId} visible={visible} container={container} portal={portal} />
       <ReaProviders path="/opencu-hidden-pages">{pages.map(page => <HiddenBrowserUseWebviewHost key={page.key}
-        conversationId={page.conversationId} browserUseTabIdsKey={page.browserTabId} />)}</ReaProviders></>;
+        conversationId={page.conversationId} browserUseTabIdsKey={page.browserTabId} />)}</ReaProviders>
+      <BrowserNavigationError failure={failure} locale={init.locale} onError={report}
+        onRetry={() => host.service.runPageCommand({ conversationId: init.sessionId, browserTabId: init.tabId, command: { type: 'reload' } })} /></>;
   }
   root.render(<Surface />);
   host.mountTab({ sessionId: init.sessionId, tabId: init.tabId, initialUrl: init.initialUrl, initialNavigation: init.initialNavigation, signal: lifetime.signal });

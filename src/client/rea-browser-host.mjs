@@ -8,6 +8,37 @@ import { siteToolsPolicyKey, siteToolsAllowed } from '../site-tools-policy.mjs';
 
 /** Translates REA's browser service into DSH's approved Electron guest leases. */
 export function createReaBrowserHost({ desktop, transport, client, sidebar, openSession, settings, history, downloads, deliverAnnotations, deliverScreenshot, createExtensionTab, focusSurface, openExternal, isPagePresented }) {
+  const failureListeners = new Set(), failures = new Map();
+  let failureSnapshot = [];
+  const navigationFailures = { getSnapshot: () => failureSnapshot,
+    subscribe(listener) { failureListeners.add(listener); return () => failureListeners.delete(listener); } };
+  const connectionRefused = error => error?.code === 'ERR_CONNECTION_REFUSED' || error?.errno === -102
+    || /^(?:Error invoking remote method ['"]GUEST_VIEW_MANAGER_CALL['"]: (?:Error: )?)?ERR_CONNECTION_REFUSED\s+\(-102\)(?:\s+loading\b|$)/.test(error?.message ?? '');
+  const navigationAborted = error => error?.code === 'ERR_ABORTED' || error?.errno === -3
+    || /^(?:Error invoking remote method ['"]GUEST_VIEW_MANAGER_CALL['"]: (?:Error: )?)?ERR_ABORTED\s+\(-3\)(?:\s+loading\b|$)/.test(error?.message ?? '');
+  const setNavigationFailure = (record, failure) => {
+    const key = keyFor(record.ids.conversationId, record.ids.browserTabId);
+    if (failure) failures.set(key, { ...record.ids, ...failure }); else failures.delete(key);
+    failureSnapshot = [...failures.values()];
+    for (const listener of failureListeners) listener();
+    record.navigationFailure = failure;
+    if (failure) emit('browser-sidebar-state', { ...record.ids, snapshot: { ...record.state, url: failure.url, isLoading: false } });
+  };
+  async function navigate(record, url) {
+    const sequence = record.navigationSequence = (record.navigationSequence ?? 0) + 1;
+    record.navigationUrl = url;
+    setNavigationFailure(record, null);
+    try {
+      await record.element.loadURL(url);
+      if (record.navigationSequence === sequence && registrations.get(keyFor(record.ids.conversationId, record.ids.browserTabId)) === record) setNavigationFailure(record, null);
+    } catch (error) {
+      if (connectionRefused(error) && record.navigationSequence === sequence && record.navigationUrl === url
+        && registrations.get(keyFor(record.ids.conversationId, record.ids.browserTabId)) === record) {
+        setNavigationFailure(record, { url, code: 'ERR_CONNECTION_REFUSED', message: error.message });
+      }
+      throw error;
+    }
+  }
   const editorListeners = new Set(), pageListeners = new Set(), retainedPages = new Map(), cursorMoves = new Map(), viewportWaits = new Map();
   let pageSnapshot = [], cursorSequence = 0;
   function finishCursor(sequence, error) {
@@ -130,8 +161,9 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
         isLoading: element.isLoading(), canGoBack: element.canGoBack(), canGoForward: element.canGoForward(), zoomPercent: Math.round(element.getZoomFactor() * 100),
         isAudioMuted: element.isAudioMuted(), isAudible: element.isCurrentlyAudible() };
     } catch { return; /* Guest has not reached dom-ready. */ }
+    if (record.navigationFailure) metadata = { ...metadata, url: record.navigationFailure.url, isLoading: false };
     record.state = metadata;
-    if (metadata.tabType === 'web' && !metadata.isLoading) {
+    if (metadata.tabType === 'web' && !metadata.isLoading && !record.navigationFailure) {
       const key = keyFor(record.ids.conversationId, record.ids.browserTabId);
       try { persist(key, { url: metadata.url, title: metadata.title }); }
       catch (error) { console.error('OpenCU browser tab restore', error); }
@@ -198,10 +230,10 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       case 'add-annotations-to-composer':
         await record.annotations.send(); await record.annotations.sync({ interactionMode: 'browse' }); break;
       case 'refresh-cursor': element.sendInputEvent({ type: 'mouseMove', x: 0, y: 0 }); break;
-      case 'navigate': await element.loadURL(action.url); break;
+      case 'navigate': await navigate(record, action.url); break;
       case 'go-back': element.goBack(); break;
       case 'go-forward': element.goForward(); break;
-      case 'reload': element.reload(); break;
+      case 'reload': if (record.navigationFailure) await navigate(record, record.navigationFailure.url); else element.reload(); break;
       case 'stop-loading': element.stop(); break;
       case 'focus': element.focus(); break;
       case 'close-tab': await sidebar.closeIn(args.conversationId, args.browserTabId); break;
@@ -241,6 +273,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
   }
   async function releaseRecord(key, record) {
     if (registrations.get(key) === record) registrations.delete(key);
+    setNavigationFailure(record, null);
     for (const [sequence, pending] of cursorMoves) if (pending.record === record) finishCursor(sequence, Object.assign(new Error('The browser guest is closing'), { code: 'CONTROL_STOPPED' }));
     const results = [];
     for (const cleanup of record.cleanup) {
@@ -517,7 +550,13 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
           await desktop.automation(lease.lease, 'finishNavigation', {});
           initialNavigations.delete(key); restoreTargets.delete(key);
         } else if (restore) {
-          await element.loadURL(restore);
+          try { await navigate(record, restore); }
+          catch (error) {
+            // A refused URL is a page failure, not a broken Electron guest.
+            // Keep its original error visible and the live guest reloadable.
+            if (!connectionRefused(error) && !navigationAborted(error)) throw error;
+          }
+          if (disposed || registrations.get(key) !== record) throw new Error('The browser guest closed during navigation');
           if (restoreTargets.get(key) === restore) restoreTargets.delete(key);
         }
         pendingGuests.get(key)?.resolve(record);
@@ -624,6 +663,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       record.cleanup.push(() => element.removeEventListener('render-process-gone', rendererExited));
       const navigated = event => {
         if (event.isMainFrame === false) return;
+        setNavigationFailure(record, null);
         if (event.type === 'did-navigate-in-page') installAnnotations();
         record.historySignature = null; record.historyVisit = null;
         record.siteToolsGeneration = (record.siteToolsGeneration ?? 0) + 1;
@@ -632,6 +672,13 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       for (const event of ['did-navigate', 'did-navigate-in-page']) {
         element.addEventListener(event, navigated); record.cleanup.push(() => element.removeEventListener(event, navigated));
       }
+      const navigationStarted = event => {
+        if (event.isMainFrame === false || event.isInPlace) return;
+        if (record.navigationFailure && record.navigationFailure.url !== event.url) setNavigationFailure(record, null);
+        record.navigationUrl = event.url;
+      };
+      element.addEventListener('did-start-navigation', navigationStarted);
+      record.cleanup.push(() => element.removeEventListener('did-start-navigation', navigationStarted));
       for (const event of ['dom-ready', 'did-start-loading', 'did-stop-loading', 'did-navigate', 'did-navigate-in-page', 'page-title-updated', 'media-started-playing', 'media-paused']) {
         element.addEventListener(event, refresh); record.cleanup.push(() => element.removeEventListener(event, refresh));
       }
@@ -756,7 +803,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
     cancelViewportWait(requestId) { viewportWaits.get(requestId)?.(); return Promise.resolve(); },
   };
   return {
-    service, pages,
+    service, pages, navigationFailures,
     readyFor: (conversationId, browserTabId) => waitForGuest({ conversationId, browserTabId }),
     leaseFor: (conversationId, browserTabId) => get({ conversationId, browserTabId }).lease.lease,
     webContentsIdFor: (conversationId, browserTabId) => get({ conversationId, browserTabId }).element.getWebContentsId(),
@@ -791,6 +838,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       const releases = await Promise.allSettled([...registrations.values()].map(record => service.disposeTab(record.ids.conversationId, record.ids.browserTabId)));
       for (const page of retainedPages.values()) page.cleanup();
       retainedPages.clear(); publishPages();
+      failureListeners.clear();
       rendererSessions.clear(); annotationState.clear();
       const failures = releases.filter(result => result.status === 'rejected').map(result => result.reason);
       if (failures.length) throw new AggregateError(failures, 'OpenCU browser host cleanup failed');
