@@ -206,6 +206,9 @@ export async function actOnPage(record, request, options) {
     case 'drag': {
       if (!Array.isArray(request.path) || request.path.length < 2) fail('INVALID_ARGUMENT', 'drag requires at least two path points');
       const points = request.path.map(value => ({x: finite(value.x, 'x'), y: finite(value.y, 'y')}));
+      // Reject an invalid later endpoint before any pointer input. move() still
+      // resolves each point again so preflight does not replace freshness checks.
+      for (const value of points) await point(value);
       await move(points[0]);
       await mouseDown(request.button);
       for (const value of points.slice(1)) await move(value);
