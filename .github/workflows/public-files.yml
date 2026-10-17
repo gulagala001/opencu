@@ -18,3 +18,4 @@ jobs:
           node-version: "24"
       - run: node scripts/check-public-files.mjs
       - run: node --test test/browser-host-generation.test.mjs
+      - run: node --test test/presentation-capture.test.mjs test/presentation-hide.test.mjs test/presentation-session.test.mjs test/presentation-payload.test.mjs

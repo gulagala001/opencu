@@ -3,8 +3,38 @@ import { createHash } from 'node:crypto';
 /** Monitoring has its own capture path; display changes never select a tool target. */
 export function createPresentationHost({ runtime, activity, browserHost }) {
   const owners = new Map(), videoTargets = new Set(), hiddenTasks = new Set(), placements = new Map(), yieldedTargets = new Map();
-  const imageRevisions = new WeakMap(), captures = new Map();
+  const imageRevisions = new WeakMap(), captures = new Map(), presented = new Map();
   let timer, refreshing, refreshRequested = false, captureRequested = false, closed = false, frameInterval = 600, revision = 0;
+  // Keep each scheduled/activity update: the desktop also refreshes focus, geometry
+  // and transfer state. Only coalesce identical capture-completion publications.
+  async function present(payload, ownerId, skipUnchanged = false) {
+    const images = [];
+    // String placeholders preserve field positions; a literal null must stay distinct.
+    const metadata = JSON.stringify(payload, (key, value) => {
+      if ((key === 'imageDataURL' || key === 'iconDataURL') && typeof value === 'string') { images.push(value); return `opencu-image:${images.length - 1}`; }
+      return value;
+    });
+    const previous = presented.get(ownerId);
+    if (skipUnchanged && previous?.result && previous.metadata === metadata
+      && previous.images.length === images.length && images.every((value, index) => value === previous.images[index])) return previous.result;
+    const current = { metadata, images, result: null };
+    presented.set(ownerId, current);
+    try {
+      const result = await browserHost.present(payload, ownerId);
+      if (presented.get(ownerId) === current) {
+        if (result?.visible === true && result.transferring !== true) current.result = result;
+        else presented.delete(ownerId);
+      }
+      return result;
+    } catch (error) {
+      if (presented.get(ownerId) === current) presented.delete(ownerId);
+      throw error;
+    }
+  }
+  function hidePresentation(ownerId) {
+    presented.delete(ownerId);
+    return browserHost.hidePresentation(ownerId);
+  }
   async function releaseUnusedVideo() {
     const displayed = new Set([...owners.values()].filter(owner => !owner.hidden && !closed).flatMap(owner => owner.targetIds));
     for (const targetId of videoTargets) if (!displayed.has(targetId)) {
@@ -90,7 +120,7 @@ export function createPresentationHost({ runtime, activity, browserHost }) {
       const grouped = groups();
       for (const [ownerId, owner] of owners) if (!grouped.has(ownerId) && owner.targetIds.length) {
         owner.targetIds = []; owner.frames = []; owner.visible = false; owner.generation++;
-        await browserHost.hidePresentation(ownerId);
+        await hidePresentation(ownerId);
       }
       frameInterval = 600;
       for (const [ownerId, group] of grouped) {
@@ -113,9 +143,9 @@ export function createPresentationHost({ runtime, activity, browserHost }) {
         owner.frames = frames;
         try {
           const floating = frames.filter(frame => frame.placement === 'pinned');
-          const result = floating.length ? await browserHost.present({ frames: floating }, ownerId) : await browserHost.hidePresentation(ownerId);
+          const result = floating.length ? await present({ frames: floating }, ownerId, !requested) : await hidePresentation(ownerId);
           Object.assign(owner, result, { available: true, visible: floating.length > 0 && result?.visible === true });
-          if (owner.hidden || generation !== owner.generation) { await browserHost.hidePresentation(ownerId); owner.visible = false; }
+          if (owner.hidden || generation !== owner.generation) { await hidePresentation(ownerId); owner.visible = false; }
         } catch (error) { owner.error = error.message; owner.visible = false; }
       }
       for (const [targetId, record] of captures) {
@@ -143,12 +173,13 @@ export function createPresentationHost({ runtime, activity, browserHost }) {
         if (!browserHost.isPresentationSession(yielded.rendererId, yielded.threadID)) yieldedTargets.delete(targetId);
       }
       for (const [rendererId, owner] of owners) {
+        presented.delete(rendererId);
         owner.generation++;
         owner.frames = owner.frames.filter(frame => browserHost.isPresentationSession(rendererId, frame.threadID));
         owner.targetIds = owner.frames.map(frame => frame.presentationID);
         if (!owner.frames.some(frame => frame.placement === 'pinned')) {
           owner.visible = false;
-          await browserHost.hidePresentation(rendererId);
+          await hidePresentation(rendererId);
         }
       }
       revision++;
@@ -183,7 +214,7 @@ export function createPresentationHost({ runtime, activity, browserHost }) {
         const generation = owner.generation;
         owner.targetIds = owner.targetIds.filter(id => { const target = group.targets.get(id); return target && !hiddenTasks.has(target.threadID); });
         const floating = owner.frames.filter(frame => frame.placement === 'pinned');
-        const result = floating.length ? await browserHost.present({ frames: floating }, args.rendererId) : await browserHost.hidePresentation(args.rendererId);
+        const result = floating.length ? await present({ frames: floating }, args.rendererId) : await hidePresentation(args.rendererId);
         if (generation === owner.generation) owner.visible = floating.length > 0 && result?.visible === true;
         void refresh();
       } else await refresh();
@@ -207,23 +238,23 @@ export function createPresentationHost({ runtime, activity, browserHost }) {
           owner.frames = owner.frames.filter(value => value.presentationID !== event.targetId);
           owner.targetIds = owner.frames.map(value => value.presentationID);
           const floating = owner.frames.filter(value => value.placement === 'pinned');
-          if (floating.length) await browserHost.present({ frames: floating }, event.rendererId);
-          else { owner.visible = false; await browserHost.hidePresentation(event.rendererId); }
+          if (floating.length) await present({ frames: floating }, event.rendererId);
+          else { owner.visible = false; await hidePresentation(event.rendererId); }
           revision++; void refresh();
         }
       }
       if (event.type === 'hidden') {
         for (const frame of owner.frames) hiddenTasks.add(frame.threadID);
         owner.visible = false; owner.frames = []; owner.targetIds = []; owner.generation++; revision++; schedule();
-        await browserHost.hidePresentation(event.rendererId);
+        await hidePresentation(event.rendererId);
         await releaseUnusedVideo();
       }
       if (event.type === 'rendered') { owner.rendered = true; owner.error = null; }
-      if (event.type === 'error') { owner.rendered = false; owner.error = event.message; }
+      if (event.type === 'error') { presented.delete(event.rendererId); owner.rendered = false; owner.error = event.message; }
       return { ok: true };
     },
     async close() {
-      closed = true; unsubscribe(); clearTimeout(timer); captures.clear();
+      closed = true; unsubscribe(); clearTimeout(timer); captures.clear(); presented.clear();
       for (const owner of owners.values()) { owner.hidden = true; owner.generation++; owner.visible = false; owner.frames = []; }
       const results = await Promise.allSettled([refreshing, releaseUnusedVideo(), browserHost.closePresentations()]);
       const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
