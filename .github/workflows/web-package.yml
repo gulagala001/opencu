@@ -1,0 +1,40 @@
+name: Web source and package verification
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  web-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install exact locked dependencies
+        run: npm ci
+      - name: Verify web and server synthetic regressions
+        run: >-
+          node --experimental-vm-modules --test
+          test/browser-provider-status.test.mjs
+          test/runtime-web-managed.test.mjs
+          test/runtime-web-reconfigure.test.mjs
+          test/web-browser-unavailable.test.mjs
+          test/managed-headless-settings.test.mjs
+      - name: Verify package checker
+        run: node --test test/web-package-check.test.mjs test/pack-json-output.test.mjs
+      - name: Build and pack without publishing
+        run: |
+          node --input-type=module -e "import {readdir} from 'node:fs/promises'; if ((await readdir('.')).some(file => file.endsWith('.tgz'))) throw new Error('Expected a clean checkout without package archives');"
+          npm run pack
+      - name: Verify rebuilt frontend and public package contents
+        run: node scripts/check-web-package.mjs ./*.tgz
