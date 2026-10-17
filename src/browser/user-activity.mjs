@@ -29,20 +29,19 @@ function installMonitor() {
 }
 
 /** A separate Chromium world observes real input without exposing hooks to the site. */
-export async function createUserActivityMonitor(session) {
+export async function createUserActivityMonitor(session, {onAcquire} = {}) {
   const source = `(${installMonitor.toString()})()`;
   const {identifier} = await session.send('Page.addScriptToEvaluateOnNewDocument', {source, worldName});
-  async function evaluate(expression) {
+  async function evaluate(expression, install = true) {
     const {frameTree} = await session.send('Page.getFrameTree');
     const {executionContextId} = await session.send('Page.createIsolatedWorld', {frameId: frameTree.frame.id, worldName});
     const result = await session.send('Runtime.evaluate', {contextId: executionContextId,
-      expression: `${source};${expression}`, returnByValue: true});
+      expression: install ? `${source};${expression}` : expression, returnByValue: true});
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
     return result.result.value;
   }
-  await evaluate('null');
   let scriptRemoved = false, disposed = false, disposing;
-  return {
+  const monitor = {
     read: () => evaluate('globalThis.opencuActivity.read()'),
     expect: events => evaluate(`globalThis.opencuActivity.expect(${JSON.stringify(events)})`),
     dispose() {
@@ -52,9 +51,13 @@ export async function createUserActivityMonitor(session) {
           await session.send('Page.removeScriptToEvaluateOnNewDocument', {identifier});
           scriptRemoved = true;
         }
-        await evaluate('globalThis.opencuActivity.dispose()');
+        await evaluate('globalThis.opencuActivity && globalThis.opencuActivity.dispose()', false);
         disposed = true;
       })().finally(() => { disposing = undefined; });
     },
   };
+  // Registration must retain the cleanup handle before current-document setup can fail.
+  onAcquire?.(monitor);
+  await evaluate('null');
+  return monitor;
 }
