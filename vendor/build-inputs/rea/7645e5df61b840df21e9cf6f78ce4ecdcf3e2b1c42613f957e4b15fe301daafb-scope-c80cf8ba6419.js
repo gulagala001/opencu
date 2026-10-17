@@ -1,0 +1,2 @@
+import{n as e}from"./rolldown-runtime-2d059c5e81f4.js";import{Nan as t,Q4 as n,a3 as r,don as i,qon as a}from"./app-shared-2f2228189a8d.js";var o,s;function c(){return(c=e((()=>{t(),r(),o=a(`LibraryFileVersionHistoryScope`,{key:({id:e})=>e,parent:n}),s=i(o,null)})))()}export{c as n,s as r,o as t};
+//# sourceMappingURL=scope-c80cf8ba6419.js.map

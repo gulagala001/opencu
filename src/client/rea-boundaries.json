@@ -1,0 +1,28 @@
+{
+  "app-shared-2f2228189a8d.js": {
+    "a": "() => Host.React",
+    "o": "() => Host.React",
+    "c": "() => Host.compiler",
+    "s": "() => Host.compiler",
+    "_de": "() => Host.ReactDOM",
+    "Ch": "() => Host.ReactDOM",
+    "yde": "() => Host.ReactDOMClient",
+    "K": "() => Host.jsxRuntime",
+    "mde": "() => Host.jsxRuntime",
+    "vde": "() => Host.ReactDOMClient",
+    "e6": "Host.services",
+    "Pxi": "Host.ReaPortalMount"
+  },
+  "browser-use-settings-61138c2e595e.js": { "vn": "Host.ReaSettingsPage" },
+  "computer-use-settings-615f56c63d73.js": { "Lt": "Host.ReaComputerSettingsPage" },
+  "browser-address-suggestion-overlay-185e242f325f.js": {
+    "pe": "Host.prepareBrowserAddressReference",
+    "ae": "Host.BrowserAddressOverlay",
+    "E": "{ getState: state => state.browserAddressSuggestion }",
+    "H": "(view, listener) => view.subscribe(listener)",
+    "S": "({ get browserAutocomplete() { return Host.services.browserAddressAutocomplete; } })"
+  },
+  "open-local-conversation-sources-side-panel-tab-32b57167ae2a.js": {
+    "E": "(_scope, args) => Host.services.sources.open(args)"
+  }
+}

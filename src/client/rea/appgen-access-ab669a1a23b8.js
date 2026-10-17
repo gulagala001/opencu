@@ -1,0 +1,6 @@
+import * as Host from "../host-boundaries.mjs";
+function t(e){return e?.current_user_role===`owner`}
+function n(e){return t(e)||e?.current_user_role===`editor`}
+function i(e){if(e==null)return{accessMode:`admins_only`,groupCount:0,userCount:0};let t=e.allowed_account_user_ids[0],n=new Set(e.allowed_account_user_ids.slice(1));for(let r of e.allowed_editors??[])r.account_user_id!==t&&n.add(r.account_user_id);return{accessMode:e.access_mode,groupCount:e.allowed_tenant_group_ids.length+e.allowed_workspace_group_ids.length,userCount:n.size+(e.external_visitor_count??0)}}
+function a({accessMode:e,groupCount:t,userCount:n}){return(e===`admins_only`||e===`custom`)&&t===0&&n===0}
+export { t, n, i, a };

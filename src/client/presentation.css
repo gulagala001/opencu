@@ -1,0 +1,23 @@
+html, body { overflow: hidden; background: transparent !important; }
+#root { width: 100%; height: 100%; padding: 48px; overflow: visible; background: transparent; user-select: none; -webkit-app-region: no-drag; }
+#root[data-native-motion] { padding: 0; }
+[data-pip-position] > [data-pip-presentation-frame] { min-width: 0; }
+#root[data-native-motion] [data-pip-presentation-frame] { width: 100%; height: 100%; }
+[data-pip-surface] { position: relative; height: 100%; }
+[data-pip-presentation-frame] { -webkit-app-region: no-drag; cursor: grab !important; touch-action: none; }
+[data-pip-presentation-frame] img, [data-pip-presentation-frame] video { transition: filter 140ms ease-out; }
+[data-pip-presentation-frame]:hover img,
+[data-pip-presentation-frame]:hover video,
+[data-pip-presentation-frame]:focus-visible img,
+[data-pip-presentation-frame]:focus-visible video { filter: brightness(.94); }
+[data-dragging] [data-pip-presentation-frame] { cursor: grabbing !important; }
+[data-pip-presentation-frame][data-resize-edge="n"], [data-pip-presentation-frame][data-resize-edge="s"] { cursor: ns-resize !important; }
+[data-pip-presentation-frame][data-resize-edge="e"], [data-pip-presentation-frame][data-resize-edge="w"] { cursor: ew-resize !important; }
+[data-pip-presentation-frame][data-resize-edge="ne"], [data-pip-presentation-frame][data-resize-edge="sw"] { cursor: nesw-resize !important; }
+[data-pip-presentation-frame][data-resize-edge="nw"], [data-pip-presentation-frame][data-resize-edge="se"] { cursor: nwse-resize !important; }
+[data-pip-close] { position: absolute; z-index: 10; top: 20px; left: 48px; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 50%; padding: 4px; color: var(--pip-control-color, #fff); background: transparent; opacity: 0; pointer-events: none; cursor: pointer; -webkit-app-region: no-drag; transition: opacity 140ms ease-out, background-color 140ms ease-out, color 140ms ease-out; }
+[data-pip-close]::before { content: ''; position: absolute; z-index: -1; inset: -20px -28px; border-radius: 50%; background: radial-gradient(ellipse, var(--pip-control-halo, #0009), transparent 72%); pointer-events: none; }
+[data-pip-surface]:hover [data-pip-close], [data-pip-surface]:focus-within [data-pip-close] { opacity: 1; pointer-events: auto; }
+[data-pip-close]:hover { background: #8882; }
+[data-pip-close]:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { [data-pip-close], [data-pip-presentation-frame] img, [data-pip-presentation-frame] video { transition: none; } }

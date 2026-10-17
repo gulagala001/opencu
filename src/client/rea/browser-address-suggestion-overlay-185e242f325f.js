@@ -1,0 +1,61 @@
+import * as Host from "../host-boundaries.mjs";
+const S = ({ get browserAutocomplete() { return Host.services.browserAddressAutocomplete; } });
+import { HK as p } from "./app-shared-2f2228189a8d.js";
+import { Xii as N } from "./app-initial-c468e3fd7f91.js";
+import { oA as r } from "./app-shared-2f2228189a8d.js";
+import { h1 as m } from "./app-shared-2f2228189a8d.js";
+import { lS as ne } from "./app-shared-2f2228189a8d.js";
+import { y as de } from "./popup-438fd05118bc.js";
+import { kj as y } from "./app-shared-2f2228189a8d.js";
+const E = { getState: state => state.browserAddressSuggestion };
+const pe = Host.prepareBrowserAddressReference;
+import { TB as b } from "./app-shared-2f2228189a8d.js";
+import { zGi as w } from "./app-shared-2f2228189a8d.js";
+import { LGi as l } from "./app-shared-2f2228189a8d.js";
+import { p5 as te } from "./app-shared-2f2228189a8d.js";
+import { Hla as ce } from "./app-initial-c468e3fd7f91.js";
+import { Y as ie } from "./app-shared-2f2228189a8d.js";
+import { IK as i } from "./app-shared-2f2228189a8d.js";
+const H = (view, listener) => view.subscribe(listener);
+import { hKi as re } from "./app-shared-2f2228189a8d.js";
+import { x as fe } from "./popup-438fd05118bc.js";
+const ae = Host.BrowserAddressOverlay;
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { c as u } from "./app-shared-2f2228189a8d.js";
+import { VGi as o } from "./app-shared-2f2228189a8d.js";
+import { sA as d } from "./app-shared-2f2228189a8d.js";
+import { CF as k } from "./app-shared-2f2228189a8d.js";
+import { o as f } from "./app-shared-2f2228189a8d.js";
+import { xS as T } from "./app-shared-2f2228189a8d.js";
+import { b as le } from "./popup-438fd05118bc.js";
+import { E as ue } from "./popup-438fd05118bc.js";
+import { Qii as z } from "./app-initial-c468e3fd7f91.js";
+import { Ofl as q } from "./app-initial-c468e3fd7f91.js";
+import { RKi as ee } from "./app-shared-2f2228189a8d.js";
+import { vB as F } from "./app-initial-c468e3fd7f91.js";
+import { OB as C } from "./app-shared-2f2228189a8d.js";
+import { t6 as D } from "./app-shared-2f2228189a8d.js";
+import { g1 as x } from "./app-shared-2f2228189a8d.js";
+import { GK as s } from "./app-shared-2f2228189a8d.js";
+import { VK as a } from "./app-shared-2f2228189a8d.js";
+import { m5 as t } from "./app-shared-2f2228189a8d.js";
+import { Ula as j } from "./app-initial-c468e3fd7f91.js";
+import { K as n } from "./app-shared-2f2228189a8d.js";
+import { $Y as O } from "./app-shared-2f2228189a8d.js";
+import { zS as P } from "./app-initial-c468e3fd7f91.js";
+import { jW as R } from "./app-initial-c468e3fd7f91.js";
+import { Gfa as I } from "./app-initial-c468e3fd7f91.js";
+import { VP as V } from "./app-initial-c468e3fd7f91.js";
+import { qS as K } from "./app-initial-c468e3fd7f91.js";
+import { Pto as G } from "./app-initial-c468e3fd7f91.js";
+function me(){return(me=e(()=>{O();k();P();R();I();V();F();K();G();}))();}
+function he(e){let t=(0,X.c)(6),{browserConversationId:n,composerId:r,composerController:i,placement:a,suggestionState:o}=e,s=a===void 0?`top`:a,c=S?.browserAutocomplete,l=p(`2002769348`);if(c==null||n==null||!o.active||o.kind!==`browser-autocomplete`||o.query.length===0&&!l)return null;let u;return t[0]!==n||t[1]!==i||t[2]!==r||t[3]!==s||t[4]!==o?(u=(0,Q.jsx)(N,{name:`browser.in-app`,children:(0,Q.jsx)(ge,{autocompleteService:c,browserConversationId:n,composerId:r,composerController:i,placement:s,suggestionState:o},n)}),t[0]=n,t[1]=i,t[2]=r,t[3]=s,t[4]=o,t[5]=u):u=t[5],u}
+function ge(e){let t=(0,X.c)(68),{autocompleteService:n,browserConversationId:a,composerId:o,composerController:s,placement:c,suggestionState:u}=e,d=r(m),f=ne(),[p]=(0,Z.useState)(ve),[h]=(0,Z.useState)(_e),g;t[0]!==p||t[1]!==a||t[2]!==h||t[3]!==s||t[4]!==o||t[5]!==d?(g=(e,t)=>{let n=E.getState(s.view.state);if(n==null)return!1;p.stop(`interaction`,!0);let r=pe(d,{browserTabId:h,composerController:s,composerId:o,conversationId:a,match:e});return r!=null&&(d.get(b).logProductEvent(w,{action:l.CODEX_BROWSER_INTERACTIONS_ADDRESS_SHORTCUT_ACTION_OPENED,selectionMethod:t===`suggestion_click`?`click`:`keyboard`}),s.insertBrowserTabMention(r,n),!0)},t[0]=p,t[1]=a,t[2]=h,t[3]=s,t[4]=o,t[5]=d,t[6]=g):g=t[6];let _=te(g),v;t[7]!==n||t[8]!==a||t[9]!==h||t[10]!==d||t[11]!==_?(v=()=>[ce(d,n,{getRequestContext:()=>({browserTabId:h,conversationId:ie(a),surface:`composer`}),allowDeletion:!1,onSelect:_})],t[7]=n,t[8]=a,t[9]=h,t[10]=d,t[11]=_,t[12]=v):v=t[12];let[y]=(0,Z.useState)(v),x;t[13]!==p||t[14]!==s||t[15]!==d||t[16]!==y?(x=e=>{let t=null,n=()=>{let e=E.getState(s.view.state),n=s.getBrowserAutocompleteRuntime();if(e?.active!==!0||e.kind!==`browser-autocomplete`){n!=null&&$.delete(n);return}if(e.query!==t){if(t=e.query,t.length===0&&d.get(i)?.checkGate(`2002769348`,{disableExposureLog:!0})!==!0){p.stop(`clobbered`,!1);return}p.start({preventInlineAutocomplete:!0,selectionEnd:t.length,selectionStart:t.length,value:t},y)}},r=p.subscribe(e,y),a=H(s.view,n);return n(),()=>{a(),r(),p.stop(`interaction`,!0)}},t[13]=p,t[14]=s,t[15]=d,t[16]=y,t[17]=x):x=t[17];let ee=x,S;t[18]!==p||t[19]!==y?(S=()=>p.getSnapshot(y),t[18]=p,t[19]=y,t[20]=S):S=t[20];let C=(0,Z.useSyncExternalStore)(ee,S),{displayedSelectedIndex:T,suggestions:D,selectedIndex:O,isSelectedSuggestionMissing:k,isPending:A}=C,j=T<0&&D.length>0&&!k?0:T,M=`composer-browser-address-suggestions-${h}`,N=j<0?null:`${M}-option-${j}`,P,F;t[21]!==N||t[22]!==s||t[23]!==M||t[24]!==d||t[25]!==D.length?(P=()=>{let e=s.getBrowserAutocompleteRuntime();D.length>0&&e!=null&&!$.has(e)&&($.add(e),d.get(b).logProductEvent(w,{action:l.CODEX_BROWSER_INTERACTIONS_ADDRESS_SHORTCUT_ACTION_ACTIVATED}));let t=s.view.dom,n=new Map([[`role`,t.getAttribute(`role`)],[`aria-autocomplete`,t.getAttribute(`aria-autocomplete`)],[`aria-controls`,t.getAttribute(`aria-controls`)],[`aria-expanded`,t.getAttribute(`aria-expanded`)],[`aria-activedescendant`,t.getAttribute(`aria-activedescendant`)]]);return t.setAttribute(`role`,`combobox`),t.setAttribute(`aria-autocomplete`,`list`),t.setAttribute(`aria-expanded`,String(D.length>0)),D.length>0?t.setAttribute(`aria-controls`,M):t.removeAttribute(`aria-controls`),N==null?t.removeAttribute(`aria-activedescendant`):t.setAttribute(`aria-activedescendant`,N),()=>{for(let[e,r]of n)r==null?t.removeAttribute(e):t.setAttribute(e,r)}},F=[N,s,M,d,D.length],t[21]=N,t[22]=s,t[23]=M,t[24]=d,t[25]=D.length,t[26]=P,t[27]=F):(P=t[26],F=t[27]),(0,Z.useLayoutEffect)(P,F);let I;t[28]!==p||t[29]!==j||t[30]!==D?(I=e=>{if(!re(e)||e.kind!==`browser-autocomplete`||e.type!==`submit`||e.action!==`insert-mention`)return;let t=D[j];t!=null&&p.acceptSuggestion(t.id,`suggestion_keyboard`)},t[28]=p,t[29]=j,t[30]=D,t[31]=I):I=t[31];let L=(0,Z.useEffectEvent)(I),R;t[32]!==s||t[33]!==L||t[34]!==A||t[35]!==D.length?(R=()=>{let e=e=>{A||D.length===0||(s.consumeBrowserAutocompleteSubmission(),L(e))};s.eventEmitter.addListener(`composer-suggestion-ui-event`,e);let t=A||D.length===0?null:s.consumeBrowserAutocompleteSubmission();return t!=null&&L(t),()=>{s.eventEmitter.removeListener(`composer-suggestion-ui-event`,e)}},t[32]=s,t[33]=L,t[34]=A,t[35]=D.length,t[36]=R):R=t[36];let z;t[37]!==s||t[38]!==A||t[39]!==D.length?(z=[s,A,D.length],t[37]=s,t[38]=A,t[39]=D.length,t[40]=z):z=t[40],(0,Z.useEffect)(R,z);let B;t[41]!==p||t[42]!==s||t[43]!==j||t[44]!==A||t[45]!==M||t[46]!==O||t[47]!==u||t[48]!==D?(B=e=>{if(e.isComposing||D.length===0)return;if(e.key===`Enter`&&u.query.length===0&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey){let t=D[j];t!=null&&(e.preventDefault(),e.stopPropagation(),A?s.queueBrowserAutocompleteSubmission({action:`insert-mention`,kind:`browser-autocomplete`,type:`submit`}):p.acceptSuggestion(t.id,`suggestion_keyboard`));return}if(e.key!==`ArrowDown`&&e.key!==`ArrowUp`)return;e.preventDefault(),e.stopPropagation();let t=e.key===`ArrowDown`?1:-1;O<0&&j>=0&&p.moveSelection(1),p.moveSelection(t),requestAnimationFrame(()=>{let e=p.getSnapshot().selectedIndex,t=`${M}-option-${e}`;s.findBrowserAddressSuggestion(t)?.scrollIntoView?.({block:`nearest`})})},t[41]=p,t[42]=s,t[43]=j,t[44]=A,t[45]=M,t[46]=O,t[47]=u,t[48]=D,t[49]=B):B=t[49];let V=(0,Z.useEffectEvent)(B),U;t[50]!==s.view.dom||t[51]!==V?(U=()=>{let e=s.view.dom,t=e=>{V(e)};return e.addEventListener(`keydown`,t,!0),()=>{e.removeEventListener(`keydown`,t,!0)}},t[50]=s.view.dom,t[51]=V,t[52]=U):U=t[52];let W;if(t[53]===s?W=t[54]:(W=[s],t[53]=s,t[54]=W),(0,Z.useEffect)(U,W),D.length===0)return null;let G;t[55]===f?G=t[56]:(G=f.formatMessage({id:`thread.browser.addressSuggestions`,defaultMessage:`Address suggestions`,description:`Accessible label for browser address bar suggestions`}),t[55]=f,t[56]=G);let K;t[57]===p?K=t[58]:(K=e=>{p.acceptSuggestion(e.id,`suggestion_click`)},t[57]=p,t[58]=K);let q;t[59]!==C.suggestions||t[60]!==j||t[61]!==M||t[62]!==G||t[63]!==K?(q=(0,Q.jsx)(fe,{label:G,listboxId:M,suggestions:C.suggestions,selectedIndex:j,onSelect:K}),t[59]=C.suggestions,t[60]=j,t[61]=M,t[62]=G,t[63]=K,t[64]=q):q=t[64];let J;return t[65]!==c||t[66]!==q?(J=(0,Q.jsx)(ae,{isActive:!0,placement:c,spacing:`compact`,children:q}),t[65]=c,t[66]=q,t[67]=J):J=t[67],J}
+function _e(){return y(crypto.randomUUID())}
+function ve(){return new de}
+var X;
+var Z;
+var Q;
+var $;
+function ye(){return(ye=e(()=>{X=u();o();d();k();Z=f();T();le();ue();z();q();ee();F();C();D();x();s();a();t();j();me();Q=n();$=new WeakSet();}))();}
+export { S, p, N, r, m, ne, de, y, E, pe, b, w, l, te, ce, ie, i, H, re, fe, ae, e, u, o, d, k, f, T, le, ue, z, q, ee, F, C, D, x, s, a, t, j, n, O, P, R, I, V, K, G, me, he, ge, _e, ve, X, Z, Q, $, ye };

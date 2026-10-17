@@ -1,0 +1,2 @@
+import{n as e}from"./rolldown-runtime-2d059c5e81f4.js";import{PCn as t}from"./app-shared-2f2228189a8d.js";var n,r;function i(){return(i=e((()=>{n=t(),r=(0,n.createContext)(void 0)})))()}export{i as n,r as t};
+//# sourceMappingURL=appearance-73c153a42318.js.map

@@ -1,0 +1,15 @@
+import * as Host from "../host-boundaries.mjs";
+import { TWt as i } from "./app-initial-c468e3fd7f91.js";
+import { OWt as t } from "./app-initial-c468e3fd7f91.js";
+import { DWt as r } from "./app-initial-c468e3fd7f91.js";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { EWt as n } from "./app-initial-c468e3fd7f91.js";
+function a(e){return f.has(e)}
+function o({connectorId:e,disableExposureLog:t=!1,statsigClient:n}){return a(e)?i(n,`enable-bundled-apps-msft`,{disableExposureLog:t}):!1}
+function s(e){return r(d,e)}
+function l({availableAppIds:e,companionConnectorIds:n,companionConnectors:r,companionLinks:i}){return t({availableAppIds:e,companionConnectorIds:n,companionConnectors:r,companionLinks:i,connectorById:f})}
+var u;
+var d;
+var f;
+function p(){return(p=e(()=>{n();u=`connector_1e4f6a44acf14e3ca1d96672f8c945bc`;d=[{connectorId:`connector_4aaab2856305417b993eca9a216aaf6e`,kind:`outlook-email`},{connectorId:`connector_e6a7394682e24467ac68c60696f275a4`,kind:`outlook-calendar`},{connectorId:u,kind:`sharepoint`},{connectorId:`connector_246af0940da3457da0e751171dc1ce60`,kind:`teams`}];f=new Map(d.map(e=>[e.connectorId,e]));}))();}
+export { i, t, r, e, n, a, o, s, l, u, d, f, p };

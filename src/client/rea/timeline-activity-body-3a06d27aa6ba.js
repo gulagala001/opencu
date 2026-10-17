@@ -1,0 +1,10 @@
+import * as Host from "../host-boundaries.mjs";
+import { q as r } from "./app-shared-2f2228189a8d.js";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { c as n } from "./app-shared-2f2228189a8d.js";
+import { K as t } from "./app-shared-2f2228189a8d.js";
+function a(e){let t=(0,o.c)(15),n,i,a,c,l;t[0]===e?(n=t[1],i=t[2],a=t[3],c=t[4],l=t[5]):({ref:a,className:n,indent:c,variant:l,...i}=e,t[0]=e,t[1]=n,t[2]=i,t[3]=a,t[4]=c,t[5]=l);let u=c!==void 0&&c,d=l===void 0?`default`:l,f=d==="default"&&`gap-2 pt-2 pb-1`,p=d===`grouped`&&`gap-[var(--conversation-grouped-item-gap,4px)] pt-1`,m=u&&`ps-6`,h;t[6]!==n||t[7]!==f||t[8]!==p||t[9]!==m?(h=r(`flex flex-col`,f,p,m,n),t[6]=n,t[7]=f,t[8]=p,t[9]=m,t[10]=h):h=t[10];let g;return t[11]!==i||t[12]!==a||t[13]!==h?(g=(0,s.jsx)(`div`,{ref:a,className:h,...i}),t[11]=i,t[12]=a,t[13]=h,t[14]=g):g=t[14],g}
+var o;
+var s;
+function c(){return(c=e(()=>{o=n();s=t();}))();}
+export { r, e, n, t, a, o, s, c };

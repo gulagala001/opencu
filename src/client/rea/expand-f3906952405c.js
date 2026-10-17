@@ -1,0 +1,10 @@
+import * as Host from "../host-boundaries.mjs";
+import { t as t } from "./constant-363a14bf6d8f.js";
+import { t as r } from "./array-15adaa1bc228.js";
+function i(e,t){if((o=e.length)>1)for(var n=1,r,i,a=e[t[0]],o,s=a.length;n<o;++n)for(i=a,a=e[t[n]],r=0;r<s;++r)a[r][1]+=a[r][0]=isNaN(i[r][1])?i[r][0]:i[r][1]}
+function o(e){for(var t=e.length,n=Array(t);--t>=0;)n[t]=t;return n}
+function c(e,t){return e[t]}
+function l(e){let t=[];return t.key=e,t}
+function u(){var e=t([]),n=o,a=i,s=c;function u(t){var i=Array.from(e.apply(this,arguments),l),o,c=i.length,u=-1,d;for(let e of t)for(o=0,++u;o<c;++o)(i[o][u]=[0,+s(e,i[o].key,u,t)]).data=e;for(o=0,d=r(n(i));o<c;++o)i[d[o]].index=o;return a(i,d),i}return u.keys=function(n){return arguments.length?(e=typeof n==`function`?n:t(Array.from(n)),u):e},u.value=function(e){return arguments.length?(s=typeof e==`function`?e:t(+e),u):s},u.order=function(e){return arguments.length?(n=e==null?o:typeof e==`function`?e:t(Array.from(e)),u):n},u.offset=function(e){return arguments.length?(a=e??i,u):a},u}
+function f(e,t){if((r=e.length)>0){for(var n,r,a=0,o=e[0].length,s;a<o;++a){for(s=n=0;n<r;++n)s+=e[n][a][1]||0;if(s)for(n=0;n<r;++n)e[n][a][1]/=s}i(e,t)}}
+export { t, r, i, o, c, l, u, f };

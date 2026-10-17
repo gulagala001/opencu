@@ -1,0 +1,38 @@
+import * as Host from "../host-boundaries.mjs";
+import { o as a } from "./drawing-resize-handles-ea28c73efff1.js";
+import { Wk as n } from "./app-primary-5433e23a397e.js";
+import { Bze as t } from "./app-primary-5433e23a397e.js";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { v as i } from "./drawing-resize-handles-ea28c73efff1.js";
+import { Kk as r } from "./app-primary-5433e23a397e.js";
+function o(e,t,n){return Math.min(n,Math.max(t,e))}
+function s(e,t,n){let r=Math.max(e.k,2**-52);return{x:(t-e.x)/r,y:(n-e.y)/r}}
+function c(e,t,n){return{x:t*e.k+e.x,y:n*e.k+e.y}}
+function l(e,t,n,r,i,a){let c=s(e,t,n),l=o(r,i,a);return{k:l,x:t-c.x*l,y:n-c.y*l}}
+function u(e,t,n){let r=Math.max(0,n.width),i=Math.max(0,n.height),a=Math.max(0,t.width),o=Math.max(0,t.height),s=Math.min(0,a-r*e.k),c=Math.min(0,o-i*e.k);return{...e,x:Math.min(0,Math.max(s,e.x)),y:Math.min(0,Math.max(c,e.y))}}
+function d(e){return{left:-e.x,top:-e.y}}
+function f(e){let t=Math.max(e.k,2**-52);return{left:-e.x/t,top:-e.y/t}}
+function p(e){let t=e.values(),n=t.next().value,r=t.next().value;if(!n||!r)return null;let i=r.x-n.x,a=r.y-n.y;return{centerX:(n.x+r.x)/2,centerY:(n.y+r.y)/2,distance:Math.max(m,Math.hypot(i,a))}}
+var m;
+function h(){return(h=e(()=>{m=1;}))();}
+function g(e){let t=(Number.isFinite(e??NaN)?Number(e):0)%360;return t>=180&&(t-=360),t<-180&&(t+=360),t}
+function _(e,t=45){return g(Math.round(e/t)*t)}
+function v(e,t,n){let r=t.x-e.x,i=t.y-e.y;if(n===`square`){let t=Math.max(Math.abs(r),Math.abs(i));return{x:e.x+(r<0?-t:t),y:e.y+(i<0?-t:t)}}let a=_(Math.atan2(i,r)*180/Math.PI)*Math.PI/180,o=Math.hypot(r,i),s=Math.cos(a)*o,c=Math.sin(a)*o;return{x:e.x+(Math.abs(s)<1e-8?0:s),y:e.y+(Math.abs(c)<1e-8?0:c)}}
+function y(e){return{x:e.left+e.width/2,y:e.top+e.height/2}}
+function b(e){let t=y(e),n=e.width/2,r=e.height/2,i=g(e.rotation)*Math.PI/180,a=Math.cos(i),o=Math.sin(i),s=(e,n)=>({x:t.x+e*a-n*o,y:t.y+e*o+n*a});return{nw:s(-n,-r),ne:s(n,-r),sw:s(-n,r),se:s(n,r)}}
+function x(e){let t=1/0,n=1/0,r=-1/0,i=-1/0;for(let a of e)if(!(![a.left,a.top,a.width,a.height].every(Number.isFinite)||a.width<0||a.height<0))for(let e of Object.values(b(a)))t=Math.min(t,e.x),n=Math.min(n,e.y),r=Math.max(r,e.x),i=Math.max(i,e.y);return Number.isFinite(t)?{left:t,top:n,width:r-t,height:i-n}:null}
+function S(e,t){let n=y(e),r=g(e.rotation)*Math.PI/180,i=Math.cos(r),o=Math.sin(r),{rotationHandleDistance:s}=a(t),c=-e.height/2-s;return{x:n.x+0*i-c*o,y:n.y+0*o+c*i}}
+function C(e,t){let n=y(e),r=-g(e.rotation)*Math.PI/180,i=Math.cos(r),a=Math.sin(r),o=t.x-n.x,s=t.y-n.y;return{x:o*i-s*a,y:o*a+s*i}}
+function w(e,t){let n=C(e,t);return Math.abs(n.x)<=e.width/2&&Math.abs(n.y)<=e.height/2}
+function T(e,t){return Object.values(b(t)).every(t=>t.x>=e.left&&t.x<=e.left+e.width&&t.y>=e.top&&t.y<=e.top+e.height)}
+function E(e,t,n){let{cornerHitRadius:r}=a(n),i=C(e,t);for(let[t,n,a]of[[`nw`,-e.width/2,-e.height/2],[`ne`,e.width/2,-e.height/2],[`sw`,-e.width/2,e.height/2],[`se`,e.width/2,e.height/2]])if(Math.hypot(i.x-n,i.y-a)<=r)return t;return null}
+function D(e,t,n){let r=E(e,t,n);if(r)return r;let i=C(e,t),{edgeHitRadius:o}=a(n),s=(e,t)=>e>=-o&&e<=Math.min(o,t/4);if(Math.abs(i.x)<=e.width/2){if(s(i.y+e.height/2,e.height))return`n`;if(s(e.height/2-i.y,e.height))return`s`}if(Math.abs(i.y)<=e.height/2){if(s(i.x+e.width/2,e.width))return`w`;if(s(e.width/2-i.x,e.width))return`e`}return null}
+function O(e,t){let n=C(e,t);return n.x<0?n.y<0?`nw`:`sw`:n.y<0?`ne`:`se`}
+function k(e,t,n){if(D(e,t,n)||w(e,t))return!1;let r=C(e,t),{rotationRadius:i}=a(n);return Math.hypot(Math.abs(r.x)-e.width/2,Math.abs(r.y)-e.height/2)<=i}
+function A(){return(A=e(()=>{i();}))();}
+function j(e,t,r){let i=r.strokeStyle??`#2563eb`,a=g(t.rotation),o=r.snapToPixels?e.getTransform():null,s=a%90==0&&o&&o.b===0&&o.c===0&&o.a===o.d&&o.a>0,c=Math.max(r.zoom,1e-4)/(s?o.a:1),l=s?{left:t.left*o.a+o.e,top:t.top*o.d+o.f,width:t.width*o.a,height:t.height*o.d,rotation:a}:{...t,rotation:a},u=b(l),d=s?Math.max(1,Math.round(n/c+1e-6)):n/c,f=e=>{if(!s)return e;let t=d/2;return{x:Math.round(e.x-t)+t,y:Math.round(e.y-t)+t}},p=e=>f(s?{x:e.x*o.a+o.e,y:e.y*o.d+o.f}:e),m=[u.nw,u.ne,u.se,u.sw].map(f);e.save(),s&&e.resetTransform(),e.strokeStyle=i,e.lineWidth=d,e.setLineDash([]),e.beginPath(),e.moveTo(m[0].x,m[0].y);for(let t=1;t<m.length;t+=1)e.lineTo(m[t].x,m[t].y);if(e.closePath(),e.stroke(),r.showRotationHandle!==!1&&M(e,l,{zoom:c,strokeStyle:i,snapPoint:f,lineWidth:d,handle:p(S(t,r.zoom))}),r.showResizeHandles!==!1){let t=r.resizeHandlePoints?.map(p)??m;for(let n of t)P(e,n,{zoom:c,strokeStyle:i,lineWidth:d})}e.restore()}
+function M(e,t,n){let r=y(t),i=g(t.rotation)*Math.PI/180,a=Math.cos(i),o=Math.sin(i),s=n.snapPoint(N({center:r,cos:a,sin:o,dx:0,dy:-t.height/2})),{handle:c}=n;e.beginPath(),e.moveTo(s.x,s.y),e.lineTo(c.x,c.y),e.stroke(),P(e,c,n)}
+function N(e){return{x:e.center.x+e.dx*e.cos-e.dy*e.sin,y:e.center.y+e.dx*e.sin+e.dy*e.cos}}
+function P(e,n,r){let i=Math.max(r.zoom,1e-4);e.save(),e.strokeStyle=r.strokeStyle,e.fillStyle=t,e.lineWidth=r.lineWidth??1.25/i,e.setLineDash([]),e.beginPath(),e.arc(n.x,n.y,3/i,0,Math.PI*2),e.fill(),e.stroke(),e.restore()}
+function F(){return(F=e(()=>{A();r();}))();}
+export { a, n, t, e, i, r, o, s, c, l, u, d, f, p, m, h, g, _, v, y, b, x, S, C, w, T, E, D, O, k, A, j, M, N, P, F };

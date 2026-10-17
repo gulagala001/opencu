@@ -1,0 +1,22 @@
+import * as Host from "../host-boundaries.mjs";
+import { q as l } from "./app-shared-2f2228189a8d.js";
+import { tnt as m } from "./app-primary-5433e23a397e.js";
+import { r5 as n } from "./app-shared-2f2228189a8d.js";
+import { rfr as a } from "./app-shared-2f2228189a8d.js";
+import { l as g } from "./row-857f1bbf7334.js";
+import { hS as c } from "./app-shared-2f2228189a8d.js";
+import { snt as f } from "./app-primary-5433e23a397e.js";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { c as i } from "./app-shared-2f2228189a8d.js";
+import { xS as s } from "./app-shared-2f2228189a8d.js";
+import { a5 as o } from "./app-shared-2f2228189a8d.js";
+import { C$ as r } from "./app-shared-2f2228189a8d.js";
+import { rq as d } from "./app-primary-5433e23a397e.js";
+import { oq as p } from "./app-primary-5433e23a397e.js";
+import { f as h } from "./row-857f1bbf7334.js";
+import { K as t } from "./app-shared-2f2228189a8d.js";
+function _(e){let t=(0,v.c)(59),{ariaDescribedBy:r,ariaLabel:i,authorAvatar:o,autoFocus:s,compact:u,disabled:d,discussion:p,embedded:h,maxLength:_,multiline:b,name:x,onCancel:S,onChange:C,onSubmit:w,placeholder:T,submitLabel:E,value:D}=e,O=s===void 0||s,k=u!==void 0&&u,A=d!==void 0&&d,j=h!==void 0&&h,M=b===void 0||b,N;t[0]===D?N=t[1]:(N=D.trim(),t[0]=D,t[1]=N);let P=N!==``,F=!A&&P,I=k||p!=null,L;if(t[2]!==r||t[3]!==i||t[4]!==O||t[5]!==A||t[6]!==p||t[7]!==I||t[8]!==_||t[9]!==M||t[10]!==x||t[11]!==S||t[12]!==C||t[13]!==T||t[14]!==D){let e=I?l(`min-h-0 w-full p-0 font-sans text-sm text-default`,p==null?`leading-normal`:`leading-5`):m,n;t[16]===C?n=t[17]:(n=e=>C(e.currentTarget.value),t[16]=C,t[17]=n);let a;t[18]!==A||t[19]!==S?(a=e=>{if(e.nativeEvent.isComposing||e.keyCode===229){e.key===`Enter`&&e.preventDefault();return}e.key===`Escape`&&S!=null&&!A?(e.preventDefault(),e.stopPropagation(),S()):e.key===`Enter`&&!e.shiftKey&&(e.preventDefault(),e.currentTarget.form?.requestSubmit())},t[18]=A,t[19]=S,t[20]=a):a=t[20];let o;t[21]!==r||t[22]!==i||t[23]!==O||t[24]!==A||t[25]!==_||t[26]!==x||t[27]!==T||t[28]!==n||t[29]!==a||t[30]!==D?(o={"aria-describedby":r,"aria-label":i,autoFocus:O,disabled:A,maxLength:_,name:x,placeholder:T,value:D,onChange:n,onKeyDown:a},t[21]=r,t[22]=i,t[23]=O,t[24]=A,t[25]=_,t[26]=x,t[27]=T,t[28]=n,t[29]=a,t[30]=D,t[31]=o):o=t[31];let s=o;L=M?(0,y.jsx)(`textarea`,{...s,className:l(e,`max-h-48 resize-none overflow-y-auto border-0 bg-transparent outline-none placeholder:text-tertiary`,p!=null&&`block`,I&&`field-sizing-content`,I&&`self-center`),rows:I?1:3}):(0,y.jsx)(`input`,{...s,className:l(e,`h-7 border-0 bg-transparent outline-none placeholder:text-tertiary`)}),t[2]=r,t[3]=i,t[4]=O,t[5]=A,t[6]=p,t[7]=I,t[8]=_,t[9]=M,t[10]=x,t[11]=S,t[12]=C,t[13]=T,t[14]=D,t[15]=L}else L=t[15];let R=L,z;t[32]!==F||t[33]!==w||t[34]!==D?(z=e=>{e.preventDefault(),F&&w(D.trim())},t[32]=F,t[33]=w,t[34]=D,t[35]=z):z=t[35];let B;t[36]!==o||t[37]!==F||t[38]!==p||t[39]!==P||t[40]!==R||t[41]!==I||t[42]!==M||t[43]!==E?(B=p==null?(0,y.jsxs)(`div`,{className:l(`flex min-w-0 gap-2 py-2 pe-2`,I?`items-end ps-3`:`items-center ps-4`),children:[R,(I?P:!M&&F)?(0,y.jsx)(n,{"aria-label":E,color:`composerPrimary`,disabled:!F,size:`composerSm`,type:`submit`,uniform:!0,children:(0,y.jsx)(a,{})}):null]}):(0,y.jsx)(g,{authorAvatar:o,disabled:!F,layout:p===`comment`?`card`:`inline`,showSubmit:P,submitLabel:E,submitType:`submit`,children:R}),t[36]=o,t[37]=F,t[38]=p,t[39]=P,t[40]=R,t[41]=I,t[42]=M,t[43]=E,t[44]=B):B=t[44];let V;t[45]!==F||t[46]!==A||t[47]!==I||t[48]!==M||t[49]!==S||t[50]!==E?(V=M&&!I?(0,y.jsxs)(`div`,{className:`flex items-center justify-end gap-2 px-2 pb-2`,children:[S==null?null:(0,y.jsx)(n,{color:`outline`,disabled:A,size:`composer`,onClick:S,children:(0,y.jsx)(c,{id:`annotationCommentComposer.cancel`,defaultMessage:`Cancel`,description:`Cancel action for a plain-text annotation comment`})}),(0,y.jsx)(n,{"aria-label":E,color:`composerPrimary`,disabled:!F,size:`composer`,type:`submit`,uniform:!0,children:(0,y.jsx)(a,{})})]}):null,t[45]=F,t[46]=A,t[47]=I,t[48]=M,t[49]=S,t[50]=E,t[51]=V):V=t[51];let H;t[52]!==V||t[53]!==z||t[54]!==B?(H=(0,y.jsxs)(`form`,{className:`flex flex-col`,onSubmit:z,children:[B,V]}),t[52]=V,t[53]=z,t[54]=B,t[55]=H):H=t[55];let U=H,W;return t[56]!==j||t[57]!==U?(W=j?U:(0,y.jsx)(f,{children:U}),t[56]=j,t[57]=U,t[58]=W):W=t[58],W}
+var v;
+var y;
+function b(){return(b=e(()=>{v=i();s();o();r();d();p();h();y=t();}))();}
+export { l, m, n, a, g, c, f, e, i, s, o, r, d, p, h, t, _, v, y, b };

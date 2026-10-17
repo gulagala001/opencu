@@ -1,0 +1,34 @@
+import * as Host from "../host-boundaries.mjs";
+import { lS as p } from "./app-shared-2f2228189a8d.js";
+import { d as E } from "./PopcornManualEditHeaderControls-b8db5d8994b8.js";
+import { s5 as y } from "./app-shared-2f2228189a8d.js";
+import { DXi as m } from "./app-shared-2f2228189a8d.js";
+import { kXi as _ } from "./app-shared-2f2228189a8d.js";
+import { $hr as a } from "./app-shared-2f2228189a8d.js";
+import { egr as o } from "./app-shared-2f2228189a8d.js";
+import { bRi as c } from "./app-shared-2f2228189a8d.js";
+import { bur as n } from "./app-shared-2f2228189a8d.js";
+import { xur as h } from "./app-shared-2f2228189a8d.js";
+import { CXi as d } from "./app-shared-2f2228189a8d.js";
+import { TXi as v } from "./app-shared-2f2228189a8d.js";
+import { w5 as r } from "./app-shared-2f2228189a8d.js";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { c as s } from "./app-shared-2f2228189a8d.js";
+import { wXi as x } from "./app-shared-2f2228189a8d.js";
+import { EXi as u } from "./app-shared-2f2228189a8d.js";
+import { OXi as b } from "./app-shared-2f2228189a8d.js";
+import { AXi as C } from "./app-shared-2f2228189a8d.js";
+import { p as T } from "./PopcornManualEditHeaderControls-b8db5d8994b8.js";
+import { xS as g } from "./app-shared-2f2228189a8d.js";
+import { C$ as i } from "./app-shared-2f2228189a8d.js";
+import { u5 as f } from "./app-shared-2f2228189a8d.js";
+import { O5 as l } from "./app-shared-2f2228189a8d.js";
+import { pWi as w } from "./app-shared-2f2228189a8d.js";
+import { K as t } from "./app-shared-2f2228189a8d.js";
+import { bS as S } from "./app-shared-2f2228189a8d.js";
+function D(e){let t=(0,O.c)(18),i,s,l,u;t[0]===e?(i=t[1],s=t[2],l=t[3],u=t[4]):({action:i,expanded:s,pressed:l,...u}=e,t[0]=e,t[1]=i,t[2]=s,t[3]=l,t[4]=u);let f=p(),g;t[5]!==i||t[6]!==f?(g=f.formatMessage(A[i]),t[5]=i,t[6]=f,t[7]=g):g=t[7];let b=g,x;t[8]!==i||t[9]!==s||t[10]!==b||t[11]!==l||t[12]!==u?(x=i===`slide`||i===`text`?(0,k.jsx)(E,{"aria-label":b,"aria-haspopup":i===`slide`?`dialog`:void 0,expanded:s,pressed:l,size:`default`,...u,children:i===`slide`?(0,k.jsx)(y,{icon:{assets:{16:m,20:_}}}):(0,k.jsx)(y,{icon:{16:a,20:o}})}):(0,k.jsx)(c,{uniform:!0,"aria-label":b,...u,children:i===`image`?(0,k.jsx)(y,{icon:{16:n,20:h}}):(0,k.jsx)(y,{icon:{assets:{16:d,20:v}}})}),t[8]=i,t[9]=s,t[10]=b,t[11]=l,t[12]=u,t[13]=x):x=t[13];let S;return t[14]!==s||t[15]!==b||t[16]!==x?(S=(0,k.jsx)(r,{cloneCustomTrigger:!0,tooltipContent:b,triggerPopupOpen:s,children:x}),t[14]=s,t[15]=b,t[16]=x,t[17]=S):S=t[17],S}
+var O;
+var k;
+var A;
+function j(){return(j=e(()=>{O=s();x();u();b();C();T();g();i();f();l();w();k=t();A=S({slide:{id:`presentationEditor.insert.slide`,defaultMessage:`New slide`,description:`Open the slide layout menu to add a presentation slide`},text:{id:`presentationEditor.insert.text`,defaultMessage:`Insert text`,description:`Activate text box placement on the presentation slide`},image:{id:`presentationEditor.insert.image`,defaultMessage:`Insert image`,description:`Open the presentation image insertion menu`},tools:{id:`presentationEditor.insert.tools`,defaultMessage:`Charts, tables, and more`,description:`Open the menu for inserting charts, tables and shapes`}});}))();}
+export { p, E, y, m, _, a, o, c, n, h, d, v, r, e, s, x, u, b, C, T, g, i, f, l, w, t, S, D, O, k, A, j };

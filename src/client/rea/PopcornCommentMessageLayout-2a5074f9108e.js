@@ -1,0 +1,7 @@
+import * as Host from "../host-boundaries.mjs";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { K as t } from "./app-shared-2f2228189a8d.js";
+function n({avatar:e,header:t,children:n,hasConnector:i,hasPrevious:a=!1,...o}){return(0,r.jsxs)(`div`,{...o,className:`group/message relative flex items-start gap-2.5 ps-4 pe-2 outline-none`,children:[(0,r.jsxs)(`div`,{className:`relative shrink-0 self-stretch pt-4`,children:[a&&(0,r.jsx)(`span`,{"aria-hidden":!0,className:`pointer-events-none absolute start-1/2 top-0 h-2.5 w-px -translate-x-1/2 rounded-full bg-border-subtle`}),e,i&&(0,r.jsx)(`span`,{"aria-hidden":!0,className:`pointer-events-none absolute start-1/2 top-11.5 bottom-0 w-px -translate-x-1/2 rounded-full bg-border-subtle`})]}),(0,r.jsxs)(`div`,{className:`flex min-w-0 flex-1 flex-col py-3`,children:[t,n]})]})}
+var r;
+function i(){return(i=e(()=>{r=t();}))();}
+export { e, t, n, r, i };

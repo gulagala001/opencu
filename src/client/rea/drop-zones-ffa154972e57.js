@@ -1,0 +1,53 @@
+import * as Host from "../host-boundaries.mjs";
+import { jRt as ee } from "./app-initial-c468e3fd7f91.js";
+import { YN as ie } from "./app-initial-c468e3fd7f91.js";
+import { tA as r } from "./app-shared-2f2228189a8d.js";
+import { wS as re } from "./app-initial-c468e3fd7f91.js";
+import { FN as A } from "./app-initial-c468e3fd7f91.js";
+import { bEi as te } from "./app-initial-c468e3fd7f91.js";
+import { wC as k } from "./app-initial-c468e3fd7f91.js";
+import { Wj as ne } from "./app-initial-c468e3fd7f91.js";
+import { OPt as ae } from "./app-initial-c468e3fd7f91.js";
+import { yT as a } from "./app-shared-2f2228189a8d.js";
+import { Uv as T } from "./app-shared-2f2228189a8d.js";
+import { Kv as g } from "./app-shared-2f2228189a8d.js";
+import { zv as v } from "./app-shared-2f2228189a8d.js";
+import { _Ae as h } from "./app-shared-2f2228189a8d.js";
+import { p5 as b } from "./app-shared-2f2228189a8d.js";
+import { q as E } from "./app-shared-2f2228189a8d.js";
+import { hT as _ } from "./app-shared-2f2228189a8d.js";
+import { d5 as S } from "./app-shared-2f2228189a8d.js";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { c as s } from "./app-shared-2f2228189a8d.js";
+import { fP as q } from "./app-initial-c468e3fd7f91.js";
+import { qv as o } from "./app-shared-2f2228189a8d.js";
+import { gT as m } from "./app-shared-2f2228189a8d.js";
+import { bT as p } from "./app-shared-2f2228189a8d.js";
+import { sA as c } from "./app-shared-2f2228189a8d.js";
+import { o as u } from "./app-shared-2f2228189a8d.js";
+import { Ch as l } from "./app-shared-2f2228189a8d.js";
+import { xS as C } from "./app-shared-2f2228189a8d.js";
+import { SEi as J } from "./app-initial-c468e3fd7f91.js";
+import { uC as M } from "./app-initial-c468e3fd7f91.js";
+import { $ri as W } from "./app-initial-c468e3fd7f91.js";
+import { Kj as G } from "./app-initial-c468e3fd7f91.js";
+import { v0n as B } from "./app-initial-c468e3fd7f91.js";
+import { Fj as j } from "./app-initial-c468e3fd7f91.js";
+import { xS as V } from "./app-initial-c468e3fd7f91.js";
+import { DC as z } from "./app-initial-c468e3fd7f91.js";
+import { f5 as w } from "./app-shared-2f2228189a8d.js";
+import { g1 as y } from "./app-shared-2f2228189a8d.js";
+import { eU as H } from "./app-initial-c468e3fd7f91.js";
+import { m5 as t } from "./app-shared-2f2228189a8d.js";
+import { WW as se } from "./app-initial-c468e3fd7f91.js";
+import { HN as oe } from "./app-initial-c468e3fd7f91.js";
+import { K as n } from "./app-shared-2f2228189a8d.js";
+function ue(e){let t=(0,Z.c)(33),{destination:n,direction:i,surface:o}=e,{bottomPanelTargetHeight:s,contentPaneWidthRatio:c,mainContentWidth:l}=ee(),u=(0,Q.useContext)(ie),d=r(re),f=r(A),p=o??(u?.chatTabDragState==null?`content`:`chat`),m=d?p===`content`&&u?.dragState?.draggedTab.tabId===f:p===`chat`,y=(0,Q.useContext)(te),x=r(k),S=r(ne.tabIds$),C=u?.dragState?.sourceController===ne&&S.length===1,w=x&&!C?y??void 0:void 0,D;t[0]!==c||t[1]!==l?(D=[l,c],t[0]=c,t[1]=l,t[2]=D):D=t[2];let O;t[3]===m?O=t[4]:(O=e=>{let[t,n]=e,r=Math.min(t,ae(n,t,`unified`));return m?t-r:r},t[3]=m,t[4]=O);let j=a(D,O),M;t[5]===Symbol.for(`react.memo_cache_sentinel`)?(M={placement:`bottom-start`,strategy:`fixed`,middleware:[T(de),g({apply(e){let{elements:t,rects:n}=e;Object.assign(t.floating.style,{height:`${n.reference.height}px`,width:`${n.reference.width}px`})}})],whileElementsMounted:v},t[5]=M):M=t[5];let{floatingStyles:N,refs:P}=h(M),F;t[6]===P?F=t[7]:(F=e=>{P.setReference(e)},t[6]=P,t[7]=F);let I=b(F),L;t[8]===P?L=t[9]:(L=e=>{P.setFloating(e)},t[8]=P,t[9]=L);let R=b(L),z=n===`bottom`&&`inset-x-0 bottom-0`,B=n===`left`&&`inset-y-0 left-0`,V=n===`right`&&`inset-y-0 right-0`,H;t[10]!==z||t[11]!==B||t[12]!==V?(H=E(`pointer-events-none absolute`,z,B,V),t[10]=z,t[11]=B,t[12]=V,t[13]=H):H=t[13];let U=n===`bottom`?void 0:w,W=n===`bottom`?s:void 0,G=n===`bottom`?void 0:j,K;t[14]!==U||t[15]!==W||t[16]!==G?(K={bottom:U,height:W,width:G},t[14]=U,t[15]=W,t[16]=G,t[17]=K):K=t[17];let q;t[18]!==I||t[19]!==K||t[20]!==H?(q=(0,$.jsx)(_.div,{ref:I,"aria-hidden":!0,className:H,dir:`ltr`,style:K}),t[18]=I,t[19]=K,t[20]=H,t[21]=q):q=t[21];let J;t[22]===n?J=t[23]:(J=(0,$.jsx)(fe,{destination:n}),t[22]=n,t[23]=J);let Y;t[24]!==n||t[25]!==i||t[26]!==N||t[27]!==R||t[28]!==J?(Y=(0,pe.createPortal)((0,$.jsx)(`div`,{ref:R,"aria-hidden":!0,className:`pointer-events-none z-50`,"data-unified-workspace-drop-indicator":n,dir:i,style:N,children:J}),document.body),t[24]=n,t[25]=i,t[26]=N,t[27]=R,t[28]=J,t[29]=Y):Y=t[29];let X;return t[30]!==q||t[31]!==Y?(X=(0,$.jsxs)($.Fragment,{children:[q,Y]}),t[30]=q,t[31]=Y,t[32]=X):X=t[32],X}
+function de(e){let{rects:t}=e;return-t.reference.height}
+function fe(e){let t=(0,Z.c)(11),{destination:n}=e,r=S(),i=n===`bottom`&&`border-t`,a=n===`left`&&`border-r`,o=n===`right`&&`border-l`,s;t[0]!==i||t[1]!==a||t[2]!==o?(s=E(`absolute top-0 left-0 border-default bg-codex-drop-overlay/60 select-none`,i,a,o),t[0]=i,t[1]=a,t[2]=o,t[3]=s):s=t[3];let c=`calc(100% / ${r})`,l=`scale(${r})`,u=`calc(100% / ${r})`,d;t[4]!==c||t[5]!==l||t[6]!==u?(d={height:c,transform:l,transformOrigin:`top left`,width:u},t[4]=c,t[5]=l,t[6]=u,t[7]=d):d=t[7];let f;return t[8]!==s||t[9]!==d?(f=(0,$.jsx)(`div`,{className:s,style:d}),t[8]=s,t[9]=d,t[10]=f):f=t[10],f}
+var Z;
+var Q;
+var pe;
+var $;
+function me(){return(me=e(()=>{Z=s();q();o();m();p();c();Q=u();pe=l();C();J();M();W();G();B();j();V();z();w();y();H();t();se();oe();$=n();}))();}
+export { ee, ie, r, re, A, te, k, ne, ae, a, T, g, v, h, b, E, _, S, e, s, q, o, m, p, c, u, l, C, J, M, W, G, B, j, V, z, w, y, H, t, se, oe, n, ue, de, fe, Z, Q, pe, $, me };

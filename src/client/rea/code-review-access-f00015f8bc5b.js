@@ -1,0 +1,22 @@
+import * as Host from "../host-boundaries.mjs";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { sA as a } from "./app-shared-2f2228189a8d.js";
+import { CY as o } from "./app-shared-2f2228189a8d.js";
+import { gA as h } from "./app-primary-5433e23a397e.js";
+import { yA as p } from "./app-initial-c468e3fd7f91.js";
+import { gI as s } from "./app-shared-2f2228189a8d.js";
+import { VK as r } from "./app-shared-2f2228189a8d.js";
+import { rY as d } from "./app-shared-2f2228189a8d.js";
+import { J as l } from "./app-shared-2f2228189a8d.js";
+import { X as n } from "./app-shared-2f2228189a8d.js";
+import { vA as m } from "./app-initial-c468e3fd7f91.js";
+import { vY as u } from "./app-shared-2f2228189a8d.js";
+import { LK as f } from "./app-shared-2f2228189a8d.js";
+import { gY as t } from "./app-shared-2f2228189a8d.js";
+import { tY as c } from "./app-shared-2f2228189a8d.js";
+import { hY as i } from "./app-shared-2f2228189a8d.js";
+import { yBe as g } from "./app-primary-5433e23a397e.js";
+var _;
+var v;
+function y(){return(y=e(()=>{a();o();h();p();s();r();d();_=l(n,({get:e})=>{let n=e(t);if(n.authLoading)return`loading`;let r=n.authMethod===`chatgpt`&&n.accountId!=null&&c(n.plan)?e(i,n.accountId):null;return g(n.plan??void 0,n.authMethod,{isLoading:n.accountInfoLoading||r?.isPending===!0,hasErrors:n.accountInfoError||r?.isError===!0,hasWorkspaceEnabledCodex:r?.data?.beta_settings.wham_access===!0,needsOnboarding:!1});});v=l(n,({get:e})=>{let t=e(_),n=e(m),r=e(u),i={visible:t===`enabled`,pending:t===`loading`,error:t===`error`},a={visible:r.status===`allowed`,pending:r.status===`loading`,error:r.status===`error`};return{cloud:i,app:{visible:n&&a.visible,pending:e(f)||n&&a.pending,error:n&&a.error}};});}))();}
+export { e, a, o, h, p, s, r, d, l, n, m, u, f, t, c, i, g, _, v, y };

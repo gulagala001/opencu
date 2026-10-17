@@ -1,0 +1,44 @@
+import * as Host from "../host-boundaries.mjs";
+import { oA as i } from "./app-shared-2f2228189a8d.js";
+import { h1 as u } from "./app-shared-2f2228189a8d.js";
+import { lS as x } from "./app-shared-2f2228189a8d.js";
+import { A1 as E } from "./app-shared-2f2228189a8d.js";
+import { iA as d } from "./app-shared-2f2228189a8d.js";
+import { RUr as F } from "./app-initial-c468e3fd7f91.js";
+import { gi as K } from "./mcp-tool-item-content-f32f64d93b42.js";
+import { LUr as z } from "./app-initial-c468e3fd7f91.js";
+import { d5a as I } from "./app-initial-c468e3fd7f91.js";
+import { Xjs as P } from "./app-initial-c468e3fd7f91.js";
+import { Qks as V } from "./app-initial-c468e3fd7f91.js";
+import { ZO as ae } from "./app-initial-c468e3fd7f91.js";
+import { Dt as U } from "./thread-summary-panel-components-3aba951edec7.js";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { c as c } from "./app-shared-2f2228189a8d.js";
+import { sA as l } from "./app-shared-2f2228189a8d.js";
+import { j1 as g } from "./app-shared-2f2228189a8d.js";
+import { xS as C } from "./app-shared-2f2228189a8d.js";
+import { _i as G } from "./mcp-tool-item-content-f32f64d93b42.js";
+import { $O as ie } from "./app-initial-c468e3fd7f91.js";
+import { zUr as B } from "./app-initial-c468e3fd7f91.js";
+import { v6 as L } from "./app-initial-c468e3fd7f91.js";
+import { g5a as ee } from "./app-initial-c468e3fd7f91.js";
+import { g1 as v } from "./app-shared-2f2228189a8d.js";
+import { $js as N } from "./app-initial-c468e3fd7f91.js";
+import { kt as H } from "./thread-summary-panel-components-3aba951edec7.js";
+import { K as t } from "./app-shared-2f2228189a8d.js";
+import { bw as te } from "./app-initial-c468e3fd7f91.js";
+import { TKr as h } from "./app-shared-2f2228189a8d.js";
+import { bJ as A } from "./app-initial-c468e3fd7f91.js";
+import { k3r as b } from "./app-shared-2f2228189a8d.js";
+import { QZr as S } from "./app-shared-2f2228189a8d.js";
+import { qY as D } from "./app-shared-2f2228189a8d.js";
+import { RX as w } from "./app-shared-2f2228189a8d.js";
+import { h5r as p } from "./app-shared-2f2228189a8d.js";
+import { wAs as O } from "./app-initial-c468e3fd7f91.js";
+import { l as oe } from "./local-conversation-webmcp-tools-model-4c5708629975.js";
+function de(e){let t=(0,J.c)(26),{children:n,hostId:r,meta:a,presentation:o,resource:s}=e,c=i(u),l=x(),f;t[0]===s.url?f=t[1]:(f=E(s.url),t[0]=s.url,t[1]=f);let p=f,m=d(F,p),h;t[2]!==r||t[3]!==s.url?(h={hostId:r,url:s.url},t[2]=r,t[3]=s.url,t[4]=h):h=t[4];let g=p==null&&o===`summary`,_;t[5]===g?_=t[6]:(_={enabled:g},t[5]=g,t[6]=_);let{data:v}=d(K,h,_),y;t[7]!==v||t[8]!==l||t[9]!==m||t[10]!==p?.kind||t[11]!==s.title?(y=v??s.title,p?.kind===`page`&&(y=m===void 0?`…`:m==null||m.deleted_at!=null||!m.access.can_read?l.formatMessage(z,{kind:`page`}):I(m,l)),t[7]=v,t[8]=l,t[9]=m,t[10]=p?.kind,t[11]=s.title,t[12]=y):y=t[12];let b;t[13]===s?b=t[14]:(b=(0,Y.jsx)(P,{resource:s}),t[13]=s,t[14]=b);let S=b,C;t[15]!==s||t[16]!==c||t[17]!==y?(C=e=>{V(c,{...s,title:y})||ae({event:e,href:s.url,initiator:s.openInitiator})},t[15]=s,t[16]=c,t[17]=y,t[18]=C):C=t[18];let w=C,T;return t[19]!==n||t[20]!==S||t[21]!==a||t[22]!==w||t[23]!==o||t[24]!==y?(T=o===`summary`?(0,Y.jsx)(U.SourceRow,{icon:S,label:y,onOpen:w}):(0,Y.jsx)(U.SourceDetails,{icon:S,label:y,meta:a,onOpen:w,children:n}),t[19]=n,t[20]=S,t[21]=a,t[22]=w,t[23]=o,t[24]=y,t[25]=T):T=t[25],T}
+var J;
+var Y;
+function X(){return(X=e(()=>{J=c();l();g();C();G();ie();B();L();ee();v();N();H();Y=t();}))();}
+function $(){return($=e(()=>{l();C();te();h();A();b();S();D();w();p();O();oe();}))();}
+export { i, u, x, E, d, F, K, z, I, P, V, ae, U, e, c, l, g, C, G, ie, B, L, ee, v, N, H, t, te, h, A, b, S, D, w, p, O, oe, de, J, Y, X, $ };

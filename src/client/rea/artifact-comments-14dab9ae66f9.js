@@ -1,0 +1,159 @@
+import * as Host from "../host-boundaries.mjs";
+import { CB as q } from "./app-shared-2f2228189a8d.js";
+import { NYt as s } from "./app-shared-2f2228189a8d.js";
+import { cKt as o } from "./app-shared-2f2228189a8d.js";
+import { Kca as Le } from "./app-initial-c468e3fd7f91.js";
+import { eq as M } from "./app-shared-2f2228189a8d.js";
+import { oA as u } from "./app-shared-2f2228189a8d.js";
+import { X as d } from "./app-shared-2f2228189a8d.js";
+import { lS as te } from "./app-shared-2f2228189a8d.js";
+import { iA as w } from "./app-shared-2f2228189a8d.js";
+import { je as it } from "./artifact-comment-progress-e9d791b29352.js";
+import { HK as b } from "./app-shared-2f2228189a8d.js";
+import { v2 as me } from "./app-shared-2f2228189a8d.js";
+import { vMo as Se } from "./app-initial-c468e3fd7f91.js";
+import { p as nt } from "./panel-state-1fd21df9ae53.js";
+import { o as et } from "./panel-state-1fd21df9ae53.js";
+import { l as tt } from "./panel-state-1fd21df9ae53.js";
+import { CB as ze } from "./app-initial-c468e3fd7f91.js";
+import { Q as at } from "./artifact-comment-progress-e9d791b29352.js";
+import { ET as xe } from "./app-initial-c468e3fd7f91.js";
+import { IT as Pe } from "./app-initial-c468e3fd7f91.js";
+import { tTi as be } from "./app-initial-c468e3fd7f91.js";
+import { yda as De } from "./app-initial-c468e3fd7f91.js";
+import { FI as T } from "./app-shared-2f2228189a8d.js";
+import { hS as X } from "./app-shared-2f2228189a8d.js";
+import { t5 as K } from "./app-shared-2f2228189a8d.js";
+import { tKi as ge } from "./app-shared-2f2228189a8d.js";
+import { S_r as P } from "./app-shared-2f2228189a8d.js";
+import { Ge as $e } from "./artifact-comments-header-5e5064568630.js";
+import { Ue as Ze } from "./artifact-comments-header-5e5064568630.js";
+import { r5 as a } from "./app-shared-2f2228189a8d.js";
+import { WSi as t } from "./app-shared-2f2228189a8d.js";
+import { ZSi as I } from "./app-shared-2f2228189a8d.js";
+import { d_a as Te } from "./app-initial-c468e3fd7f91.js";
+import { Sxi as L } from "./app-shared-2f2228189a8d.js";
+import { dJ as Ue } from "./app-primary-5433e23a397e.js";
+import { gYi as ee } from "./app-shared-2f2228189a8d.js";
+import { y$ as h } from "./app-shared-2f2228189a8d.js";
+import { Dgr as ne } from "./app-shared-2f2228189a8d.js";
+import { dpr as f } from "./app-shared-2f2228189a8d.js";
+import { fur as k } from "./app-shared-2f2228189a8d.js";
+import { A4n as p } from "./app-shared-2f2228189a8d.js";
+import { w5 as i } from "./app-shared-2f2228189a8d.js";
+import { ve as qe } from "./artifact-comments-header-5e5064568630.js";
+import { DBc as Ce } from "./app-initial-c468e3fd7f91.js";
+import { XE as oe } from "./app-shared-2f2228189a8d.js";
+import { WD as ie } from "./app-shared-2f2228189a8d.js";
+import { qD as le } from "./app-shared-2f2228189a8d.js";
+import { bHc as Me } from "./app-initial-c468e3fd7f91.js";
+import { _B as je } from "./app-initial-c468e3fd7f91.js";
+import { uHc as ve } from "./app-initial-c468e3fd7f91.js";
+import { Se as Xe } from "./artifact-comments-header-5e5064568630.js";
+import { Be as Je } from "./artifact-comments-header-5e5064568630.js";
+import { XLi as x } from "./app-shared-2f2228189a8d.js";
+import { y7 as se } from "./app-shared-2f2228189a8d.js";
+import { yBo as Re } from "./app-initial-c468e3fd7f91.js";
+import { hT as N } from "./app-shared-2f2228189a8d.js";
+import { Ee as Ke } from "./artifact-comments-header-5e5064568630.js";
+import { xe as lt } from "./workbook-review-utils-84e5ad810caa.js";
+import { a as st } from "./presentation-review-utils-8cc9bc91f541.js";
+import { fTc as Fe } from "./app-initial-c468e3fd7f91.js";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { hQ as ue } from "./app-shared-2f2228189a8d.js";
+import { SB as C } from "./app-shared-2f2228189a8d.js";
+import { OB as U } from "./app-shared-2f2228189a8d.js";
+import { ala as Ee } from "./app-initial-c468e3fd7f91.js";
+import { QGt as V } from "./app-shared-2f2228189a8d.js";
+import { lKt as E } from "./app-shared-2f2228189a8d.js";
+import { c as g } from "./app-shared-2f2228189a8d.js";
+import { sA as _ } from "./app-shared-2f2228189a8d.js";
+import { o as y } from "./app-shared-2f2228189a8d.js";
+import { xS as Y } from "./app-shared-2f2228189a8d.js";
+import { bda as Oe } from "./app-initial-c468e3fd7f91.js";
+import { CGr as z } from "./app-shared-2f2228189a8d.js";
+import { yMo as ye } from "./app-initial-c468e3fd7f91.js";
+import { Gk as ke } from "./app-initial-c468e3fd7f91.js";
+import { g as rt } from "./panel-state-1fd21df9ae53.js";
+import { sTi as Be } from "./app-initial-c468e3fd7f91.js";
+import { TIr as Ve } from "./app-initial-c468e3fd7f91.js";
+import { II as fe } from "./app-shared-2f2228189a8d.js";
+import { gI as O } from "./app-shared-2f2228189a8d.js";
+import { GK as m } from "./app-shared-2f2228189a8d.js";
+import { $ as ot } from "./artifact-comment-progress-e9d791b29352.js";
+import { hTc as we } from "./app-initial-c468e3fd7f91.js";
+import { K as n } from "./app-shared-2f2228189a8d.js";
+import { nKi as B } from "./app-shared-2f2228189a8d.js";
+import { Oe as Ye } from "./artifact-comments-header-5e5064568630.js";
+import { gT as j } from "./app-shared-2f2228189a8d.js";
+import { a5 as D } from "./app-shared-2f2228189a8d.js";
+import { n5 as r } from "./app-shared-2f2228189a8d.js";
+import { C$ as l } from "./app-shared-2f2228189a8d.js";
+import { Je as Qe } from "./artifact-comments-header-5e5064568630.js";
+import { _Yi as ae } from "./app-shared-2f2228189a8d.js";
+import { He as Ge } from "./artifact-comments-header-5e5064568630.js";
+import { b7 as S } from "./app-shared-2f2228189a8d.js";
+import { u0 as Ie } from "./app-initial-c468e3fd7f91.js";
+import { u5 as H } from "./app-shared-2f2228189a8d.js";
+import { GSi as G } from "./app-shared-2f2228189a8d.js";
+import { fJ as He } from "./app-primary-5433e23a397e.js";
+import { f_a as Ne } from "./app-initial-c468e3fd7f91.js";
+import { lCi as c } from "./app-shared-2f2228189a8d.js";
+import { pWi as _e } from "./app-shared-2f2228189a8d.js";
+import { j4n as ce } from "./app-shared-2f2228189a8d.js";
+import { be as We } from "./artifact-comments-header-5e5064568630.js";
+import { O5 as A } from "./app-shared-2f2228189a8d.js";
+import { QE as he } from "./app-shared-2f2228189a8d.js";
+import { YD as re } from "./app-shared-2f2228189a8d.js";
+import { Ch as v } from "./app-shared-2f2228189a8d.js";
+import { wWc as Ae } from "./app-initial-c468e3fd7f91.js";
+import { ZE as J } from "./app-shared-2f2228189a8d.js";
+import { $ as ct } from "./workbook-review-utils-84e5ad810caa.js";
+function dt(e,t,n,r){q(e,s,{artifactKind:pt[t],outcome:o.CODEX_ARTIFACT_WORKER_LIFECYCLE_OUTCOME_FAILED,reason:gt[r.reason],pendingRequestCount:M(r.pendingRequestCount),threadId:n??void 0,productExperience:Le(e,n??void 0)})}
+function ft(e,t,n){q(e,s,{artifactKind:pt[t],outcome:o.CODEX_ARTIFACT_WORKER_LIFECYCLE_OUTCOME_STARTED,threadId:n??void 0,productExperience:Le(e,n??void 0)})}
+var pt;
+var gt;
+function yt(){return(yt=e(()=>{ue();C();U();Ee();pt={presentation:V.CODEX_ARTIFACT_KIND_PRESENTATION,spreadsheet:V.CODEX_ARTIFACT_KIND_SPREADSHEET};gt={runtime:E.CODEX_ARTIFACT_WORKER_FAILURE_REASON_RUNTIME,"message-deserialization":E.CODEX_ARTIFACT_WORKER_FAILURE_REASON_MESSAGE_DESERIALIZATION,"worker-reported":E.CODEX_ARTIFACT_WORKER_FAILURE_REASON_WORKER_REPORTED};}))();}
+function bt(e){let t=(0,xt.c)(52),{value:n,disabled:r,onChange:i,placeholder:a,ariaLabel:o,assignedToChatGpt:s,recipient:c,recipientPlaceholder:l,inputRef:u,autoFocus:d,onRemoveRecipient:f,onSubmit:p}=e,m=r!==void 0&&r,h=o===void 0?a:o,g=d===void 0||d,_;t[0]!==s||t[1]!==n?(_=()=>{let e=Ce(n,{defaultTextKind:`prompt`,enableFileMentions:!1,enableSkillMentions:!1,enableSlashCommands:!1,enterBehavior:`enter`,plainTextMode:!0}),t={controller:e,destroy:()=>e.destroy()},r={mention:document.createElement(`span`),placeholder:document.createElement(`span`)};return e.view.updateState(e.view.state.reconfigure({plugins:[...e.view.state.plugins,new oe({key:Tt,state:{init:()=>s,apply(e,t){let n=e.getMeta(Tt);return typeof n==`boolean`?n:t}},props:{decorations(e){if(Tt.getState(e)!==!0)return null;let{doc:t}=e,n=[ie.widget(1,r.mention,{side:-1})];return t.childCount===1&&t.child(0).content.size===0&&n.push(ie.widget(1,r.placeholder,{side:1})),le.create(t,n)}}})]})),{...t,prefix:r}},t[0]=s,t[1]=n,t[2]=_):_=t[2];let[v]=(0,St.useState)(_),{controller:y,destroy:b,prefix:x}=v;Me(b,y);let S;t[3]===y.view.dom?S=t[4]:(S=()=>y.view.dom,t[3]=y.view.dom,t[4]=S);let C;t[5]===y?C=t[6]:(C=[y],t[5]=y,t[6]=C),(0,St.useImperativeHandle)(u,S,C);let w;t[7]!==y.view||t[8]!==m?(w=()=>{y.view.setProps({editable:()=>!m}),y.view.dom.setAttribute(`aria-disabled`,String(m))},t[7]=y.view,t[8]=m,t[9]=w):w=t[9];let T;t[10]!==y||t[11]!==m?(T=[y,m],t[10]=y,t[11]=m,t[12]=T):T=t[12],(0,St.useLayoutEffect)(w,T);let E;t[13]!==y||t[14]!==i||t[15]!==n?(E=e=>{if(e){let e=y.getText();e!==n&&i(e)}},t[13]=y,t[14]=i,t[15]=n,t[16]=E):E=t[16];let D=(0,St.useEffectEvent)(E),O;t[17]!==y.view||t[18]!==D?(O=()=>je(y.view,D),t[17]=y.view,t[18]=D,t[19]=O):O=t[19];let k;t[20]===y?k=t[21]:(k=[y],t[20]=y,t[21]=k),(0,St.useEffect)(O,k);let A,j;t[22]!==y||t[23]!==n?(A=()=>{y.getText()!==n&&y.restoreText(n)},j=[y,n],t[22]=y,t[23]=n,t[24]=A,t[25]=j):(A=t[24],j=t[25]),(0,St.useEffect)(A,j);let M;t[26]!==s||t[27]!==y.view?(M=()=>{Tt.getState(y.view.state)!==s&&y.view.dispatch(y.view.state.tr.setMeta(Tt,s))},t[26]=s,t[27]=y.view,t[28]=M):M=t[28];let N;t[29]!==s||t[30]!==y?(N=[y,s],t[29]=s,t[30]=y,t[31]=N):N=t[31],(0,St.useEffect)(M,N);let P;bb0:{if(s){P=``;break bb0}P=a}let F=P,I;t[32]!==s||t[33]!==y.view.state||t[34]!==f?(I=e=>{s&&f!=null&&e.key===`Backspace`&&!e.nativeEvent.isComposing&&y.view.state.selection.empty&&y.view.state.selection.from===1&&(e.preventDefault(),e.stopPropagation(),f())},t[32]=s,t[33]=y.view.state,t[34]=f,t[35]=I):I=t[35];let L=m||!g,R;t[36]!==h||t[37]!==y||t[38]!==F||t[39]!==p||t[40]!==L?(R=(0,wt.jsx)(ve,{ariaLabel:h,composerController:y,disableAutoFocus:L,minHeight:`1lh`,placeholder:F,onSubmit:p}),t[36]=h,t[37]=y,t[38]=F,t[39]=p,t[40]=L,t[41]=R):R=t[41];let z;t[42]!==s||t[43]!==x||t[44]!==c||t[45]!==l?(z=s&&(0,wt.jsxs)(wt.Fragment,{children:[(0,Ct.createPortal)(c,x.mention),(0,Ct.createPortal)(l,x.placeholder)]}),t[42]=s,t[43]=x,t[44]=c,t[45]=l,t[46]=z):z=t[46];let B;return t[47]!==m||t[48]!==I||t[49]!==R||t[50]!==z?(B=(0,wt.jsxs)(`div`,{className:`min-w-0 comment-typography`,inert:m,onKeyDownCapture:I,children:[R,z]}),t[47]=m,t[48]=I,t[49]=R,t[50]=z,t[51]=B):B=t[51],B}
+var xt;
+var St;
+var Ct;
+var wt;
+var Tt;
+function Et(){return(Et=e(()=>{xt=g();he();re();St=y();Ct=v();Ae();wt=n();Tt=new J(`artifact-comment-recipient`);}))();}
+function Dt(e){let t=(0,At.c)(8),{composer:n}=e,{value:r,initialAssignedToChatGpt:i,onCancel:a,onChange:o,onSubmit:s}=n,c;t[0]===s?c=t[1]:(c=e=>(s(e),!0),t[0]=s,t[1]=c);let l;return t[2]!==i||t[3]!==a||t[4]!==o||t[5]!==c||t[6]!==r?(l=(0,Z.jsx)(Ot,{initialValue:r,mode:`create`,initialAssignedToChatGpt:i,onCancel:a,onChange:o,onSubmit:c}),t[2]=i,t[3]=a,t[4]=o,t[5]=c,t[6]=r,t[7]=l):l=t[7],l}
+function Ot(e){let t=(0,At.c)(33),{value:n,assignedToChatGpt:r,onAssignmentChange:a,initialValue:o,mode:s,disabled:c,initialAssignedToChatGpt:l,onCancel:u,onChange:d,onSubmit:f}=e,m=o===void 0?``:o,h=c!==void 0&&c,g=te(),_;bb0:{if(s!==`reply`){let e;t[0]===g?e=t[1]:(e=g.formatMessage({id:`artifactComments.newCommentPlaceholder`,defaultMessage:`Add a comment`,description:`Placeholder in the floating artifact comment composer`}),t[0]=g,t[1]=e),_=e;break bb0}let e;t[2]===g?e=t[3]:(e=g.formatMessage({id:`artifactComments.replyPlaceholder`,defaultMessage:`Add a reply`,description:`Placeholder for replying to an artifact comment`}),t[2]=g,t[3]=e),_=e}let v=_,y;bb1:{if(s===`reply`){let e;t[4]===g?e=t[5]:(e=g.formatMessage({id:`artifactComments.replyInput`,defaultMessage:`Reply to comment`,description:`Accessible label for the artifact comment reply editor`}),t[4]=g,t[5]=e),y=e;break bb1}let e;t[6]===g?e=t[7]:(e=g.formatMessage({id:`artifactComments.composerInput`,defaultMessage:`Comment`,description:`Accessible name of the artifact comment text editor`}),t[6]=g,t[7]=e),y=e}let b=y,x;t[8]===g?x=t[9]:(x=g.formatMessage({id:`artifactComments.toggleRecipient`,defaultMessage:`Assign to ChatGPT`,description:`Toggle assigning an artifact comment or reply to ChatGPT`}),t[8]=g,t[9]=x);let S=x,C,w;t[10]===Symbol.for(`react.memo_cache_sentinel`)?(C=(0,Z.jsx)(X,{id:`artifactComments.assistantMention`,defaultMessage:`@ChatGPT`,description:`Mention that assigns an artifact comment to ChatGPT; leave the product name unchanged`}),w=(0,Z.jsx)(X,{id:`artifactComments.send`,defaultMessage:`Send`,description:`Send an artifact comment or reply immediately`}),t[10]=C,t[11]=w):(C=t[10],w=t[11]);let T;t[12]!==b||t[13]!==v||t[14]!==S?(T={placeholder:v,input:b,assignment:S,recipient:C,submit:w},t[12]=b,t[13]=v,t[14]=S,t[15]=T):T=t[15];let E,D;t[16]===Symbol.for(`react.memo_cache_sentinel`)?(D=(0,Z.jsx)(k,{}),E=(0,Z.jsx)(K,{"aria-hidden":!0,asset:p}),t[16]=E,t[17]=D):(E=t[16],D=t[17]);let O;t[18]===S?O=t[19]:(O=e=>(0,Z.jsx)(i,{tooltipContent:S,children:e}),t[18]=S,t[19]=O);let A;return t[20]!==r||t[21]!==h||t[22]!==l||t[23]!==m||t[24]!==s||t[25]!==a||t[26]!==u||t[27]!==d||t[28]!==f||t[29]!==O||t[30]!==T||t[31]!==n?(A=(0,Z.jsx)(qe,{value:n,assignedToChatGpt:r,onAssignmentChange:a,initialValue:m,mode:s,disabled:h,initialAssignedToChatGpt:l,onCancel:u,onChange:d,onSubmit:f,labels:T,assignmentIcon:D,submitIcon:E,wrapAssignmentControl:O,renderInput:kt}),t[20]=r,t[21]=h,t[22]=l,t[23]=m,t[24]=s,t[25]=a,t[26]=u,t[27]=d,t[28]=f,t[29]=O,t[30]=T,t[31]=n,t[32]=A):A=t[32],A}
+function kt(e){return(0,Z.jsx)(bt,{...e})}
+var At;
+var Z;
+function jt(){return(jt=e(()=>{At=g();ce();We();Y();r();l();A();Et();Z=n();}))();}
+function Mt(e){let t=e.comments[0];return t!=null&&(Pt.test(t.text)||Xe(t.author))}
+function Nt(e,t){let n=e.artifactKind===`workbook`?lt(e.target):st(e.target,e.markerPoint);return{threadId:e.threadId,artifactKind:e.artifactKind,assignedToChatGpt:!0,body:t,label:e.label,target:n}}
+var Pt;
+function Ft(){return(Ft=e(()=>{ct();Pt=/^@ChatGPT(?:\s|$)/u;}))();}
+function It(e){let n=(0,Vt.c)(70),{thread:r,borderless:i,preview:a,isPending:o,isSelected:s,expandRepliesOnSelect:c,isUnread:l,onDelete:u,onHover:d,onReply:p,onResolve:m,onSelect:g}=e,_=i!==void 0&&i,v=a!==void 0&&a,y=o!==void 0&&o,b=s!==void 0&&s,x=c!==void 0&&c,S=l!==void 0&&l,C=te(),w=t(),[T,E]=(0,Ht.useState)(``),[D,O]=(0,Ht.useState)(),k=w?0:150/1e3,A;n[0]===k?A=n[1]:(A={duration:k,ease:I},n[0]=k,n[1]=A);let j,M,P;n[2]===Symbol.for(`react.memo_cache_sentinel`)?(P={assistant:(0,Q.jsx)(Te,{className:`size-3`}),viewer:(0,Q.jsx)(L,{"aria-hidden":!1,legacyIcon:Ue,asset16:ee,legacyClassName:`icon-2xs`}),resolve:(0,Q.jsx)(h,{}),delete:(0,Q.jsx)(ne,{}),menu:(0,Q.jsx)(f,{})},j=(0,Q.jsx)(X,{id:`artifactComments.assistantName`,defaultMessage:`ChatGPT`,description:`Name of the ChatGPT assistant responding inside an artifact comment thread; leave the product name unchanged`}),M=(0,Q.jsx)(X,{id:`artifactComments.thinking`,defaultMessage:`Thinking`,description:`Status shown while ChatGPT is responding to one artifact comment thread`}),n[2]=j,n[3]=M,n[4]=P):(j=n[2],M=n[3],P=n[4]);let F;n[5]===C?F=n[6]:(F=C.formatMessage({id:`artifactComments.deletedComment`,defaultMessage:`Comment deleted`,description:`Placeholder replacing the text of an individually deleted comment in an artifact comment thread`}),n[5]=C,n[6]=F);let R;n[7]===C?R=n[8]:(R=C.formatMessage({id:`artifactComments.edited`,defaultMessage:`edited`,description:`Label beside an artifact comment's timestamp indicating that its text was edited`}),n[7]=C,n[8]=R);let z;n[9]===C?z=n[10]:(z=C.formatMessage({id:`artifactComments.unreadReply`,defaultMessage:`New ChatGPT reply`,description:`Accessible label for the blue dot identifying an unread assistant reply on an artifact comment`}),n[9]=C,n[10]=z);let B;n[11]!==C||n[12]!==r.label?(B=C.formatMessage({id:`artifactComments.resolveThread`,defaultMessage:`Resolve comment on {target}`,description:`Accessible label for resolving an artifact comment thread and moving it into the resolved section`},{target:r.label}),n[11]=C,n[12]=r.label,n[13]=B):B=n[13];let V;n[14]===C?V=n[15]:(V=C.formatMessage({id:`artifactComments.deleteComment`,defaultMessage:`Delete comment`,description:`Menu action that permanently deletes this artifact comment thread and its replies`}),n[14]=C,n[15]=V);let H;n[16]===C?H=n[17]:(H=C.formatMessage({id:`artifactComments.threadActions`,defaultMessage:`Comment actions`,description:`Accessible label for the menu of actions on an artifact comment thread`}),n[16]=C,n[17]=H);let U;n[18]!==F||n[19]!==R||n[20]!==z||n[21]!==B||n[22]!==V||n[23]!==H?(U={assistantName:j,thinking:M,deletedComment:F,edited:R,unread:z,resolve:B,delete:V,menu:H},n[18]=F,n[19]=R,n[20]=z,n[21]=B,n[22]=V,n[23]=H,n[24]=U):U=n[24];let W;n[25]!==m||n[26]!==r.threadId?(W=m==null?void 0:()=>m(r.threadId),n[25]=m,n[26]=r.threadId,n[27]=W):W=n[27];let G;n[28]!==u||n[29]!==r.threadId?(G=u==null?void 0:()=>u(r.threadId),n[28]=u,n[29]=r.threadId,n[30]=G):G=n[30];let K;n[31]===r.artifactKind?K=n[32]:(K=r.artifactKind===`presentation`&&(0,Q.jsx)(X,{id:`artifactComments.powerPointComment`,defaultMessage:`PowerPoint comment`,description:`Label identifying a comment stored in the PowerPoint presentation file; leave the product name PowerPoint unchanged`}),n[31]=r.artifactKind,n[32]=K);let re;n[33]===r.artifactKind?re=n[34]:(re=r.artifactKind===`workbook`&&(0,Q.jsx)(X,{id:`artifactComments.excelComment`,defaultMessage:`Excel comment`,description:`Label identifying a comment stored in the Excel spreadsheet file; leave the product name Excel unchanged`}),n[33]=r.artifactKind,n[34]=re);let q;n[35]!==K||n[36]!==re?(q=(0,Q.jsxs)(Q.Fragment,{children:[K,re]}),n[35]=K,n[36]=re,n[37]=q):q=n[37];let J;n[38]!==C||n[39]!==r.label?(J=C.formatMessage({id:`artifactComments.selectThread`,defaultMessage:`Open comment on {target}`,description:`Accessible label for selecting an artifact comment and navigating to its anchored element`},{target:r.label}),n[38]=C,n[39]=r.label,n[40]=J):J=n[40];let Y;n[41]!==C||n[42]!==r.label?(Y=C.formatMessage({id:`artifactComments.selectThreadReplies`,defaultMessage:`Open replies on {target}`,description:`Open an artifact comment's replies and navigate to their anchored target`},{target:r.label}),n[41]=C,n[42]=r.label,n[43]=Y):Y=n[43];let ie;n[44]!==y||n[45]!==p||n[46]!==D||n[47]!==T||n[48]!==r?(ie=p==null?void 0:(0,Q.jsx)(Ot,{mode:`reply`,disabled:y,value:T,onChange:E,assignedToChatGpt:D,onAssignmentChange:O,initialAssignedToChatGpt:Mt(r),onSubmit:e=>{let{body:t,assignedToChatGpt:n}=e;return!y&&p(r.threadId,t,n)}}),n[44]=y,n[45]=p,n[46]=D,n[47]=T,n[48]=r,n[49]=ie):ie=n[49];let ae;n[50]!==_||n[51]!==x||n[52]!==y||n[53]!==b||n[54]!==S||n[55]!==d||n[56]!==g||n[57]!==v||n[58]!==U||n[59]!==W||n[60]!==G||n[61]!==q||n[62]!==J||n[63]!==Y||n[64]!==ie||n[65]!==r?(ae=(0,Q.jsx)(Je,{thread:r,borderless:_,preview:v,isSelected:b,expandRepliesOnSelect:x,isUnread:S,isPending:y,icons:P,labels:U,renderDeleteMenu:Bt,onResolve:W,onDelete:G,formatTimestamp:zt,onHover:d,onSelect:g,sourceLabel:q,selectLabel:J,selectRepliesLabel:Y,repliesToggleLabel:Rt,renderMetadata:Lt,replyComposer:ie}),n[50]=_,n[51]=x,n[52]=y,n[53]=b,n[54]=S,n[55]=d,n[56]=g,n[57]=v,n[58]=U,n[59]=W,n[60]=G,n[61]=q,n[62]=J,n[63]=Y,n[64]=ie,n[65]=r,n[66]=ae):ae=n[66];let oe;return n[67]!==ae||n[68]!==A?(oe=(0,Q.jsx)(N.div,{className:`comment-typography`,layout:`position`,transition:A,children:ae}),n[67]=ae,n[68]=A,n[69]=oe):oe=n[69],oe}
+function Lt(e){let{authorName:t,relativeTime:n,author:r,timestamp:i}=e;return(0,Q.jsx)(X,{id:`artifactComments.commentAuthorMetadata`,defaultMessage:`<author>{authorName}</author> <timestamp>{relativeTime}</timestamp>`,description:`Stored author name and relative timestamp shown together on an artifact comment, including the author's name when the current viewer wrote the comment`,values:{authorName:t,relativeTime:n,author:r,timestamp:i}})}
+function Rt(e,t){return e?(0,Q.jsx)(X,{id:`artifactComments.hideReplies`,defaultMessage:`Hide replies`,description:`Collapse older replies, keeping the original artifact comment and latest reply visible`}):(0,Q.jsx)(X,{id:`artifactComments.showReplies`,defaultMessage:`{count, plural, one {Show # reply} other {Show # replies}}`,description:`Expand the counted older replies between the original artifact comment and the latest reply`,values:{count:t}})}
+function zt(e){return(0,Q.jsx)(Re,{dateString:e},`artifact-comment-relative-time`)}
+function Bt(e){let{trigger:t,onDelete:n,label:r}=e;return(0,Q.jsx)(x,{triggerButton:t,contentWidth:`sidebar`,children:(0,Q.jsx)(se.Item,{onSelect:n,children:r})})}
+var Vt;
+var Ht;
+var Q;
+function Ut(){return(Ut=e(()=>{Vt=g();ae();Ge();j();Ht=y();Y();S();Ie();l();H();G();He();Ne();c();_e();jt();Ft();Q=n();}))();}
+function Wt(e){let t=(0,Yt.c)(50),{ref:n,threads:r,embedded:i,selectedThreadId:o,unreadThreadIds:s,pendingThreadIds:c,onSelect:l,onHover:u,onDelete:d,onDeleteAll:f,onReply:p,onResolve:m,onClose:h,onAddComment:g}=e,_=i!==void 0&&i,v=o===void 0?null:o,y=te(),b;t[0]===g?b=t[1]:(b=g==null?void 0:{"data-popcorn-comment-create":!0,onClick:g},t[0]=g,t[1]=b);let x=b,S;t[2]===y?S=t[3]:(S=y.formatMessage({id:`artifactComments.close`,defaultMessage:`Close comments`,description:`Accessible label for the button that closes the artifact comments sidebar`}),t[2]=y,t[3]=S);let C=S,w;t[4]===Symbol.for(`react.memo_cache_sentinel`)?(w=(0,$.jsx)(X,{id:`artifactComments.deleteAllResolved`,defaultMessage:`Delete all`,description:`Action that permanently deletes every resolved artifact comment thread`}),t[4]=w):w=t[4];let T=w,E;t[5]===y?E=t[6]:(E=y.formatMessage({id:`artifactComments.filterLabel`,defaultMessage:`Filter comments`,description:`Accessible label for the menu that filters artifact comments by open or resolved status`}),t[5]=y,t[6]=E);let D=E,O;t[7]===Symbol.for(`react.memo_cache_sentinel`)?(O=(0,$.jsx)(X,{id:`artifactComments.filterOpen`,defaultMessage:`Open`,description:`Filter option showing artifact comment threads that have not been resolved`}),t[7]=O):O=t[7];let k=O,A;t[8]===Symbol.for(`react.memo_cache_sentinel`)?(A=(0,$.jsx)(X,{id:`artifactComments.filterResolved`,defaultMessage:`Resolved`,description:`Filter option showing resolved artifact comment threads`}),t[8]=A):A=t[8];let j=A,M;t[9]===y?M=t[10]:(M=y.formatMessage({id:`artifactComments.sidebarLabel`,defaultMessage:`Artifact comments`,description:`Accessible label for the sidebar containing native file comments and persistent ChatGPT comments on the open artifact; leave the product name ChatGPT unchanged`}),t[9]=y,t[10]=M);let N;t[11]===Symbol.for(`react.memo_cache_sentinel`)?(N=(0,$.jsx)(X,{id:`artifactComments.heading`,defaultMessage:`Comments`,description:`Heading of the sidebar containing native file comments and persistent ChatGPT comments on the open artifact; leave the product name ChatGPT unchanged`}),t[11]=N):N=t[11];let F,I;t[12]===Symbol.for(`react.memo_cache_sentinel`)?(F=(0,$.jsx)(X,{id:`artifactComments.empty`,defaultMessage:`No comments yet`,description:`Empty state shown when the open artifact has no native file comments or persistent ChatGPT comment threads; leave the product name ChatGPT unchanged`}),I=(0,$.jsx)(X,{id:`artifactComments.filteredEmpty`,defaultMessage:`Adjust filters to see comments`,description:`Empty state when existing artifact comment threads do not match the selected open or resolved filter`}),t[12]=F,t[13]=I):(F=t[12],I=t[13]);let L;t[14]===Symbol.for(`react.memo_cache_sentinel`)?(L=(0,$.jsx)(X,{id:`artifactComments.showAllOpenThreads`,defaultMessage:`Show all open threads`,description:`Button that changes the artifact comments filter to show unresolved threads`}),t[14]=L):L=t[14];let R;t[15]!==C||t[16]!==D||t[17]!==M?(R={sidebar:M,heading:N,close:C,filter:D,open:k,empty:F,filteredEmpty:I,openEmpty:Jt,showOpen:L,resolved:j,resolvedCount:qt,deleteAll:T},t[15]=C,t[16]=D,t[17]=M,t[18]=R):R=t[18];let z;t[19]!==u||t[20]!==l?(z=()=>{u?.(null),l(null)},t[19]=u,t[20]=l,t[21]=z):z=t[21];let B,V;t[22]===Symbol.for(`react.memo_cache_sentinel`)?(B=(0,$.jsx)(K,{"aria-hidden":!0,asset:ge}),V=(0,$.jsx)(P,{}),t[22]=B,t[23]=V):(B=t[22],V=t[23]);let H;t[24]===x?H=t[25]:(H=x==null?void 0:(0,$.jsx)($e,{buttonProps:x}),t[24]=x,t[25]=H);let U;t[26]===x?U=t[27]:(U=e=>(0,$.jsx)(Ze,{...e,addCommentButtonProps:x}),t[26]=x,t[27]=U);let ee;t[28]===Symbol.for(`react.memo_cache_sentinel`)?(ee=e=>(0,$.jsx)(a,{color:`ghostActive`,size:`inline`,onClick:e,children:T}),t[28]=ee):ee=t[28];let W;t[29]!==d||t[30]!==u||t[31]!==p||t[32]!==m||t[33]!==l||t[34]!==c||t[35]!==v||t[36]!==s?(W=e=>(0,$.jsx)(It,{thread:e,isPending:e.status!==`resolved`&&c?.has(e.threadId)===!0,isSelected:v===e.threadId,expandRepliesOnSelect:!0,isUnread:e.status!==`resolved`&&s?.has(e.threadId)===!0,onDelete:d,onHover:u,onReply:e.status===`resolved`?void 0:p,onResolve:e.status===`resolved`?void 0:m,onSelect:l}),t[29]=d,t[30]=u,t[31]=p,t[32]=m,t[33]=l,t[34]=c,t[35]=v,t[36]=s,t[37]=W):W=t[37];let G;return t[38]!==_||t[39]!==h||t[40]!==f||t[41]!==n||t[42]!==v||t[43]!==R||t[44]!==z||t[45]!==H||t[46]!==U||t[47]!==W||t[48]!==r?(G=(0,$.jsx)(Ke,{ref:n,threads:r,selectedThreadId:v,embedded:_,labels:R,onClose:h,onDeselectThread:z,onDeleteAll:f,emptyIcon:B,filteredEmptyIcon:V,emptyAction:H,renderHeader:U,renderDeleteAllButton:ee,renderChangeFilterButton:Kt,renderScrollContainer:Gt,renderThread:W}),t[38]=_,t[39]=h,t[40]=f,t[41]=n,t[42]=v,t[43]=R,t[44]=z,t[45]=H,t[46]=U,t[47]=W,t[48]=r,t[49]=G):G=t[49],G}
+function Gt(e){return(0,$.jsx)(N.div,{...e,layoutScroll:!0})}
+function Kt(e){return(0,$.jsx)(a,{color:`outline`,size:`dialog`,...e})}
+function qt(e){let{count:t,label:n}=e;return(0,$.jsx)(X,{id:`artifactComments.resolvedCount`,defaultMessage:`<label>Resolved</label> · {count, number}`,description:`Toolbar label showing the number of resolved artifact comment threads; label styles the word Resolved with medium weight`,values:{count:t,label:n}})}
+function Jt(e){return(0,$.jsx)(X,{id:`artifactComments.openEmptyWithResolvedLink`,defaultMessage:`No open comment threads. <showResolved>Show resolved threads</showResolved>`,description:`Empty state in the Open comments view when all existing comment threads have been resolved; the link switches to the Resolved view`,values:{showResolved:e}})}
+var Yt;
+var $;
+function Xt(){return(Xt=e(()=>{Yt=g();B();Ye();j();Y();D();r();l();Ut();Qe();$=n();}))();}
+function Zt(e){let t=(0,tn.c)(17),{available:n,target:r,accessoryOwnerId:i,onChatGptSubmit:a,reviewTools:o,children:s}=e,c=n===void 0||n,l=u(d),f=te(),p=w(it,r),m=b(`1246162292`),h=c&&m,g=(0,nn.useContext)(me),_=g?.accountId??null,v=g?.userId??null,y;t[0]!==_||t[1]!==v?(y={accountId:_,userId:v},t[0]=_,t[1]=v,t[2]=y):y=t[2];let x;t[3]===h?x=t[4]:(x={enabled:h},t[3]=h,t[4]=x);let{data:S}=w(Se,y,x),C=h&&g?.userId!=null?{displayName:S?.name?.trim()||g.email||g.userId,userId:g.userId,providerId:`openai`,email:g.email}:void 0,E=(0,nn.useRef)(null),[D,O]=(0,nn.useState)(null),k=(0,nn.useRef)(null),A=(0,nn.useRef)(new Set),[j,M]=(0,nn.useState)(en),N=()=>{M(new Set(Array.from(A.current,$t)))},P;t[5]===Symbol.for(`react.memo_cache_sentinel`)?(P=[],t[5]=P):P=t[5];let[F,I]=(0,nn.useState)(P),L=w(nt,i),R=L?.accessory===`comments`&&L.phase===`open`,z;t[6]!==i||t[7]!==l?(z=e=>{e?et(l,i,`comments`):tt(l,i,`comments`)},t[6]=i,t[7]=l,t[8]=z):z=t[8];let B=z,[V,H]=(0,nn.useState)(null),U;t[9]!==l||t[10]!==r?(U=e=>{r!=null&&ze(l,r.threadId,t=>{let n=t.filter(t=>{let n=t.localArtifactCommentContext;return n?.commentThreadId===e?`pageId`in r?n.pageId!==r.pageId:`artifactRef`in r?n.artifactRef!==r.artifactRef:n.path!==r.path:!0});return n.length===t.length?t:n})},t[9]=l,t[10]=r,t[11]=U):U=t[11];let ee=U,W=async e=>{for(let t of A.current)t.threadId===e&&(t.abort.abort(),A.current.delete(t));N();let t=l.get(at,r).get(e);if(r==null||t==null)return!0;try{if(l.get(xe,r.threadId)){let t=l.get(Pe,r.threadId);if(t!=null&&await be(l,r.threadId,f.formatMessage({id:`artifactReviewBar.stopFailed`,defaultMessage:`Could not stop this turn`,description:`Error shown when stopping the conversation turn for an artifact review fails`}),{expectedStreamRequestId:t}),!l.get(at,r).has(e))return!0}else return await De(l,{conversationId:r.threadId,hostId:r.hostId,initiatedBy:`user`,expectedTurnId:t}),!0}catch{}return l.get(T).danger(f.formatMessage({id:`artifactReviewBar.stopFailed`,defaultMessage:`Could not stop this turn`,description:`Error shown when stopping the conversation turn for an artifact review fails`}),{errorAnalytics:{toastId:`artifactReviewBar.stopFailed`}}),!1},G=async e=>{let t=E.current;t!=null&&await W(e)&&t.deleteCommentThread(e)&&ee(e)},K=async e=>{await W(e)&&E.current?.resolveCommentThread(e,C)&&ee(e)},ne=async e=>{if(H(e.threadId),!e.assignedToChatGpt)return;let t={threadId:e.threadId,abort:new AbortController};A.current.add(t),N();let n=!1;try{await a?.(e,t.abort.signal)}catch{n=!0}A.current.delete(t)&&N(),n&&!t.abort.signal.aborted&&l.get(T).danger(f.formatMessage({id:`artifactComments.readFailed`,defaultMessage:`Could not send this comment. Please try again`,description:`Error when the editor cannot read the native comment for submission to chat`}),{errorAnalytics:{toastId:`artifactComments.readFailed`}})},re=C==null?null:(0,rn.jsx)(Wt,{ref:k,embedded:!0,threads:F,pendingThreadIds:new Set([...p,...j]),selectedThreadId:V,onAddComment:D?.startComment,onSelect:H,onReply:(e,t,n)=>{let r=F.find(t=>t.threadId===e);return r==null||!E.current?.replyToCommentThread(e,n&&!Pt.test(t)?`@ChatGPT ${t}`:t,C)?!1:(n&&ne(Nt(r,t)),!0)},onResolve:e=>void K(e),onDelete:e=>void G(e),onDeleteAll:()=>{for(let e of F)e.status===`resolved`&&G(e.threadId)},onClose:()=>B(!1)}),q;t[12]!==i||t[13]!==l?(q=e=>{e?et(l,i,`properties`):tt(l,i,`properties`)},t[12]=i,t[13]=l,t[14]=q):q=t[14];let J=s({accessoryPanelOpen:L?.phase===`open`,inspectorPanel:{open:L?.accessory===`properties`&&L.phase===`open`,onOpenChange:q},reviewTools:C==null?o:{...o,annotation:{...o.annotation,enabled:!0,createCommentThreads:!0,commentComposerRef:O,commentAuthor:C,renderCommentComposer:Qt,onCommentDraftOpen:()=>H(null),onCommentSubmitted:e=>void ne(e)}},commentsControl:C==null?void 0:(0,rn.jsx)(Fe,{open:R,onOpenChange:B}),commentsSidebarOpen:R,onCommentsSidebarOpenChange:B,commentsSidebarContent:re,panelProps:{commentThreadsEnabled:C!=null,commentControllerRef:E,onCommentThreadsChange:I,selectedCommentThreadId:V,onSelectedCommentThreadChange:e=>{H(e),R&&e!=null&&k.current?.focusThread(e)}}}),Y;return t[15]===J?Y=t[16]:(Y=(0,rn.jsx)(rn.Fragment,{children:J}),t[15]=J,t[16]=Y),Y}
+function Qt(e){return(0,rn.jsx)(Dt,{composer:e})}
+function $t(e){let{threadId:t}=e;return t}
+function en(){return new Set}
+var tn;
+var nn;
+var rn;
+function an(){return(an=e(()=>{tn=g();_();nn=y();Y();Oe();z();ye();ke();rt();Be();Ve();fe();O();m();jt();ot();Ft();Xt();we();rn=n();}))();}
+export { q, s, o, Le, M, u, d, te, w, it, b, me, Se, nt, et, tt, ze, at, xe, Pe, be, De, T, X, K, ge, P, $e, Ze, a, t, I, Te, L, Ue, ee, h, ne, f, k, p, i, qe, Ce, oe, ie, le, Me, je, ve, Xe, Je, x, se, Re, N, Ke, lt, st, Fe, e, ue, C, U, Ee, V, E, g, _, y, Y, Oe, z, ye, ke, rt, Be, Ve, fe, O, m, ot, we, n, B, Ye, j, D, r, l, Qe, ae, Ge, S, Ie, H, G, He, Ne, c, _e, ce, We, A, he, re, v, Ae, J, ct, dt, ft, pt, gt, yt, bt, xt, St, Ct, wt, Tt, Et, Dt, Ot, kt, At, Z, jt, Mt, Nt, Pt, Ft, It, Lt, Rt, zt, Bt, Vt, Ht, Q, Ut, Wt, Gt, Kt, qt, Jt, Yt, $, Xt, Zt, Qt, $t, en, tn, nn, rn, an };

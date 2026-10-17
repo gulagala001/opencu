@@ -1,0 +1,8 @@
+import * as Host from "../host-boundaries.mjs";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+function t(e,t=!1){let n=t?10:1;switch(e){case`ArrowLeft`:return{dx:-n,dy:0};case`ArrowRight`:return{dx:n,dy:0};case`ArrowUp`:return{dx:0,dy:-n};case`ArrowDown`:return{dx:0,dy:n};default:return null}}
+function n(e,{allowNumberAndRangeInputs:t=!1}={}){if(!(e instanceof Element))return!1;let n=e.closest(`input`);if(n&&(!t||n.type!==`number`&&n.type!==`range`))return!0;if(e.closest(`[data-popcorn-element-handle]`))return!1;if(e.closest(`[data-popcorn-embedded-content]`)||e.closest(i))return!0;let r=e.closest(`[contenteditable]`);if(!r)return!1;let a=r.getAttribute(`contenteditable`)?.trim().toLowerCase();return a===``||a===`true`||a===`plaintext-only`||a!==`false`&&r instanceof HTMLElement&&r.isContentEditable}
+function r(e,{allowShift:t=!1,requirePrimaryModifier:n=!1}={}){if(e.defaultPrevented||e.repeat||e.nativeEvent.isComposing||e.keyCode===229||e.altKey||!t&&e.shiftKey)return!1;let r=e.metaKey||e.ctrlKey;return n?e.metaKey!==e.ctrlKey:!r}
+var i;
+function a(){return(a=e(()=>{i=[`textarea`,`select`,`[role='textbox']`,`[role='searchbox']`,`[role='combobox']`,`[data-testid='popcorn-find-bar']`,`[data-testid='popcorn-annotation-editor']`,`[data-testid='popcorn-presentation-comments-sidebar']`].join(`,`);}))();}
+export { e, t, n, r, i, a };

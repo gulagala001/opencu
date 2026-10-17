@@ -1,0 +1,7 @@
+import * as Host from "../host-boundaries.mjs";
+import { e6 as t } from "./app-shared-2f2228189a8d.js";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { t6 as n } from "./app-shared-2f2228189a8d.js";
+function r({enabled:e,file:n,onClick:r}){let i=e&&t?.fileDrags!=null&&window.electronBridge?.startFileDrag!=null,a=()=>{i&&t.fileDrags?.prepareDrag(n).catch(()=>{})},o=e=>{e.currentTarget.dataset.fileDragStarted=`false`};return{draggable:i,onClick:e=>{let t=e.currentTarget.dataset.fileDragStarted===`true`;e.currentTarget.dataset.fileDragStarted=`false`,t||r(e)},onDragStart:e=>{if(!i)return;e.preventDefault();let t=window.electronBridge?.startFileDrag?.(n)===!0;e.currentTarget.dataset.fileDragStarted=String(t)},onKeyDown:o,onPointerDown:e=>{o(e),a()},onPointerEnter:a}}
+function i(){return(i=e(()=>{n();}))();}
+export { t, e, n, r, i };

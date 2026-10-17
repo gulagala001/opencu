@@ -1,0 +1,1 @@
+import"./app-shared-2f2228189a8d.js";import{n as e,t}from"./workbook-panel-4afec4ec4c14.js";e();export{t as WorkbookPanel};

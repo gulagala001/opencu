@@ -1,0 +1,11 @@
+import * as Host from "../host-boundaries.mjs";
+import { Ve as i } from "./content-quick-chat-overlay-59ea0f417315.js";
+import { o as e } from "./rolldown-runtime-2d059c5e81f4.js";
+import { c as n } from "./app-shared-2f2228189a8d.js";
+import { qe as r } from "./content-quick-chat-overlay-59ea0f417315.js";
+import { K as t } from "./app-shared-2f2228189a8d.js";
+function a(e){let t=(0,o.c)(13),n,r,a,c;t[0]===e?(n=t[1],r=t[2],a=t[3],c=t[4]):({children:n,composerOnly:a,inline:c,...r}=e,t[0]=e,t[1]=n,t[2]=r,t[3]=a,t[4]=c);let l=a===void 0||a,u=c!==void 0&&c,d;t[5]!==n||t[6]!==u?(d=e=>typeof n==`function`?n(u?void 0:e):n,t[5]=n,t[6]=u,t[7]=d):d=t[7];let f;return t[8]!==l||t[9]!==u||t[10]!==r||t[11]!==d?(f=(0,s.jsx)(i,{...r,composerOnly:l,inline:u,children:d}),t[8]=l,t[9]=u,t[10]=r,t[11]=d,t[12]=f):f=t[12],f}
+var o;
+var s;
+function c(){return(c=e(()=>{o=n();r();s=t();}))();}
+export { i, e, n, r, t, a, o, s, c };
