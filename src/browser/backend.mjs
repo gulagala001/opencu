@@ -1,7 +1,7 @@
 import {randomUUID, createHash} from 'node:crypto';
 import {mkdir, readFile} from 'node:fs/promises';
 import {join, resolve} from 'node:path';
-import {checkExpected, checkSignal, fail, referenceMatches, sameIdentity} from '../protocol.mjs';
+import {checkExpected, checkSignal, errorJSON, fail, referenceMatches, sameIdentity} from '../protocol.mjs';
 import {createDeliveryStore} from './deliveries.mjs';
 import {observePage} from './observation.mjs';
 import {actOnPage, releasePage, normalizeBrowserAction} from './actions.mjs';
@@ -93,15 +93,23 @@ export async function createBrowserBackend(options = {}) {
       listen(context, 'page', page => { void register(page).catch(error => backgroundErrors.push(error.message)); });
       await Promise.all(context.pages().map(register));
       if (context.pages().length === 0 && ownContext) await register(await context.newPage());
-    })();
-    try { await initializing; } catch (error) {
+    })().catch(async error => {
       for (const remove of listeners) remove();
-      if (ownContext) await context?.close().catch(() => {});
-      else if (connected) await browser?.close().catch(() => {});
+      try {
+        if (ownContext) await context?.close();
+        else if (connected) await browser?.close();
+      } catch (cleanupError) {
+        // Keep the rejected initialization and its resources until close can retry.
+        // A second launch must not orphan a still-live owned browser or connection.
+        error.details = {...error.details, cleanup: errorJSON(cleanupError)};
+        throw error;
+      }
       context = undefined; browser = undefined; initializing = undefined;
+      ownContext = false; connected = false; contextId = undefined;
       records.clear();
       throw error;
-    }
+    });
+    return initializing;
   }
 
   function capture(download, targetId) {

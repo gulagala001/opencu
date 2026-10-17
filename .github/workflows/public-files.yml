@@ -18,3 +18,7 @@ jobs:
           node-version: "24"
       - run: node scripts/check-public-files.mjs
       - run: node --test test/browser-host-generation.test.mjs
+      - name: Install locked test dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify browser cleanup retry and controller regressions
+        run: node --test test/browser-cleanup-retry.test.mjs test/browser-context-init.test.mjs test/core.controller.test.mjs

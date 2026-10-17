@@ -41,12 +41,20 @@ export async function createUserActivityMonitor(session) {
     return result.result.value;
   }
   await evaluate('null');
+  let scriptRemoved = false, disposed = false, disposing;
   return {
     read: () => evaluate('globalThis.opencuActivity.read()'),
     expect: events => evaluate(`globalThis.opencuActivity.expect(${JSON.stringify(events)})`),
-    async dispose() {
-      await session.send('Page.removeScriptToEvaluateOnNewDocument', {identifier});
-      await evaluate('globalThis.opencuActivity.dispose()');
+    dispose() {
+      if (disposed) return Promise.resolve();
+      return disposing ??= (async () => {
+        if (!scriptRemoved) {
+          await session.send('Page.removeScriptToEvaluateOnNewDocument', {identifier});
+          scriptRemoved = true;
+        }
+        await evaluate('globalThis.opencuActivity.dispose()');
+        disposed = true;
+      })().finally(() => { disposing = undefined; });
     },
   };
 }
