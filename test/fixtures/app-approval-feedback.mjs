@@ -49,6 +49,8 @@ export async function approvalFeedbackFixture(options = {}) {
   // Every unrelated import is explicit. An unexpected dependency fails closed.
   const stubs = {
     './app-approval-slot.jsx': {AppApprovalSlot: noop},
+    // The entry re-exports overview UI; these approval/folder contracts never mount it.
+    './session-overview.jsx': {OverviewSlot: noop},
     './host-compat.mjs': { resolveDesktopBrowserHost: () => ({ desktop: null, error: null }) },
     './base64.mjs': { decodeBase64: noop },
     './core-client.mjs': { createCoreClient: () => client },
