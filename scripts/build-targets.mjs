@@ -13,6 +13,8 @@ if (process.platform === 'darwin') await checkMacHelperDistribution(root);
 const pnpm = process.env.OPENCU_PNPM;
 if (!pnpm) throw new Error('Set OPENCU_PNPM to the bundled pnpm.mjs entry (no global installation)');
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+const pluginVersion = manifest.version.match(/^(\d+\.\d+\.\d+)-dsh\./)?.[1];
+if (!pluginVersion) throw new Error('Expected an OpenCU version with an explicit DSH suffix');
 const run = (cwd, args) => {
   const result = spawnSync(node, args, { cwd, stdio: 'inherit', env: { ...process.env, PATH: `${resolve(node, '..')}:${process.env.PATH}` } });
   if (result.status !== 0) throw new Error(`OpenCU command failed (${result.status}): ${args.join(' ')}`);
@@ -47,14 +49,18 @@ for (const id of process.argv.slice(2).length ? process.argv.slice(2) : Object.k
   for (const [path, destination] of [[join(stage, '.local/frontend-deps'), frontend], [join(stage, 'node_modules'), join(sdk, 'node_modules')]]) {
     try { await access(path); } catch (error) { if (error.code !== 'ENOENT') throw error; await symlink(destination, path, 'dir'); }
   }
-  const pkg = { ...manifest, version: `2.0.0-dsh.${target.version}`, engines: { ...manifest.engines, dsh: target.version }, peerDependencies: peers, opencu: { host: target.version, sourceCommit: target.commit, adapterRevision: 2 } };
+  const pkg = { ...manifest, version: `${pluginVersion}-dsh.${target.version}`, engines: { ...manifest.engines, dsh: target.version }, peerDependencies: peers, opencu: { host: target.version, sourceCommit: target.commit, adapterRevision: 2 } };
   await writeFile(join(stage, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
+  const distributionPath = join(stage, 'src/extension/distribution.json');
+  const distribution = JSON.parse(await readFile(distributionPath, 'utf8'));
+  distribution.packageVersion = pkg.version;
+  await writeFile(distributionPath, JSON.stringify(distribution, null, 2) + '\n');
   await writeFile(join(stage, 'src/client/host-target.mjs'), `export default ${JSON.stringify({ version: target.version, cordis: target.cordis, schema: target.schema })};\n`);
   // Copy the already signed host-independent helper unchanged into every host variant.
   if (process.platform === 'darwin') await checkMacHelperDistribution(stage);
   run(stage, ['scripts/build.mjs']);
   run(stage, ['scripts/check-sdk.mjs', sdk]);
-  await writeFile(join(stage, 'lib/host-build.json'), JSON.stringify({ ...target, peers, sdk, lock: join(sdk, 'pnpm-lock.yaml'), frontendLock: join(frontend, 'pnpm-lock.yaml') }, null, 2) + '\n');
+  await writeFile(join(stage, 'lib/host-build.json'), JSON.stringify({ ...target, peers }, null, 2) + '\n');
   run(stage, [pnpm, 'pack', '--pack-destination', output]);
   await nativePackageModes(join(output, `opencu-${pkg.version}.tgz`));
   await writeFile(join(output, 'build.json'), JSON.stringify({ target, stage, sdk, lock: join(sdk, 'pnpm-lock.yaml'), package: join(output, `opencu-${pkg.version}.tgz`) }, null, 2) + '\n');
