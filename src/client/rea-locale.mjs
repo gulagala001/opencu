@@ -3,7 +3,7 @@ import { ue as chinese, de as initializeChinese } from './rea/zh-CN-b05cfd55c534
 initializeChinese();
 const english = Object.freeze({
   'opencu.capabilities.extensionHostPath': "Extension folder on the DSH host",
-  'opencu.capabilities.extensionHostHelp': "This path is on the machine running DSH, not a local folder on your browser's computer. A browser on another machine cannot load it directly. Transfer the extension files to a folder accessible to that browser; this action does not export them.",
+  'opencu.capabilities.extensionHostHelp': "This path is on the machine running DSH. If your browser is on another machine, first copy the extension files to a local folder on that machine. This action does not export the files.",
   'opencu.capabilities.extensionRevealed': "Desktop adapter revealed the extension folder.",
   'opencu.capabilities.copyExtensionPath': "Copy host path",
   'opencu.capabilities.extensionPathCopied': "Path copied.",
@@ -80,7 +80,7 @@ const zh = Object.freeze({ ...chinese, ...english,
   'opencu.capabilities.connectionSetup': '连接浏览器',
   'opencu.capabilities.connect': '连接',
   'opencu.capabilities.extensionHostPath': "DSH 宿主上的扩展文件夹",
-  'opencu.capabilities.extensionHostHelp': "此路径位于运行 DSH 的机器上，不是浏览器所在电脑的本地目录。另一台机器上的浏览器无法直接加载它。请将扩展文件转移到该浏览器可访问的文件夹；此操作不会导出文件。",
+  'opencu.capabilities.extensionHostHelp': "此路径位于运行 DSH 的机器上。如果浏览器在另一台机器上，请先将扩展文件复制到浏览器所在机器的本地目录。此操作不会导出文件。",
   'opencu.capabilities.extensionRevealed': "桌面适配器已显示扩展文件夹。",
   'opencu.capabilities.copyExtensionPath': "复制宿主路径",
   'opencu.capabilities.extensionPathCopied': "路径已复制。",

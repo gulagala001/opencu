@@ -182,7 +182,8 @@ test('both locale dictionaries describe the host boundary and explicit copy outc
   for (const name of ['extensionHostPath', 'extensionHostHelp', 'extensionRevealed', 'copyExtensionPath', 'extensionPathCopied', 'extensionPathManual']) {
     assert.equal(source.split(`'opencu.capabilities.${name}':`).length - 1, 2, name);
   }
-  assert.match(source, /不是浏览器所在电脑的本地目录/);
+  assert.match(source, /如果浏览器在另一台机器上，请先将扩展文件复制到浏览器所在机器的本地目录/);
+  assert.match(source, /If your browser is on another machine, first copy the extension files to a local folder on that machine/);
 });
 
 test('new path cannot inherit a copied receipt even in the render before effects', async t => {
