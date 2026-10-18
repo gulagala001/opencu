@@ -32,6 +32,27 @@ test('capture must reject scroll changed after pixels were captured',async t=>{
   assert.deepEqual(await readdir(dataDir), [], 'rejected geometry must not leave an orphan screenshot');
 });
 
+for (const format of ['ax', 'screenshot']) test(`cancelled ${format} read cannot replace a newer observation`, async t => {
+  const f = fixture(), aborter = new AbortController();
+  const entered = Promise.withResolvers(), gate = Promise.withResolvers();
+  if (format === 'ax') f.record.session.send = async () => { entered.resolve(); await gate.promise; return {nodes: []}; };
+  else f.page.screenshot = async () => { entered.resolve(); await gate.promise; return Buffer.from('late-pixels'); };
+  const dataDir = await mkdtemp(join(tmpdir(), 'opencu-late-observe-'));
+  t.after(() => rm(dataDir, {recursive: true, force: true}));
+  const pending = observePage(f.record, {format, signal: aborter.signal}, {dataDir, timeoutMs: 100});
+  await entered.promise;
+  aborter.abort();
+  f.record.observationId = 'newer';
+  f.record.elements.set(42, {observationId: 'newer'});
+  const screenshot = f.record.screenshot;
+  gate.resolve();
+  await assert.rejects(pending, {code: 'CONTROL_STOPPED'});
+  assert.equal(f.record.observationId, 'newer');
+  assert.equal(f.record.elements.get(42).observationId, 'newer');
+  assert.equal(f.record.screenshot, screenshot);
+  assert.deepEqual(await readdir(dataDir), []);
+});
+
 test('scroll during cursor arrival must prevent mouse down',async()=>{
   const f=fixture();
   f.options.cursor=async()=>{f.geometry.scrollY=200;};

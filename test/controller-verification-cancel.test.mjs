@@ -40,6 +40,44 @@ async function setup(t){
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function settledWithin(promise,ms){return Promise.race([promise.then(()=>true,()=>true),sleep(ms).then(()=>false)]);}
+for (const stage of ['verification', 'observation']) for (const ending of ['stop', 'close']) {
+ test(`${ending} releases held input while ${stage} in observe is stalled`, async t => {
+  const {controller:c,backend,A,events,hooks,ok}=await setup(t);
+  await ok(c.selectTarget({id:A.id})); await ok(c.act({action:'keyDown',key:'Shift'}));
+  const entered=deferred(),gate=deferred();
+  if(stage==='verification') hooks.send=async(_,method)=>{if(method==='Target.getTargetInfo'){entered.resolve();await gate.promise;}};
+  else backend.observe=async()=>{entered.resolve();await gate.promise;return {userActivity:{sequence:99}};};
+  const pending=c.observe({format:'ax'}); await entered.promise;
+  const queued=c.observe({format:'ax'}), stopped=c[ending]();
+  try {
+   assert.equal(await settledWithin(stopped,150),true,'release must finish before the read RPC');
+   await ok(stopped);
+   assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
+   assert.equal((await pending).error.code,'CONTROL_STOPPED');
+   assert.equal((await queued).ok,false,'a read queued before cancellation cannot delay release');
+  } finally {hooks.send=undefined;gate.resolve();await pending;await queued;await stopped;}
+  assert.deepEqual((await c.getState()).state.userActivity,[],'late read result must not update state');
+ });
+}
+
+test('computer timeout releases held input during a stalled observation',async t=>{
+ const {controller:c,backend,A,events}=await setup(t);
+ const {createComputerSession}=await import('../src/dsh/computer.mjs');
+ const methods={select:'selectTarget',resume:'resume',observe:'observe',act:'act',stop:'stop'};
+ const session=createComputerSession((endpoint,args)=>c[methods[endpoint]](endpoint==='select'?args.reference:args));
+ const entered=deferred(),gate=deferred();
+ try {
+  await session.run({code:`var tab = await cua.getTab(${JSON.stringify(A.id)}); await tab.keyDown('Shift');`,timeoutMs:1000});
+  backend.observe=async()=>{entered.resolve();await gate.promise;return {};};
+  const run=session.run({code:'await tab.getScreenshot();',timeoutMs:20});run.catch(()=>{});
+  await entered.promise;
+  try {
+   assert.equal(await settledWithin(run,150),true,'timeout waits only for release acknowledgement');
+   assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
+  } finally {gate.resolve();await assert.rejects(run,e=>e.code==='COMPUTER_TIMEOUT');}
+ } finally {gate.resolve();await session.close();}
+});
+
 test('stop releases held key while read-only verification stays pending',async t=>{
  const {dir,controller:c,A,events,hooks,ok}=await setup(t);
  await ok(c.selectTarget({id:A.id}));await ok(c.act({action:'keyDown',key:'Shift'}));

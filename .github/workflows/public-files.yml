@@ -24,4 +24,4 @@ jobs:
       - name: Install locked browser test dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify browser lifecycle and screenshot guards
-        run: node --test test/browser-cleanup-retry.test.mjs test/browser-registration-recovery.test.mjs test/browser-registration-inputs.test.mjs test/browser-context-init.test.mjs test/browser-screenshot-consistency.test.mjs
+        run: node --test test/browser-cleanup-retry.test.mjs test/browser-registration-recovery.test.mjs test/browser-registration-inputs.test.mjs test/browser-context-init.test.mjs test/browser-screenshot-consistency.test.mjs test/app-approval-target-binding.test.mjs

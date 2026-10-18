@@ -16,4 +16,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node --unhandled-rejections=strict --test test/controller-verification-cancel.test.mjs
+      - run: node --unhandled-rejections=strict --test test/controller-verification-cancel.test.mjs test/extension-observation-cancel.test.mjs
