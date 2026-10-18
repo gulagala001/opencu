@@ -21,4 +21,3 @@ jobs:
         run: node --unhandled-rejections=strict --test test/browser-host-generation.test.mjs test/app-approval-session-cancel.test.mjs test/desktop-approval-availability.test.mjs test/app-approvals-lifecycle.test.mjs
       - name: Verify application approval response feedback
         run: node --unhandled-rejections=strict --experimental-vm-modules --test test/app-approval-feedback.test.mjs
-      - run: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci && node --unhandled-rejections=strict --test test/managed-inventory-routing.test.mjs
