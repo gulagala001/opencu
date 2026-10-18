@@ -175,7 +175,7 @@ export function ConnectionInstallButton() {
         <textarea readOnly rows={3} value={extensionFolder.path} className="block w-full select-text break-all"
           aria-label={text('extensionHostPath', 'Extension folder on the DSH host')} onFocus={event => event.currentTarget.select()} />
       </label>
-      <p className="m-0 text-sm text-secondary">{text('extensionHostHelp', 'This path is on the machine running DSH, not a local folder on your browser\'s computer. A browser on another machine cannot load it directly. Transfer the extension files to a folder accessible to that browser; this action does not export them.')}</p>
+      <p className="m-0 text-sm text-secondary">{text('extensionHostHelp', 'This path is on the machine running DSH. If your browser is on another machine, first copy the extension files to a local folder on that machine. This action does not export the files.')}</p>
       {extensionFolder.revealed && <p role="status" className="m-0 text-sm">{text('extensionRevealed', 'Desktop adapter revealed the extension folder.')}</p>}
       <Button color="secondary" size="toolbar" disabled={pending != null || copyPending} loading={copyPending} onClick={copy}>
         {text('copyExtensionPath', 'Copy host path')}

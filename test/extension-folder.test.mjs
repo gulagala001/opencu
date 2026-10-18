@@ -12,7 +12,7 @@ test('Web button displays selectable host path without a desktop or active conve
   await f.show();
   assert.equal(visiblePath(f), '/srv/dsh/opencu/extension');
   assert.match(f.text(), /machine running DSH/);
-  assert.match(f.text(), /not a local folder on your browser/);
+  assert.match(f.text(), /If your browser is on another machine, first copy the extension files to a local folder on that machine/);
   assert.equal(f.nodes().find(node => node.type === 'textarea').props.readOnly, true);
   assert.equal(copied(f), false); assert.deepEqual(f.copied, []);
   assert.equal(f.production.activeReads, 0);
