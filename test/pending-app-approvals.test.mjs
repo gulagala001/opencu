@@ -76,3 +76,83 @@ test('real shared events include tool and direct runtime preview approvals witho
  assert.deepEqual((await service.request('events',{after:null})).appApprovals,[]);
  }finally{await owner?.dispose();await ctx.fiber.dispose();assert(releases>0);await rm(dir,{recursive:true,force:true});}
 });
+
+// Load the unchanged production module with an observed Map constructor so collection
+// is asserted directly, without adding a diagnostic API to the manager.
+async function deferredManager() {
+ const {SourceTextModule,createContext}=await import('node:vm');const maps=[];
+ class ObservedMap extends Map {constructor(...args){super(...args);maps.push(this);}}
+ const module=new SourceTextModule(await readFile(new URL('../src/client/pending-app-approvals.mjs',import.meta.url),'utf8'),{context:createContext({Map:ObservedMap})});
+ await module.link(()=>{throw Error('unexpected dependency');});await module.evaluate();
+ let state={connected:false,revision:0},listener,publications=0,unsubscribed=false;
+ const visible=new Map(),calls=[];
+ const client={getSnapshot:()=>state,subscribe:fn=>(listener=fn,()=>{unsubscribed=true;}),request:(method,response)=>new Promise((resolve,reject)=>calls.push({method,response,resolve,reject}))};
+ const manager=module.namespace.createPendingAppApprovals({client,publish:(value,delegate)=>{publications++;visible.set(value.key,{value,delegate});return()=>visible.delete(value.key);}});
+ const req=(id,conversationId='A')=>({id,conversationId,request:{appDisplayName:'Synthetic'}});
+ const emit=(revision,appApprovals,connected=true)=>{state={revision,appApprovals,connected};listener();};
+ const event=()=>{let resolve;const pending=new Promise(done=>{resolve=done;}).then(args=>emit(...args));return{pending,resolve};};
+ const respond=(id='a',conversationId='A')=>manager.respond({requestId:id,conversationId,action:'decline'});
+ return {manager,visible,calls,req,emit,event,respond,tombstones:maps[1],publications:()=>publications,unsubscribed:()=>unsubscribed};
+}
+test('deferred: deletion snapshot before HTTP success preserves the new card and needs no tombstone',async()=>{
+ const h=await deferredManager();try{
+ h.emit(10,[h.req('a')]);const pending=h.respond();assert.equal(h.calls.length,1);
+ h.emit(11,[h.req('next')]);h.calls[0].resolve({settled:true});await pending;
+ assert.deepEqual([...h.visible.keys()],['next']);assert.equal(h.tombstones.size,0);
+ }finally{h.manager.dispose();}
+});
+test('deferred: HTTP success suppresses an in-flight old snapshot until a newer complete absence confirms collection',async()=>{
+ const h=await deferredManager();try{
+ h.emit(10,[h.req('a'),h.req('b','B')]);const oldEvent=h.event(),pending=h.respond();h.calls[0].resolve({settled:true});await pending;
+ assert.equal(h.tombstones.size,1);assert.deepEqual([...h.visible.keys()],['b']);
+ oldEvent.resolve([11,[h.req('a'),h.req('b','B')]]);await oldEvent.pending;assert.equal(h.tombstones.size,1);assert(!h.visible.has('a'));
+ // Same-connection older and equal snapshots are not collection evidence.
+ h.emit(10,[h.req('b','B')]);h.emit(11,[h.req('b','B')]);assert.equal(h.tombstones.size,1);
+ // A local successful response reprojects the cached snapshot; it cannot collect a.
+ const b=h.respond('b','B');h.calls[1].resolve({settled:true});await b;assert.equal(h.tombstones.size,2);
+ h.emit(12,[]);assert.equal(h.tombstones.size,0);assert.equal(h.visible.size,0);
+ h.emit(11,[h.req('a'),h.req('b','B')]);assert.equal(h.visible.size,0);
+ }finally{h.manager.dispose();}
+});
+test('deferred: success while disconnected and a lower-revision reconnect preserve other sessions',async()=>{
+ const h=await deferredManager();try{
+ h.emit(100,[h.req('a'),h.req('b','B')]);const pending=h.respond();
+ h.emit(100,[h.req('a'),h.req('b','B')],false);h.calls[0].resolve({settled:true});await pending;
+ assert.equal(h.tombstones.size,1);assert.deepEqual([...h.visible.keys()],['b']);
+ h.emit(1,[h.req('a'),h.req('b','B')]);assert(!h.visible.has('a'));assert(h.visible.has('b'));assert.equal(h.tombstones.size,1);
+ h.emit(2,[h.req('b','B')]);assert.equal(h.tombstones.size,0);assert(h.visible.has('b'));
+ }finally{h.manager.dispose();}
+});
+test('deferred: reconnect absence before the old response uses generation ordering, not mixed revisions',async()=>{
+ const h=await deferredManager();try{
+ h.emit(100,[h.req('a'),h.req('b','B')]);const pending=h.respond();h.emit(100,[],false);
+ h.emit(1,[h.req('b','B')]);h.calls[0].resolve({settled:true});await pending;
+ assert.equal(h.tombstones.size,0);assert.deepEqual([...h.visible.keys()],['b']);
+ }finally{h.manager.dispose();}
+});
+test('deferred: teardown prevents late responses and queued event callbacks from publishing or issuing actions',async()=>{
+ const h=await deferredManager();h.emit(10,[h.req('a')]);const pending=h.respond(),event=h.event(),before=h.publications();
+ h.manager.dispose();assert(h.unsubscribed());event.resolve([11,[h.req('next')]]);await event.pending;h.calls[0].resolve({settled:true});await pending;
+ assert.equal(h.publications(),before);assert.equal(h.visible.size,0);assert.equal(h.tombstones.size,0);assert.equal(h.calls.length,1);
+ await assert.rejects(h.respond(),/disposed/);assert.equal(h.calls.length,1);
+});
+test('deferred: response failures preserve exact error identity, session routing and explicit retry',async()=>{
+ const h=await deferredManager();try{
+ h.emit(10,[h.req('a')]);const pending=h.respond(),error=Object.assign(Error('synthetic failure'),{code:'APP_REQUEST_EXPIRED'});
+ h.calls[0].reject(error);await assert.rejects(pending,e=>e===error);assert(h.visible.has('a'));assert.equal(h.tombstones.size,0);
+ const retry=h.respond();assert.equal(h.calls.length,2);assert.deepEqual(h.calls[1].response,{requestId:'a',conversationId:'A',action:'decline'});
+ h.calls[1].resolve({settled:true});await retry;assert(!h.visible.has('a'));
+ }finally{h.manager.dispose();}
+});
+test('synthetic fallback contract: visible uncaught error, queued cleanup and late callbacks are inert after disposal',async()=>{
+ const {createReaRenderFallback}=await import('../src/client/portal-host.mjs');
+ const previous=globalThis.document,original=console.error,logs=[],writes=[];
+ globalThis.document={createElement:tag=>({tag,style:{},setAttribute(name,value){this[name]=value;}})};console.error=(...args)=>logs.push(args);
+ try{
+ const container={replaceChildren:node=>writes.push(node)},error=Error('synthetic render failure');
+ const first=createReaRenderFallback(container,'OpenCU REA app approval');first.onUncaughtError(error);await Promise.resolve();
+ assert.equal(writes.length,1);assert.equal(writes[0].tag,'pre');assert.equal(writes[0].role,'alert');assert.equal(writes[0].textContent,error.stack);assert.equal(logs[0][1],error);
+ const second=createReaRenderFallback(container,'OpenCU REA app approval');second.onUncaughtError(error);second.dispose();await Promise.resolve();assert.equal(writes.length,1);
+ second.onUncaughtError(error);await Promise.resolve();assert.equal(writes.length,1);assert.equal(logs.length,2);first.dispose();
+ }finally{globalThis.document=previous;console.error=original;}
+});

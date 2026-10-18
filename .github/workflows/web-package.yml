@@ -31,6 +31,7 @@ jobs:
           test/web-browser-unavailable.test.mjs
           test/managed-headless-settings.test.mjs
           test/managed-inventory-routing.test.mjs
+          test/pending-app-approvals.test.mjs
       - name: Verify extension folder settings and clipboard boundaries
         run: node --unhandled-rejections=strict --experimental-vm-modules --test test/extension-folder.test.mjs
       - name: Verify static extension ZIP, real Connection admission and download UI

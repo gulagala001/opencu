@@ -44,3 +44,18 @@ export const guestPortalStyles = `
 [data-browser-host-root]{contain:paint}
 [data-browser-sidebar-webview]>webview{display:flex;width:100%;height:100%}
 `;
+
+/** Preserve visible render failures without writing into an already disposed root. */
+export function createReaRenderFallback(container, label) {
+  let active = true;
+  return {
+    onUncaughtError(error) {
+      if (!active) return;
+      console.error(label, error);
+      const alert = document.createElement('pre'); alert.setAttribute('role', 'alert');
+      alert.style.whiteSpace = 'pre-wrap'; alert.textContent = error.stack || error.message;
+      queueMicrotask(() => { if (active) container.replaceChildren(alert); });
+    },
+    dispose() { active = false; },
+  };
+}

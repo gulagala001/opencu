@@ -7,7 +7,7 @@ import { PermissionNotice, initializePermissionNotice } from './permission-notic
 import { xa as ToolContent, Ia } from './rea/mcp-tool-item-content-f32f64d93b42.js';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import styles from './rea-styles.css';
-import { createReaPortal } from './portal-host.mjs';
+import { createReaPortal, createReaRenderFallback } from './portal-host.mjs';
 
 function ToolRoute({ sessionId, item, files }) {
   const route = React.useMemo(() => ({ routeKind: 'local-thread', routeTemplate: '/ca/:conversationId',
@@ -61,14 +61,10 @@ export function ToolSlot(props) {
     container.dataset.theme = getComputedStyle(document.documentElement).colorScheme === 'dark' ? 'dark' : 'light';
     const { dispose: disposePortal, portal } = createReaPortal(styles, container, 70);
     shadow.append(sheet, container);
-    const root = createRoot(container, { onUncaughtError(error) {
-      console.error('OpenCU REA tool result', error);
-      const alert = document.createElement('pre'); alert.setAttribute('role', 'alert');
-      alert.style.whiteSpace = 'pre-wrap'; alert.textContent = error.stack || error.message;
-      queueMicrotask(() => container.replaceChildren(alert));
-    } });
+    const fallback = createReaRenderFallback(container, 'OpenCU REA tool result');
+    const root = createRoot(container, { onUncaughtError: fallback.onUncaughtError });
     mounted.current = { root, portal };
-    return () => { root.unmount(); disposePortal(); mounted.current = null; };
+    return () => { fallback.dispose(); root.unmount(); disposePortal(); mounted.current = null; };
   }, []);
   HostReact.useLayoutEffect(() => {
     const { root, portal } = mounted.current;

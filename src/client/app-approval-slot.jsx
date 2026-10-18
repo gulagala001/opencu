@@ -6,7 +6,7 @@ import { Aml as RequestCard } from './rea/app-initial-c468e3fd7f91.js';
 import { E as AppApprovalCard } from './rea/computer-use-app-approval-request-card-82a4252ecef7.js';
 import { initializePermissionNotice } from './permission-notice.jsx';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
-import { createReaPortal } from './portal-host.mjs';
+import { createReaPortal, createReaRenderFallback } from './portal-host.mjs';
 import styles from './rea-styles.css';
 function Approval({matched,portal}) {
  const sessionId=matched.sessionId;
@@ -21,9 +21,11 @@ export function AppApprovalSlot({sessionId,matched}) {
   const shadow=host.current.attachShadow({mode:'open'}),container=document.createElement('div'),sheet=document.createElement('style');
   sheet.textContent=styles;container.dataset.reaRoot='';container.dataset.codexWindowType='electron';
   container.dataset.theme=getComputedStyle(document.documentElement).colorScheme==='dark'?'dark':'light';shadow.append(sheet,container);
-  const {portal,dispose}=createReaPortal(styles,container,70),root=createRoot(container);
+  const {portal,dispose}=createReaPortal(styles,container,70);
+  const fallback=createReaRenderFallback(container,'OpenCU REA app approval');
+  const root=createRoot(container,{onUncaughtError:fallback.onUncaughtError});
   root.render(<Approval matched={matched} portal={portal}/>);
-  return ()=>{root.unmount();dispose();shadow.replaceChildren();};
+  return ()=>{fallback.dispose();root.unmount();dispose();shadow.replaceChildren();};
  },[sessionId,matched]);
  return HostReact.createElement('div',{ref:host,key:matched?.key,style:{width:'100%'}});
 }
