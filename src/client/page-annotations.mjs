@@ -6,21 +6,72 @@ export function install(initialState) {
   const messages = [], listeners = new Set(), expected = [], waiters = new Set();
   const wake = () => { for (const resolve of [...waiters]) resolve(); };
   const enqueue = message => { messages.push(message); wake(); };
-  let lastActivity = 0;
+  const checkable = target => {
+    const control = target?.closest?.('label')?.control ?? target;
+    return control?.tagName === 'INPUT' && ['checkbox', 'radio'].includes(control.type) ? control : null;
+  };
+  let lastActivity = 0, textInput;
+  const cancelTextInput = () => {
+    textInput = undefined;
+    for (let i = expected.length - 1; i >= 0; i--) if (expected[i].textInput) expected.splice(i, 1);
+  };
+  const textInputTarget = () => {
+    let target = document.activeElement;
+    while (target?.shadowRoot?.activeElement) target = target.shadowRoot.activeElement;
+    if (target?.isContentEditable) while (target.parentElement?.isContentEditable) target = target.parentElement;
+    // Closed shadow editors expose their focused host to this event listener.
+    // Bind that observable target; the exact beforeinput still proves the edit.
+    return target?.nodeType === 1 ? target : null;
+  };
   const activity = event => {
     if (!event.isTrusted) return;
-    const now = performance.now();
+    const now = performance.now(), target = event.composedPath?.()[0] ?? event.target;
     for (let i = expected.length - 1; i >= 0; i--) if (expected[i].until < now) expected.splice(i, 1);
+    if (event.type === 'beforeinput') {
+      const input = expected.find(input => input.textInput && input.target === target && input.inputType === event.inputType && input.data === event.data);
+      // Every new edit starts a new transaction. An unmatched user beforeinput
+      // must never inherit the previous native insertText's remaining events.
+      cancelTextInput();
+      if (input) {
+        textInput = input;
+        // Chromium emits several input events for one multiline contenteditable
+        // edit. They share this native task, even with microtasks between them.
+        setTimeout(() => { if (textInput === input) textInput = undefined; }, 0);
+      }
+      return;
+    }
+    if (event.type === 'pointerdown' || event.type === 'keydown' || event.type === 'wheel') cancelTextInput();
+    if (event.type === 'input' && textInput) {
+      if (textInput.target === target && textInput.inputType === event.inputType) return;
+      cancelTextInput();
+    }
     const index = expected.findIndex(input => input.type === event.type &&
+      (input.target == null || input.target === target) &&
       (input.key == null || input.key === event.key) &&
       (input.x == null || Math.abs(input.x - event.clientX) < 2 && Math.abs(input.y - event.clientY) < 2) &&
       (input.deltaY == null || Math.abs(input.deltaX - event.deltaX) < 1 && Math.abs(input.deltaY - event.deltaY) < 1));
-    if (index !== -1) { expected.splice(index, 1); return; }
+    if (index !== -1) {
+      const [input] = expected.splice(index, 1);
+      if (event.type === 'pointerdown' && event.button === 0) {
+        const control = checkable(target);
+        if (control) expected.push({type:'click', target:control, id:input.id, until:input.until});
+      } else if (event.type === 'click') {
+        // Checkbox/radio default activation emits trusted input after click, including labels.
+        const marker = {type:'input', target, id:input.id, until:input.until};
+        expected.push(marker);
+        setTimeout(() => { const index = expected.indexOf(marker); if (index !== -1) expected.splice(index, 1); }, 0);
+      }
+      return;
+    }
+    if (event.type === 'click') return;
+    if (event.type === 'pointerdown' || event.type === 'keydown') {
+      for (let i = expected.length - 1; i >= 0; i--) if (expected[i].type === 'click') expected.splice(i, 1);
+    }
     if (now - lastActivity < 250) return;
     lastActivity = now;
     enqueue({ type: 'opencu-user-activity', kind: event.type });
   };
-  const inputEvents = ['pointerdown', 'keydown', 'wheel', 'input'];
+  const inputEvents = ['pointerdown', 'keydown', 'wheel', 'beforeinput', 'input', 'click'];
   for (const type of inputEvents) window.addEventListener(type, activity, true);
   let state = initialState, permission = null, granted = state.siteAnnotationPermissionGranted === true, editorOpen = false, disposed = false;
   const permitted = () => !disposed && state.canUseSiteAnnotationApi === true && state.siteAnnotationFeaturesEnabled !== false && !state.isAgentControllingBrowser;
@@ -87,10 +138,18 @@ export function install(initialState) {
       expected.push(...events.map(event => ({ ...event, id, until })));
       return id;
     },
-    clearInput() { expected.length = 0; },
+    expectTextInput(text) {
+      const target = textInputTarget();
+      if (!target || typeof text !== 'string') return;
+      const id = crypto.randomUUID();
+      expected.push({type:'beforeinput',inputType:'insertText',data:text,target,textInput:true,id,until:performance.now()+1500});
+      return id;
+    },
+    clearInput() { expected.length = 0; textInput = undefined; },
     finishInput(id, dispatched) {
+      if (textInput?.id === id) textInput = undefined;
       for (let i = expected.length - 1; i >= 0; i--) if (expected[i].id === id) {
-        if (dispatched) expected[i].until = performance.now() + 1500;
+        if (dispatched && !expected[i].textInput) expected[i].until = performance.now() + 1500;
         else expected.splice(i, 1);
       }
     },
@@ -99,7 +158,7 @@ export function install(initialState) {
       for (const type of inputEvents) window.removeEventListener(type, activity, true);
       permission?.resolve(false); permission = null;
       removeSiteApi?.(); features.dispose(); requests.dispose(); controls.dispose();
-      runtime.dispose(); listeners.clear(); messages.length = 0; expected.length = 0;
+      runtime.dispose(); listeners.clear(); messages.length = 0; expected.length = 0; textInput = undefined;
       delete globalThis.__opencuAnnotations;
     },
   };

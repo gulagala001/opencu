@@ -6,26 +6,34 @@ import { services } from './rea-services.mjs';
 
 export function initializePermissionNotice() { Mml(); T(); initializeAppApproval(); }
 
-export function ApplicationPermissionNotice({ sessionId, completed }) {
-  return completed ? null : <ApplicationPermissionRequests key={sessionId} sessionId={sessionId} />;
+/** Mounted once by the resident conversation dock, independently of tool-card expansion. */
+export function ApplicationPermissionNotice({ sessionId }) {
+  return sessionId ? <ApplicationPermissionRequests key={sessionId} sessionId={sessionId} /> : null;
 }
 
 function ApplicationPermissionRequests({ sessionId }) {
   const [requests, setRequests] = React.useState([]), [error, setError] = React.useState(null);
+  const settled = React.useRef(new Set());
   React.useEffect(() => {
     let disposed = false, timer;
     const poll = async () => {
-      try { const next = await services.computerUseSettings.getPendingAppApprovals(sessionId); if (!disposed) { setRequests(next); setError(null); } }
+      try {
+        const next = await services.computerUseSettings.getPendingAppApprovals(sessionId);
+        if (!disposed) { setRequests(next.filter(value => !settled.current.has(value.id))); setError(null); }
+      }
       catch (error) { if (!disposed) setError(error.message); }
       if (!disposed) timer = setTimeout(poll, 500);
     };
     void poll();
     return () => { disposed = true; clearTimeout(timer); };
   }, [sessionId]);
-  return <>{error && <div role="alert" className="text-sm text-danger">{error}</div>}
+  return <div className="flex flex-col gap-3">{error && <div role="alert" className="text-sm text-danger">{error}</div>}
     {requests.map(value => <AppApprovalCard key={value.id} ApprovalCard={RequestCard} conversationId={sessionId} hostId="local"
-      request={value.request} requestId={value.id} onRequestSettled={() => setRequests(current => current.filter(request => request.id !== value.id))} />)}
-  </>;
+      request={value.request} requestId={value.id} onRequestSettled={() => {
+        settled.current.add(value.id);
+        setRequests(current => current.filter(request => request.id !== value.id));
+      }} />)}
+  </div>;
 }
 
 /** System permissions remain OS-owned; repairing a failure never replays the action. */

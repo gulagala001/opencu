@@ -18,7 +18,7 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
   const invoke = (record, method, args) => record.error ? Promise.reject(record.error) : desktop.surface('requestPage', { ...record.ids, method, args });
   const page = async (args, method, payload = args) => { const record = get(args); await record.ready; return invoke(record, method, payload); };
   const report = (record, error) => Shared.Ff.dispatchHostMessage({ type: 'browser-sidebar-command-error',
-    conversationId: record.ids.sessionId, browserTabId: record.ids.tabId, error: { message: error.message } });
+    conversationId: record.ids.sessionId, browserTabId: record.ids.tabId, error: { message: error.message, code: error.code, details: error.details } });
   async function focusPage(sessionId, tabId) {
     const record = get({ sessionId, tabId }); await record.ready;
     if (!record.detached) {
@@ -64,7 +64,10 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
     signal.addEventListener('abort', abort, { once: true }); record.unbind = () => signal.removeEventListener('abort', abort);
     record.created = desktop.surface('create', { ...record.ids, initialUrl: initialUrl || 'about:blank', initialNavigation, locale: reaIntl().locale,
       theme: getComputedStyle(document.documentElement).colorScheme === 'dark' ? 'dark' : 'light' });
-    record.ready = record.created.then(() => invoke(record, 'ready')).then(async value => { record.initialized = true; record.remote.update(value); await invoke(record, 'visibility', { visible: record.detached || record.visible === true }); return record; });
+    record.ready = record.created.then(() => invoke(record, 'ready')).then(async value => {
+      record.initialized = true; record.navigationError = value.navigationError ?? null;
+      record.remote.update(value); await invoke(record, 'visibility', { visible: record.detached || record.visible === true }); return record;
+    });
     record.ready.catch(error => {
       record.error ??= error;
       report(record, record.error);
@@ -91,6 +94,13 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
         if (selected && active && sidebar.mounted.getSnapshot() === sessionId) sidebar.focus(active.id);
       }
       throw error;
+    }
+    if (record.navigationError) {
+      // Creation succeeded; retain the same tab/target for REA's Reload action.
+      // The caller must still learn that its requested URL did not load.
+      const failure = record.navigationError;
+      throw Object.assign(new Error(`Tab ${record.remote.target.id} was created, but ${failure.message}. Reload this target after recovery; do not create another tab.`),
+        { code: failure.code, details: { created: true, target: record.remote.target, stage: 'navigate', navigationError: failure } });
     }
     return { conversationId: sessionId, browserTabId: tab.id, sessionId, tabId: tab.id, target: record.remote.target };
   }
@@ -182,6 +192,7 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
     } else if (event.type === 'page') {
       const value = event.event;
       if (value.type === 'snapshot') {
+        record.navigationError = value.snapshot.navigationError ?? null;
         record.remote.update({ ...value.snapshot, isDetached: record.detached });
         Shared.Ff.dispatchHostMessage({ type: 'browser-sidebar-state', conversationId: record.ids.sessionId, browserTabId: record.ids.tabId, snapshot: { ...value.snapshot, isDetached: record.detached } });
       } else if (value.type === 'error') report(record, new Error(value.message));

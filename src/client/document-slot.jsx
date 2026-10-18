@@ -117,7 +117,6 @@ export function DocumentSlot(props) {
     const sheet = document.createElement('style'); sheet.textContent = styles;
     const container = document.createElement('div');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
-    container.dataset.theme = getComputedStyle(document.documentElement).colorScheme === 'dark' ? 'dark' : 'light';
     container.style.cssText = 'height:100%;width:100%;min-height:0;position:relative';
     const { dispose: disposePortal, portal } = createReaPortal(styles, container);
     const root = createRoot(container, { onUncaughtError(error) {

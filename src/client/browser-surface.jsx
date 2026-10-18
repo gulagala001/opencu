@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { initializeRea, ReaRoot, ReaProviders } from './rea-root.jsx';
 import { p as HiddenBrowserUseWebviewHost, b as initializeHiddenHost } from './rea/hidden-browser-use-webview-host-bdd4db5a6c73.js';
@@ -30,10 +31,10 @@ const listen = bridge.subscribe(event => {
   if (event.type !== 'request') return;
   void ready.then(async () => {
     switch (event.method) {
-      case 'ready': return driver.metadata();
+      case 'ready': return { ...driver.metadata(), navigationError: Initial.AW.getSnapshot(init.sessionId, init.tabId)?.navigationError ?? null };
       case 'visibility': physicalSurfaceVisible(event.args.visible); return true;
       case 'webContentsId': return { webContentsId: host.webContentsIdFor(init.sessionId, init.tabId) };
-      case 'release': return driver.release();
+      case 'release': return driver.release(event.args);
       case 'observe': return driver.observe(event.args);
       case 'preview': return driver.preview();
       case 'act': return driver.act(event.args);
@@ -52,6 +53,41 @@ const listen = bridge.subscribe(event => {
     }
   }).then(result => bridge.call('reply', { id: event.id, result }), error => bridge.call('reply', { id: event.id, error: { message: error.message, code: error.code, details: error.details } })).catch(report);
 });
+
+/** The real REA recovery view, confined to the existing browser content pane. */
+function PageLoadError({ sessionId, tabId, container, browserHost }) {
+  const intl = Shared.lS();
+  const read = React.useCallback(() => Initial.AW.getSnapshot(sessionId, tabId), [sessionId, tabId]);
+  const snapshot = React.useSyncExternalStore(Initial.AW.subscribe, read);
+  const failure = snapshot?.navigationError;
+  const [viewport, setViewport] = React.useState(null);
+  React.useLayoutEffect(() => {
+    if (!failure) return;
+    const find = () => setViewport(container.querySelector('[data-app-shell-pane-content-viewport]'));
+    find();
+    const observer = new MutationObserver(find);
+    observer.observe(container, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [!!failure, container]);
+  if (!failure || !viewport) return null;
+  const code = failure.message?.match(/\bERR_[A-Z_]+\b/u)?.[0] || String(failure.errorCode);
+  let host = failure.url;
+  try { host = new URL(failure.url).host || failure.url; } catch { /* Keep the attempted address visible. */ }
+  const messages = Shared.vHi;
+  const summary = code.includes('NAME_NOT_RESOLVED') ? messages.loadErrorDnsSummary
+    : code.includes('INTERNET_DISCONNECTED') ? messages.loadErrorOfflineSummary
+      : code.includes('CONNECTION_REFUSED') ? messages.loadErrorRefusedSummary
+        : code.includes('TIMED_OUT') ? messages.loadErrorTimeoutSummary
+          : /CERT_|SSL_/u.test(code) ? messages.loadErrorCertificateSummary : messages.loadErrorGenericSummary;
+  const reload = () => { void browserHost.service.runPageCommand({ conversationId: sessionId, browserTabId: tabId,
+    command: { type: 'reload' } }).catch(report); };
+  return createPortal(<div data-opencu-navigation-error="" className="absolute inset-0 z-20 overflow-auto bg-surface">
+    <Initial.uBn compact embedded title={intl.formatMessage(messages.loadErrorHeading)}
+      description={<><p className="m-0 break-words text-sm text-secondary">{intl.formatMessage(summary, { host })}</p>
+        <code className="break-all text-xs text-secondary">{code}</code></>}
+      actions={<Shared.r5 color="secondary" onClick={reload}>{intl.formatMessage(messages.loadErrorReload)}</Shared.r5>} />
+  </div>, viewport);
+}
 
 async function mount() {
   init = await bridge.call('init', {});
@@ -127,7 +163,7 @@ async function mount() {
     clipboard: { writeText: text => navigator.clipboard.writeText(text) },
     sources, openSettings: path => owner('openSettings', { path }), notify: (_tone, message) => Shared.WFt().danger(message),
   });
-  initializeRea(); initializeHiddenHost();
+  initializeRea(); initializeHiddenHost(); Initial.dBn(); Shared.yHi(); Shared.n5();
   let last;
   const publish = Initial.AW.subscribe(() => {
     const snapshot = Initial.AW.getSnapshot(init.sessionId, init.tabId);
@@ -144,6 +180,7 @@ async function mount() {
     const pages = React.useSyncExternalStore(host.pages.subscribe, host.pages.getSnapshot);
     const visible = React.useSyncExternalStore(listener => { visibleListeners.add(listener); return () => visibleListeners.delete(listener); }, () => physicalVisible);
     return <><ReaRoot sessionId={init.sessionId} tabId={init.tabId} visible={visible} container={container} portal={portal} />
+      <ReaProviders portal={portal} path={`/ca/${init.sessionId}`}><PageLoadError sessionId={init.sessionId} tabId={init.tabId} container={container} browserHost={host} /></ReaProviders>
       <ReaProviders path="/opencu-hidden-pages">{pages.map(page => <HiddenBrowserUseWebviewHost key={page.key}
         conversationId={page.conversationId} browserUseTabIdsKey={page.browserTabId} />)}</ReaProviders></>;
   }

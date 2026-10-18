@@ -1,3 +1,14 @@
+/** Names written by an assignment, including nested patterns and member roots. */
+export function assignmentTargets(node, t) {
+  if (t.isIdentifier(node)) return [node.name];
+  if (t.isMemberExpression(node)) return assignmentTargets(node.object, t);
+  if (t.isAssignmentPattern(node)) return assignmentTargets(node.left, t);
+  if (t.isRestElement(node)) return assignmentTargets(node.argument, t);
+  if (t.isArrayPattern(node)) return node.elements.flatMap(element => assignmentTargets(element, t));
+  if (t.isObjectPattern(node)) return node.properties.flatMap(property => assignmentTargets(t.isRestElement(property) ? property.argument : property.value, t));
+  return [];
+}
+
 export function indexReaModule(mod, { traverse, t, initBody }) {
   const nodes = mod.ast.program.body;
   const flat = nodes.every(node => t.isImportDeclaration(node) || t.isVariableDeclaration(node)
@@ -5,21 +16,27 @@ export function indexReaModule(mod, { traverse, t, initBody }) {
     || t.isExportNamedDeclaration(node) && !node.declaration
     || t.isExportAllDeclaration(node) || t.isExpressionStatement(node) || t.isEmptyStatement(node));
   const owners = path => {
-    let target = path.node.left;
-    while (t.isMemberExpression(target)) target = target.object;
-    if (!t.isIdentifier(target)) return;
-    const binding = path.scope.getBinding(target.name);
-    if (binding ? !binding.scope.path.isProgram() : !mod.defs.has(target.name)) return;
+    const targets = assignmentTargets(path.node.left, t).filter(name => {
+      const binding = path.scope.getBinding(name);
+      return binding ? binding.scope.path.isProgram() : mod.defs.has(name);
+    });
+    if (!targets.length) return;
     let statement = path;
     while (statement.parentPath && !statement.parentPath.isProgram()) statement = statement.parentPath;
     const declarator = path.findParent(parent => parent.isVariableDeclarator() && t.isIdentifier(parent.node.id) && parent.scope.getBinding(parent.node.id.name)?.scope.path.isProgram());
     if (declarator && t.isCallExpression(declarator.node.init) && declarator.node.init.arguments.some(arg => t.isArrowFunctionExpression(arg) || t.isFunctionExpression(arg))) {
-      const names = mod.owners.get(target.name) ?? new Set();
-      names.add(declarator.node.id.name); mod.owners.set(target.name, names);
+      for (const target of targets) {
+        const names = mod.owners.get(target) ?? new Set();
+        names.add(declarator.node.id.name); mod.owners.set(target, names);
+      }
     }
     if (statement.isFunctionDeclaration() && t.isBlockStatement(initBody(statement.node))) {
-      const owner = statement.node.id.name, names = mod.owners.get(target.name) ?? new Set();
-      names.add(owner); mod.owners.set(target.name, names); mod.init.add(owner);
+      const owner = statement.node.id.name;
+      for (const target of targets) {
+        const names = mod.owners.get(target) ?? new Set();
+        names.add(owner); mod.owners.set(target, names);
+      }
+      mod.init.add(owner);
     }
   };
   if (!flat) {

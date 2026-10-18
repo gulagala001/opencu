@@ -9,4 +9,4 @@ const base=git(['rev-parse','origin/main']).trim();
 for(const ref of git(['rev-list',`${base}..HEAD`]).trim().split('\n').filter(Boolean)) check(git(['ls-tree','-r','--name-only','-z',ref]).split('\0').filter(Boolean),'New history '+ref);
 const packed=JSON.parse(execFileSync('npm',['pack','--ignore-scripts','--dry-run','--json'],{cwd:root,encoding:'utf8',maxBuffer:64*1024*1024,stdio:['ignore','pipe','pipe']}))[0];
 check(packed.files.map(f=>f.path),'Actual npm package');
-console.log(`Public files/history/package passed (${packed.files.length} package files).`);
+console.error(`Public files/history/package passed (${packed.files.length} package files).`);

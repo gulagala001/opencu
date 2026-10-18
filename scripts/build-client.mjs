@@ -151,5 +151,10 @@ await build({ ...clientOptions, entryPoints: ['src/client/page-cursor.mjs'], out
 await writeFile(resolve(root, 'extension/page-cursor.js'), await readFile(resolve(root, 'lib/page-cursor.js')));
 await writeFile(resolve(root, 'lib/cursor.html'), '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\'; style-src \'unsafe-inline\'; img-src data: blob:;"></head><body style="margin:0;background:transparent"><script src="page-cursor.js"></script></body></html>\n');
 await writeFile(resolve(root, 'lib/presentation.html'), '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; connect-src data: blob:; media-src blob:; worker-src data: blob:"></head><body><div id="root"></div><script src="presentation.js"></script></body></html>\n');
-await writeFile(resolve(root, 'src/client/build-meta.json'), JSON.stringify({ inputs: Object.keys(result.metafile.inputs), outputs: result.metafile.outputs }, null, 2));
+// Reused dependency stores must not expose the builder's private checkout path.
+const publicPath = path => path.replace(/^.*?\/node_modules\//, 'node_modules/');
+const publicMetadata = value => Array.isArray(value) ? value.map(publicMetadata)
+  : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [publicPath(key), publicMetadata(item)]))
+  : typeof value === 'string' ? publicPath(value) : value;
+await writeFile(resolve(root, 'src/client/build-meta.json'), JSON.stringify(publicMetadata({ inputs: Object.keys(result.metafile.inputs), outputs: result.metafile.outputs }), null, 2));
 console.log('OpenCU client bundle built; product UI acceptance is separate');

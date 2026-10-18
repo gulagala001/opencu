@@ -6,6 +6,15 @@ import { reaIntl } from './rea-locale.mjs';
 import { createExtensionsHost } from './extensions-host.mjs';
 import { siteToolsPolicyKey, siteToolsAllowed } from '../site-tools-policy.mjs';
 
+// Only errors from an attempted page load can leave the guest ready on its real
+// Chromium error document. Adapter, permission and registration failures remain fatal.
+const pageNavigationCode = error => `${error?.code ?? ''} ${error?.message ?? ''}`
+  .match(/\bERR_(?:CONNECTION_[A-Z_]+|NAME_NOT_RESOLVED|INTERNET_DISCONNECTED|ADDRESS_(?:UNREACHABLE|INVALID)|NETWORK_CHANGED|TIMED_OUT|EMPTY_RESPONSE|HTTP_RESPONSE_CODE_FAILURE|SSL_[A-Z_]+|CERT_[A-Z_]+|ABORTED)\b/u)?.[0];
+const sameNavigationURL = (left, right) => {
+  if (left === right) return true;
+  try { return new URL(left).href === new URL(right).href; } catch { return false; }
+};
+
 /** Translates REA's browser service into DSH's approved Electron guest leases. */
 export function createReaBrowserHost({ desktop, transport, client, sidebar, openSession, settings, history, downloads, deliverAnnotations, deliverScreenshot, createExtensionTab, focusSurface, openExternal, isPagePresented }) {
   const editorListeners = new Set(), pageListeners = new Set(), retainedPages = new Map(), cursorMoves = new Map(), viewportWaits = new Map();
@@ -124,14 +133,14 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
     const element = record.element;
     let metadata;
     try {
-      const url = element.getURL();
+      const url = record.state.navigationError?.url || element.getURL();
       metadata = { ...jl, ...record.state, tabType: url === 'about:blank' || url.startsWith('about:blank#') ? 'new-tab-page' : 'web', url, committedUrl: url,
         title: savedTab(keyFor(record.ids.conversationId, record.ids.browserTabId))?.customTitle || element.getTitle(),
-        isLoading: element.isLoading(), canGoBack: element.canGoBack(), canGoForward: element.canGoForward(), zoomPercent: Math.round(element.getZoomFactor() * 100),
+        isLoading: record.state.navigationError ? false : element.isLoading(), canGoBack: element.canGoBack(), canGoForward: element.canGoForward(), zoomPercent: Math.round(element.getZoomFactor() * 100),
         isAudioMuted: element.isAudioMuted(), isAudible: element.isCurrentlyAudible() };
     } catch { return; /* Guest has not reached dom-ready. */ }
     record.state = metadata;
-    if (metadata.tabType === 'web' && !metadata.isLoading) {
+    if (metadata.tabType === 'web' && !metadata.isLoading && !metadata.navigationError) {
       const key = keyFor(record.ids.conversationId, record.ids.browserTabId);
       try { persist(key, { url: metadata.url, title: metadata.title }); }
       catch (error) { console.error('OpenCU browser tab restore', error); }
@@ -497,12 +506,58 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       element.setAttribute('allowpopups', '');
       element.setAttribute('src', `about:blank#${lease.lease}`);
       const ids = { conversationId: args.conversationId, browserTabId: args.browserTabId };
-      const record = { ids, lease, host, element, state: { ...jl, ...annotationState.get(key) }, cleanup: [] };
+      const record = { ids, lease, host, element, state: { ...jl, ...annotationState.get(key) }, cleanup: [], navigationGeneration: 0 };
       let detachDownloads;
       try { detachDownloads = await downloads.attach(lease.lease); }
       catch (error) { await desktop.release(lease.lease); throw error; }
       if (disposed) { await detachDownloads?.(); await desktop.release(lease.lease); throw new Error('OpenCU browser host closed'); }
       if (detachDownloads) record.cleanup.push(detachDownloads);
+      const navigationFailed = (url, errorCode, message) => {
+        const failure = { code: 'BROWSER_NAVIGATION_FAILED', errorCode, message, url };
+        if (record.navigation) record.navigation.failed = true;
+        record.state = { ...record.state, navigationError: failure, isLoading: false };
+        emit('browser-sidebar-command-error', { ...ids, error: failure });
+        update(record);
+      };
+      const navigationStarted = event => {
+        if (event.isMainFrame === false || event.isInPlace) return;
+        record.navigation = { generation: ++record.navigationGeneration, url: event.url, completed: false, failed: false };
+        record.state = { ...record.state, navigationError: null };
+        update(record);
+      };
+      const navigationRedirected = event => {
+        if (event.isMainFrame !== false && record.navigation && !record.navigation.completed) record.navigation.url = event.url;
+      };
+      const navigationFinished = event => {
+        const navigation = record.navigation;
+        if (event.isMainFrame === false || !navigation || navigation.failed || !sameNavigationURL(navigation.url, event.url)) return;
+        navigation.completed = true;
+        record.state = { ...record.state, navigationError: null };
+      };
+      const pageLoadFailed = event => {
+        const navigation = record.navigation;
+        // A late failure from a replaced navigation or a subframe must not turn
+        // the current successful page into an error state.
+        if (event.isMainFrame === false || event.errorCode === -3 || !navigation || navigation.completed
+          || !sameNavigationURL(navigation.url, event.validatedURL)) return;
+        navigationFailed(event.validatedURL, event.errorCode, `${event.errorDescription} loading ${event.validatedURL}`);
+      };
+      for (const [event, listener] of [['did-start-navigation', navigationStarted], ['did-redirect-navigation', navigationRedirected],
+        ['did-navigate', navigationFinished], ['did-fail-load', pageLoadFailed]]) {
+        element.addEventListener(event, listener); record.cleanup.push(() => element.removeEventListener(event, listener));
+      }
+      const initialPageLoad = async (load, url) => {
+        const before = record.navigationGeneration;
+        try { await load(); }
+        catch (error) {
+          const code = pageNavigationCode(error), navigation = record.navigation;
+          if (!code || disposed || registrations.get(key) !== record) throw error;
+          const replaced = navigation && (navigation.generation > before + 1 || !sameNavigationURL(navigation.url, url));
+          if (replaced || navigation?.completed) return;
+          if (code === 'ERR_ABORTED') throw error;
+          if (!record.state.navigationError) navigationFailed(navigation?.url || url, code, `${code} loading ${navigation?.url || url}`);
+        }
+      };
       record.ready = new Promise((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Electron browser guest readiness timed out')), 15000);
         const ready = () => { clearTimeout(timeout); resolve(); };
@@ -514,10 +569,10 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
         if (desktop.permissions) await desktop.permissions(lease.lease, 'configure', { ...ids, mountGeneration: args.mountGeneration ?? 0 });
         const restore = restoreTargets.get(key);
         if (initialNavigation !== undefined) {
-          await desktop.automation(lease.lease, 'finishNavigation', {});
+          await initialPageLoad(() => desktop.automation(lease.lease, 'finishNavigation', {}), initialNavigation.entries[initialNavigation.index].url);
           initialNavigations.delete(key); restoreTargets.delete(key);
         } else if (restore) {
-          await element.loadURL(restore);
+          await initialPageLoad(() => element.loadURL(restore), restore);
           if (restoreTargets.get(key) === restore) restoreTargets.delete(key);
         }
         pendingGuests.get(key)?.resolve(record);
@@ -527,7 +582,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
         console.error('OpenCU browser guest', error);
         emit('browser-sidebar-command-error', { ...ids, error: { message: error.message } });
       });
-      let capturing;
+      let capturing, composedCapture;
       record.capture = () => {
         if (capturing) return capturing;
         Initial.AW.setTabCaptureActive(ids.conversationId, ids.browserTabId, true);
@@ -541,17 +596,25 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
           });
           const page = await element.executeJavaScript('({ scheme: getComputedStyle(document.documentElement).colorScheme, prefersDark: matchMedia("(prefers-color-scheme: dark)").matches })');
           const image = await desktop.automation(lease.lease, 'capture', {});
-          const frame = new Image(); frame.src = image.dataUrl; await frame.decode();
-          const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+          const { width, height } = image;
+          const canvas = document.createElement('canvas');
           const schemes = page.scheme.split(/\s+/u);
           canvas.style.colorScheme = schemes.includes('dark') && (!schemes.includes('light') || page.prefersDark) ? 'dark' : 'light';
           canvas.style.display = 'none'; canvas.style.color = 'Canvas'; document.body.append(canvas);
           try {
             // Nested guest captures retain alpha; resolve its default canvas without changing the page.
+            const background = getComputedStyle(canvas).color;
+            if (composedCapture?.source === image.dataUrl && composedCapture.width === width
+              && composedCapture.height === height && composedCapture.background === background) return composedCapture.result;
+            const frame = new Image(); frame.src = image.dataUrl; await frame.decode();
+            canvas.width = width; canvas.height = height;
             const context = canvas.getContext('2d', { alpha: false });
-            context.fillStyle = getComputedStyle(canvas).color; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(frame, 0, 0);
+            context.fillStyle = background; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(frame, 0, 0);
             const dataUrl = canvas.toDataURL('image/png');
-            return { toDataURL: () => dataUrl, getSize: () => ({ width: image.width, height: image.height }) };
+            const result = { toDataURL: () => dataUrl, getSize: () => ({ width, height }) };
+            // Retain one successful image per guest; all capture metadata stays on the current request.
+            composedCapture = { source: image.dataUrl, width, height, background, result };
+            return result;
           } finally { canvas.remove(); }
         })().finally(() => {
           capturing = undefined;

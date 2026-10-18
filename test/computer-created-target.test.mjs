@@ -29,3 +29,31 @@ for (const code of ["await cua.createBrowserTab('dsh-browser', 'https://example.
     assert.equal(created,1);
   });
 }
+
+test('tab visibility is explicit and unsupported options fail before creating a tab', async t => {
+  const calls = [], target = {id:'new-tab',backend:'browser',browserId:'dsh-browser',verified:true};
+  let showFails = false;
+  const computer = createComputerSession(async endpoint => {
+    calls.push(endpoint);
+    if (endpoint === 'openTarget' || endpoint === 'select') return {ok:true,target};
+    if (endpoint === 'observe') return {ok:true,observation:{id:'one',ax:{nodes:[]}}};
+    if (endpoint === 'focus' && showFails) return {ok:false,error:{code:'SHOW_FAILED',message:'Cannot show tab'}};
+    return {ok:true};
+  });
+  t.after(()=>computer.reset());
+  await computer.run({code:"await cua.createBrowserTab('dsh-browser','about:blank',{visible:false})"});
+  assert.equal(calls.includes('focus'),false);
+  calls.length = 0;
+  await computer.run({code:"await cua.createBrowserTab('dsh-browser','about:blank',{visible:true})"});
+  assert.deepEqual(calls,['openTarget','select','observe','focus']);
+  calls.length = 0;
+  await assert.rejects(computer.run({code:"await cua.createBrowserTab('dsh-browser','about:blank',{sessionName:'ignored'})"}),/sessionName/);
+  assert.deepEqual(calls,[]);
+  showFails = true;
+  await assert.rejects(computer.run({code:"await cua.createBrowserTab('dsh-browser','about:blank',{visible:true})"}), error => {
+    assert.equal(error.details.created,true);
+    assert.equal(error.details.stage,'show');
+    assert.equal(error.details.target.id,'new-tab');
+    return true;
+  });
+});

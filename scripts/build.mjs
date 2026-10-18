@@ -1,3 +1,5 @@
+import { writeFile } from 'node:fs/promises';
+import { buildExtensionZip } from '../src/extension/distribution.mjs';
 import {readdir, readFile} from 'node:fs/promises';
 import {join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -27,3 +29,5 @@ for (const file of files) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 console.log(`OpenCU ESM build: ${files.length} source modules checked; no transpilation required`);
+
+await writeFile(join(root, 'lib/extension.zip'), await buildExtensionZip(root));
