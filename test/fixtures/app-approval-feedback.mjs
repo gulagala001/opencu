@@ -16,7 +16,7 @@ export async function approvalFeedbackFixture(options = {}) {
   const calls = [], notices = [], scopeLookups = [], inputScopes = [], effects = [];
   const scopes = new Map(['A', 'B'].map(id => [id, { id }]));
   let activeSession = 'A', activeReads = 0;
-  const context = vm.createContext({ URL });
+  const context = vm.createContext({ URL, ...options.globals });
   const modules = new Map();
   const client = {
     request(method, response) {
@@ -53,7 +53,10 @@ export async function approvalFeedbackFixture(options = {}) {
     './downloads-host.mjs': { createDownloadsHost: empty },
     './browser-transport.mjs': { createBrowserTransport: () => ({ setSessionOwner: noop }) },
     './rea-browser-host.mjs': { createReaBrowserHost: () => ({ service: { available: false } }) },
-    './browser-surfaces.mjs': { createBrowserSurfaces: () => { throw new Error('unexpected desktop mount'); } },
+    './browser-surfaces.mjs': { createBrowserSurfaces: () => {
+      if (options.realClient) return { service: { available: false } };
+      throw new Error('unexpected desktop mount');
+    } },
     './rea-root.jsx': { initializeRea: noop },
     './references.mjs': { createReferences: empty },
     './settings-host.mjs': { createSettingsHost: empty },
@@ -94,6 +97,7 @@ export async function approvalFeedbackFixture(options = {}) {
     modules.set(file, module);
     await module.link(async name => {
       if (name === './rea-services.mjs' || name === './app-approval-response.mjs') return source(name.slice(2));
+      if (options.realClient && ['./host-compat.mjs', './host-target.mjs', './ipc-result.mjs', './core-client.mjs'].includes(name)) return source(name.slice(2));
       assert.ok(Object.hasOwn(stubs, name), `unexpected client import: ${name}`);
       return synthetic(name, stubs[name]);
     });
@@ -151,7 +155,7 @@ export async function approvalFeedbackFixture(options = {}) {
     request: { connectorName: 'Computer Use', appDisplayName: 'Fixture App', riskLevel: 'normal', persistModes: ['session', 'always'] },
   };
   return {
-    calls, notices, scopeLookups, inputScopes, scopes, effects, settled,
+    calls, notices, scopeLookups, inputScopes, scopes, effects, settled, services,
     service: services.computerUseSettings,
     get activeReads() { return activeReads; },
     setActiveSession(value) { activeSession = value; },

@@ -335,7 +335,18 @@ function mountClient(ctx) {
       forgetBrowser: instanceId => client.request('browserSettings/forget', { instanceId }),
       async showExtensionFiles() {
         const { path } = await client.request('extensionFiles');
-        return desktop.files('reveal', { path });
+        if (typeof path !== 'string' || !path.trim() || /[\u0000-\u001f\u007f]/.test(path) ||
+          !(path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path) || /^\\\\[^\\]+\\[^\\]+/.test(path))) {
+          throw new Error('DSH returned an invalid extension folder path.');
+        }
+        if (typeof desktop?.files !== 'function') return { path, revealed: false };
+        try {
+          const result = await desktop.files('reveal', { path });
+          if (result?.success !== true) throw new Error('The desktop did not confirm revealing the extension folder.');
+          return { path, revealed: true };
+        } catch (error) {
+          return { path, revealed: false, revealError: error?.message || 'Could not reveal the extension folder.' };
+        }
       },
       installBrowser: () => client.request('browserResources/install'),
       openPermissionSettings: permission => client.request('openPermissionSettings', { permission }),

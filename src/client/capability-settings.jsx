@@ -15,6 +15,8 @@ export function initializeCapabilities() { Ot(); xi(); initializeExtensionStatus
 export function CapabilityProvider({ children }) {
   const [state, setState] = React.useState(null), [error, setError] = React.useState(null), [readError, setReadError] = React.useState(null), [pending, setPending] = React.useState(null);
   const revision = React.useRef(0), mounted = React.useRef(true), busy = React.useRef(false);
+  const operation = React.useRef(0), folder = React.useRef(null);
+  const [extensionFolder, setExtensionFolder] = React.useState(null);
   const refresh = React.useCallback(async () => {
     const expected = ++revision.current, next = await services.capabilities.read();
     if (mounted.current && expected === revision.current) { setState(next); setReadError(null); }
@@ -36,18 +38,34 @@ export function CapabilityProvider({ children }) {
     window.addEventListener('focus', onFocus); document.addEventListener('visibilitychange', onVisibility);
     void poll();
     return () => {
-      disposed = true; mounted.current = false; revision.current++; clearTimeout(timer);
+      disposed = true; mounted.current = false; revision.current++; operation.current++; busy.current = false; folder.current = null; clearTimeout(timer);
       window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [refresh]);
   const run = async (id, action) => {
-    if (busy.current) return;
+    if (busy.current || !mounted.current) return;
+    const expected = ++operation.current, current = () => mounted.current && expected === operation.current;
     busy.current = true; revision.current++; setPending(id); setError(null);
-    try { const result = await action(); await refresh(); return result; }
-    catch (error) { if (mounted.current) setError(error.message); }
-    finally { busy.current = false; if (mounted.current) setPending(null); }
+    if (id === 'extensionFiles') { folder.current = null; setExtensionFolder(null); }
+    try {
+      const result = await action();
+      if (!current()) return;
+      if (id === 'extensionFiles') {
+        folder.current = result; setExtensionFolder(result);
+        if (result.revealError) setError(result.revealError);
+        // This read-only action does not change capabilities. Its receipt must
+        // not wait for an unrelated capability refresh before copy is usable.
+        return result;
+      }
+      try { await refresh(); }
+      catch (error) { if (current()) setReadError(error.message); }
+      return result;
+    } catch (error) { if (current()) setError(error.message); }
+    finally { if (current()) { busy.current = false; setPending(null); } }
   };
-  return <Capabilities.Provider value={{ state, error: error || readError, pending, run, refresh, retry: () => run('refresh', refresh) }}>{children}</Capabilities.Provider>;
+  return <Capabilities.Provider value={{ state, error: error || readError, pending, run, refresh, extensionFolder,
+    isCurrentFolder: value => mounted.current && folder.current === value,
+    retry: () => run('refresh', refresh) }}>{children}</Capabilities.Provider>;
 }
 
 export function useComputerSettingsInputs() {
@@ -120,11 +138,53 @@ export function useBrowserConnectionInputs() {
 }
 
 export function ConnectionInstallButton() {
-  const intl = useIntl(), { pending, run } = React.useContext(Capabilities);
-  return <Button color="secondary" size="toolbar" disabled={pending != null} loading={pending === 'extensionFiles'}
-    onClick={() => run('extensionFiles', () => services.capabilities.showExtensionFiles())}>
-    {intl.formatMessage({ id: 'opencu.capabilities.showExtensionFiles', defaultMessage: 'Show extension folder' })}
-  </Button>;
+  const intl = useIntl(), { pending, run, error, extensionFolder, isCurrentFolder } = React.useContext(Capabilities);
+  const [copyState, setCopyState] = React.useState(null);
+  const copyStatus = copyState && copyState.folder === extensionFolder ? copyState.status : null;
+  const [copyPending, setCopyPending] = React.useState(false);
+  const alive = React.useRef(true), copying = React.useRef(false), sequence = React.useRef(0), write = React.useRef(0);
+  React.useEffect(() => {
+    alive.current = true; copying.current = false; setCopyPending(false);
+    return () => { alive.current = false; sequence.current++; write.current++; copying.current = false; };
+  }, []);
+  React.useEffect(() => { sequence.current++; setCopyState(null); }, [extensionFolder]);
+  const text = (key, fallback) => intl.formatMessage({ id: `opencu.capabilities.${key}`, defaultMessage: fallback });
+  const copy = async () => {
+    if (!alive.current || copying.current || pending != null || !extensionFolder || !isCurrentFolder(extensionFolder)) return;
+    const expected = ++sequence.current, writing = ++write.current;
+    const current = () => alive.current && sequence.current === expected && isCurrentFolder(extensionFolder);
+    copying.current = true; setCopyPending(true); setCopyState({ folder: extensionFolder, status: 'pending' });
+    try {
+      const clipboard = globalThis.navigator?.clipboard;
+      if (typeof clipboard?.writeText !== 'function') throw new Error('Clipboard unavailable');
+      const confirmation = clipboard.writeText(extensionFolder.path);
+      if (!confirmation || typeof confirmation.then !== 'function') throw new Error('Clipboard confirmation unavailable');
+      if (await confirmation !== undefined) throw new Error('Clipboard write was not confirmed');
+      if (current()) setCopyState({ folder: extensionFolder, status: 'copied' });
+    } catch { if (current()) setCopyState({ folder: extensionFolder, status: 'failed' }); }
+    finally { if (write.current === writing) { copying.current = false; if (alive.current) setCopyPending(false); } }
+  };
+  return <div className="flex min-w-0 flex-col gap-2">
+    <Button color="secondary" size="toolbar" disabled={pending != null} loading={pending === 'extensionFiles'}
+      onClick={() => alive.current && run('extensionFiles', () => services.capabilities.showExtensionFiles())}>
+      {text('showExtensionFiles', 'Show extension folder')}
+    </Button>
+    {error && <p role="alert" className="m-0 text-sm text-danger">{error}</p>}
+    {extensionFolder && <div className="flex min-w-0 flex-col gap-2">
+      <label className="text-sm">{text('extensionHostPath', 'Extension folder on the DSH host')}
+        <textarea readOnly rows={3} value={extensionFolder.path} className="block w-full select-text break-all"
+          aria-label={text('extensionHostPath', 'Extension folder on the DSH host')} onFocus={event => event.currentTarget.select()} />
+      </label>
+      <p className="m-0 text-sm text-secondary">{text('extensionHostHelp', 'This path is on the machine running DSH, not a local folder on your browser\'s computer. A browser on another machine cannot load it directly. Transfer the extension files to a folder accessible to that browser; this action does not export them.')}</p>
+      {extensionFolder.revealed && <p role="status" className="m-0 text-sm">{text('extensionRevealed', 'Desktop adapter revealed the extension folder.')}</p>}
+      <Button color="secondary" size="toolbar" disabled={pending != null || copyPending} loading={copyPending} onClick={copy}>
+        {text('copyExtensionPath', 'Copy host path')}
+      </Button>
+      <p role={copyStatus === 'failed' ? 'alert' : 'status'} className="m-0 text-sm">
+        {copyStatus === 'copied' ? text('extensionPathCopied', 'Path copied.') : text('extensionPathManual', 'Select the path and copy it manually if the clipboard is unavailable or denied.')}
+      </p>
+    </div>}
+  </div>;
 }
 
 export function ConnectionStatus({ connected }) {

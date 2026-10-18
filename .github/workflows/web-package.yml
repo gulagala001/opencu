@@ -30,6 +30,8 @@ jobs:
           test/runtime-web-reconfigure.test.mjs
           test/web-browser-unavailable.test.mjs
           test/managed-headless-settings.test.mjs
+      - name: Verify extension folder settings and clipboard boundaries
+        run: node --unhandled-rejections=strict --experimental-vm-modules --test test/extension-folder.test.mjs
       - name: Verify REA extraction and bounded rebuilds
         run: node --unhandled-rejections=strict --experimental-vm-modules --test test/rea-index.test.mjs test/rea-extraction.test.mjs
       - name: Verify core controller
