@@ -18,3 +18,5 @@ jobs:
           node-version: "24"
       - run: node scripts/check-public-files.mjs
       - run: node --test test/browser-host-generation.test.mjs
+      - name: Verify approval cancellation ownership and lifecycle
+        run: node --unhandled-rejections=strict --test test/app-approval-session-cancel.test.mjs test/app-approvals-lifecycle.test.mjs
