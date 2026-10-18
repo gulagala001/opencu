@@ -94,7 +94,23 @@ function ImagePreview({ src, title, resourceAddress, sessionId, data, mediaType,
     const controller = new AbortController(); lifetime.current = controller;
     submitting.current = true; setBusy(true); setError(null);
     try {
-      const preview = await createMarkupPreview(src, document, controller.signal, image.current ?? undefined);
+      let source = src;
+      if (mediaType === 'image/svg+xml' && image.current) {
+        // Chromium cannot decode an SVG Blob with createImageBitmap. Rasterize the
+        // already loaded image before passing it to REA's original markup exporter.
+        const original = image.current, canvas = original.ownerDocument.createElement('canvas');
+        const { naturalWidth: width, naturalHeight: height } = original;
+        if (width > 0 && height > 0 && width * height <= 2e7) {
+          canvas.width = width; canvas.height = height;
+          const context = canvas.getContext('2d');
+          if (context) {
+            context.drawImage(original, 0, 0);
+            source = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+          } else source = null;
+        } else source = null;
+        controller.signal.throwIfAborted();
+      }
+      const preview = source && await createMarkupPreview(source, document, controller.signal, image.current ?? undefined);
       if (!preview) throw new Error(intl.formatMessage({ id: 'imageMarkup.prepareError', defaultMessage: 'Could not prepare markup. Try again' }));
       await deliver({ sessionId, resourceAddress, title, data, mediaType, comments: [], prompt: preview.prompt,
         markupSrc: preview.src, markupDocument: document, signal: controller.signal });

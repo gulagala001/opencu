@@ -11720,6 +11720,12 @@
       "sha256": "ad062f1aafdc03647dddfd82f2a445ff0a5c27e99a9af2ac8e777ff071550622",
       "vendor": "vendor/build-inputs/rea/ad062f1aafdc03647dddfd82f2a445ff0a5c27e99a9af2ac8e777ff071550622-browser-address-suggestion-overlay-185e242f325f.js",
       "symbols": []
+    },
+    {
+      "source": "webview/assets/sketch-6b4d12fa567e.css",
+      "sha256": "3b6946b9fc9821abd2f11ddd61d1e25b9bdc365c6e7af28524965af338bef859",
+      "vendor": "vendor/build-inputs/rea/3b6946b9fc9821abd2f11ddd61d1e25b9bdc365c6e7af28524965af338bef859-sketch-6b4d12fa567e.css",
+      "symbols": []
     }
   ]
 }

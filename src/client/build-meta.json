@@ -2723,7 +2723,7 @@
           "bytesInOutput": 7270
         },
         "src/client/rea-styles.css": {
-          "bytesInOutput": 1643400
+          "bytesInOutput": 1646471
         },
         "src/client/browser-address-slot.jsx": {
           "bytesInOutput": 1686
@@ -3056,7 +3056,7 @@
           "bytesInOutput": 1838
         },
         "src/client/image-slot.jsx": {
-          "bytesInOutput": 8231
+          "bytesInOutput": 8581
         },
         "src/client/rea/image-tools-toolbar-6d3d3fb8d826.js": {
           "bytesInOutput": 60395
@@ -3377,7 +3377,7 @@
           "bytesInOutput": 2591
         }
       },
-      "bytes": 28112467
+      "bytes": 28115888
     }
   }
 }

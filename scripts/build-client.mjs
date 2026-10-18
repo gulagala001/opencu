@@ -48,7 +48,9 @@ const originals = new Map(manifest.records.map(record => [basename(record.source
 const closure = JSON.parse(await readFile(resolve(root, 'src/client/rea/provenance.json'), 'utf8'));
 const prefixes = new Set(closure.map(record => record.file.replace(/-[a-f0-9]+\.js$/, '-')));
 const cssFiles = [...originals.keys()].filter(file => file.endsWith('.css') && [...prefixes].some(prefix => file.startsWith(prefix)));
-const styleFiles = [...new Set(['app-shared-9a94b907ed47.css', 'app-initial-99e8b4b455fa.css', 'app-primary-6a01c6b721a4.css', ...cssFiles])];
+// Markup canvases need their original overlay sizing, including on Retina displays.
+// Require this lazy component's CSS explicitly so a missing vendor entry fails the build.
+const styleFiles = [...new Set(['app-shared-9a94b907ed47.css', 'app-initial-99e8b4b455fa.css', 'app-primary-6a01c6b721a4.css', 'sketch-6b4d12fa567e.css', ...cssFiles])];
 const styles = await Promise.all(styleFiles.map(async file => {
   const record = originals.get(file);
   if (!record) throw new Error(`Missing vendored REA style: ${file}`);
