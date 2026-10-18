@@ -1,31 +1,33 @@
 # 固定发行 / Fixed Releases
 
+> **发行已撤回（2026-10-18）：** OMD 0.18.0、OpenCU 2.0.1、OMAA 0.16.0 已撤回，正在修复预设选择入口缺失。以下安装链接恢复为上一发行；main 分支改动不代表新版本已验收。已安装用户请保留数据与配置。
+
 **安装步骤 / Installation:** [简体中文](install.md) · [English](install_EN.md)
 
 安装指南提供两种方式：整段复制给 AI，或在 **插件 → 右上角「+ 添加插件」** 中粘贴固定包 URL 并安装。The guides offer two methods: copy the complete instruction to AI, or paste the fixed package URL through **Plugins → “+ Add plugin” in the top right** and click **Install**.
 
 已装 OMD，无需再装 OpenCU；请按 [OMD 中文指南](https://github.com/gulagala001/oh-my-dsh/blob/main/docs/install.md)／[OMD English guide](https://github.com/gulagala001/oh-my-dsh/blob/main/docs/install_EN.md) 更新。OMD includes OpenCU; no separate installation is needed.
 
-## 2.0.1 · DSH 0.2.1-rc.2
+## 2.0.1 已撤回 / Withdrawn
 
-修复默认审批入口、取消与输入释放、浏览器扩展恢复、共装总览，以及高分屏图像批注错位和 SVG 导出。rc.1 与 rc.2 均提供对应新包。
+本次默认审批、浏览器恢复、共装总览及图像批注修复暂不分发。下面恢复为上一版 2.0.0 的固定下载，不代表这些修复已进入旧包。
 
-Fixes visible approval, cancellation and input release, browser extension recovery, shared overview rendering, high-DPI image markup alignment and SVG export. Separate updated packages are provided for rc.1 and rc.2.
+The 2.0.1 release is withdrawn. Downloads below point to the previous 2.0.0 assets, which do not acquire later fixes.
 
 ## 按实际 DSH 完整版本下载 / Match the exact DSH version
 
 | DSH | OpenCU | 固定包 / Fixed package | 发行页 / Release |
 | --- | --- | --- | --- |
-| `0.2.1-rc.1` | `2.0.1-dsh.0.2.1-rc.1` | [opencu-2.0.1-dsh.0.2.1-rc.1.tgz](https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.1/opencu-2.0.1-dsh.0.2.1-rc.1.tgz) | [rc.1](https://github.com/gulagala001/opencu/releases/tag/v2.0.1-dsh.0.2.1-rc.1) |
-| `0.2.1-rc.2` | `2.0.1-dsh.0.2.1-rc.2` | [opencu-2.0.1-dsh.0.2.1-rc.2.tgz](https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.2/opencu-2.0.1-dsh.0.2.1-rc.2.tgz) | [rc.2](https://github.com/gulagala001/opencu/releases/tag/v2.0.1-dsh.0.2.1-rc.2) |
+| `0.2.1-rc.1` | `2.0.0-dsh.0.2.1-rc.1` | [opencu-2.0.0-dsh.0.2.1-rc.1.tgz](https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/opencu-2.0.0-dsh.0.2.1-rc.1.tgz) | [rc.1](https://github.com/gulagala001/opencu/releases/tag/v2.0.0-dsh.0.2.1-rc.1) |
+| `0.2.1-rc.2` | `2.0.0-dsh.0.2.1-rc.2` | [opencu-2.0.0-dsh.0.2.1-rc.2.tgz](https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.2/opencu-2.0.0-dsh.0.2.1-rc.2.tgz) | [rc.2](https://github.com/gulagala001/opencu/releases/tag/v2.0.0-dsh.0.2.1-rc.2) |
 
 `0.2.1-rc.1`、`0.2.1-rc.2` 与 `0.2.0-rc.*` 不可混用。These builds are not interchangeable and do not target `0.2.0-rc.*`.
 
 | 附件 / Asset | rc.1 | rc.2 | 用途 / Purpose |
 | --- | --- | --- | --- |
-| `host-adapters.zip` | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.1/host-adapters.zip) | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.2/host-adapters.zip) | 宿主适配源码材料，非完整安装器 / Host source adapters, not a complete installer |
-| `metadata.json` | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.1/metadata.json) | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.2/metadata.json) | 该固定发行的版本信息 / Version information for that fixed Release |
-| `SHA256SUMS` | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.1/SHA256SUMS) | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.2/SHA256SUMS) | 下载文件校验值 / Download checksums |
+| `host-adapters.zip` | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/host-adapters.zip) | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.2/host-adapters.zip) | 宿主适配源码材料，非完整安装器 / Host source adapters, not a complete installer |
+| `metadata.json` | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/metadata.json) | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.2/metadata.json) | 该固定发行的版本信息 / Version information for that fixed Release |
+| `SHA256SUMS` | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/SHA256SUMS) | [下载 / Download](https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.2/SHA256SUMS) | 下载文件校验值 / Download checksums |
 
 ## 插件与完整界面的区别 / Plugin versus full UI
 
@@ -45,4 +47,4 @@ For upgrades, retain the original profile, `DSH_HOME` and data directory. Back u
 
 ## 市场同步记录（2026-10-18）
 
-[Awesome DSH Plugin 投稿／更新](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/7930)：本次投稿待审。本次维护同一仓库条目，向共用该数据源的下游不重复投稿。自动发现 topics 已配置，市场同步与外部审核尚未确认完成；当前安装请使用上方固定 Release 地址。
+[Awesome DSH Plugin 投稿／更新](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/7930)：本次新版投稿／更新已撤回，等待修复后重新评估。已有旧条目不受影响；不宣称新版已收录。
