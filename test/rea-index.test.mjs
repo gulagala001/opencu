@@ -39,3 +39,18 @@ test('nonflat declarations keep module-level bindings and exclude inner shadows'
   assert.deepEqual(result.owners, [['init', ['init']], ['A', ['init']]]);
   assert.deepEqual(result.initializers, ['init']);
 });
+
+test('destructuring writes retain every module binding and lazy initializer owner', () => {
+  const source = 'var state, other, rest; function boot(){return(boot=lazy(()=>{({value:state,nested:[other=1],...rest}=next());}))();}';
+  const result = index(source);
+  assert.deepEqual(result.owners, [['boot', ['boot']], ['state', ['boot']], ['other', ['boot']], ['rest', ['boot']]]);
+  assert.deepEqual(result.initializers, ['boot']);
+  assert.deepEqual(result, index(source + '{}'));
+});
+
+test('destructuring distinguishes module targets, member roots, defaults and local shadows', () => {
+  const source = 'var state, object; const boot=lazy(()=>{let shadow; [state,{value:shadow},object.value]=next();}); function local(state){({state}=next());}';
+  const result = index(source);
+  assert.deepEqual(result.owners, [['state', ['boot']], ['object', ['boot']]]);
+  assert.deepEqual(result, index(source + '{}'));
+});

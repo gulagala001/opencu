@@ -4,7 +4,7 @@ import { dirname, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dependencyRequire } from './dependencies.mjs';
-import { indexReaModule } from './rea-index.mjs';
+import { assignmentTargets, indexReaModule } from './rea-index.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = dependencyRequire();
@@ -18,6 +18,20 @@ const originals = new Map(manifest.records.map(record => [basename(record.source
 const modules = new Map();
 const overrides = JSON.parse(await readFile(resolve(root, 'src/client/rea-boundaries.json'), 'utf8'));
 const boundary = (file, name) => Object.hasOwn(overrides, file) && Object.hasOwn(overrides[file], name) ? overrides[file][name] : undefined;
+// Rebuild one existing closure per process without loading every dependency AST.
+// New cross-module edges still require full extraction; only retained locals change.
+const requested = process.argv.slice(2);
+if (requested.length && (requested[0] !== '--rebuild-existing' || requested.length !== 2)) throw new Error('Usage: extract-rea.mjs [--rebuild-existing <module.js>] (one module per process)');
+const rebuild = requested.length ? new Set(requested.slice(1)) : null;
+const previous = rebuild ? JSON.parse(await readFile(resolve(root, 'src/client/rea/provenance.json'), 'utf8')) : [];
+const previousImports = new Map();
+if (rebuild) for (const file of rebuild) {
+  const prior = previous.find(record => record.file === file), original = originals.get(file);
+  if (basename(file) !== file || !prior) throw new Error(`Not an existing REA module: ${file}`);
+  if (!original || original.sha256 !== prior.sha256) throw new Error(`REA original/provenance mismatch: ${file}`);
+  const ast = parse(await readFile(resolve(root, 'src/client/rea', file), 'utf8'), { sourceType: 'module' });
+  previousImports.set(file, new Map(ast.program.body.filter(node => t.isImportDeclaration(node)).flatMap(node => node.specifiers.map(specifier => [specifier.local.name, specifier.imported?.name]))));
+}
 
 async function load(file) {
   if (modules.has(file)) return modules.get(file);
@@ -249,7 +263,7 @@ function references(node) {
   const wrapper = t.file(t.program([t.isStatement(node) ? t.cloneNode(node, true) : t.variableDeclaration('var', [t.cloneNode(node, true)])]));
   traverse(wrapper, {
     ReferencedIdentifier(p) { if (!p.scope.hasBinding(p.node.name)) names.add(p.node.name); },
-    AssignmentExpression(p) { if (t.isIdentifier(p.node.left) && !p.scope.hasBinding(p.node.left.name)) names.add(p.node.left.name); },
+    AssignmentExpression(p) { for (const name of assignmentTargets(p.node.left, t)) if (!p.scope.hasBinding(name)) names.add(name); },
   });
   referenceCache.set(node, names);
   return names;
@@ -274,7 +288,7 @@ function pieces(node) {
 function assigned(node) {
   if (assignmentCache.has(node)) return assignmentCache.get(node);
   const names = new Set();
-  traverse(t.file(t.program([t.cloneNode(node, true)])), { AssignmentExpression(p) { if (t.isIdentifier(p.node.left) && !p.scope.hasBinding(p.node.left.name)) names.add(p.node.left.name); } });
+  traverse(t.file(t.program([t.cloneNode(node, true)])), { AssignmentExpression(p) { for (const name of assignmentTargets(p.node.left, t)) if (!p.scope.hasBinding(name)) names.add(name); } });
   assignmentCache.set(node, names);
   return names;
 }
@@ -309,6 +323,7 @@ async function select(mod, name) {
   const override = boundary(mod.file, name);
   if (override) { mod.selected.add(name); changed = true; return; }
   if (mod.imports.has(name)) {
+    if (rebuild) throw new Error(`Bounded REA rebuild needs a new import; run full extraction: ${mod.file}:${name}`);
     const imported = mod.imports.get(name);
     if (!imported.file.endsWith('.js')) throw new Error(`Unsupported REA import ${imported.file}`);
     const child = await load(imported.file);
@@ -356,20 +371,35 @@ const roots = [
   ['computer-use-app-approval-request-card-82a4252ecef7.js', ['w', 'T', 'E', 'A']],
   ['browser-use-policy-site-permissions-2bd40069d7f2.js', ['Zt', 'wn']],
 ];
-for (const [file, names] of roots) { const mod = await load(file); for (const name of names) await select(mod, name); }
-const initial = await load('app-initial-c468e3fd7f91.js');
-const resourceFactories = ['uyt', 'pyt', 'JCt'].map(name => initial.defs.get(name)).filter(Boolean);
-const lazyFiles = new Set(['highlight-code-7c4c2ef3d4d8.js', 'lowlight-ac9e64ee8de6.js', 'lowlight-8c38fcddde20.js', 'wasm-7a831618ae1c.js', 'index.module-dcae5bed565a.js', 'decoder-f966011fa07a.js', 'docx-preview-8513c2dacad2.js', 'pdf-c29bb18a39db.js', 'workbook-panel-aa1c64a4a0e1.js', 'presentation-panel-2892de0b3010.js', 'workbook-a9ed5e9341c3.js', 'spreadsheet-a060a1e1b669.js', 'presentation-e38e6a3bf5bc.js', 'editor-ea825d60e97b.js']);
-for (const node of resourceFactories) for (const match of initial.source.slice(node.start, node.end).matchAll(/import\(`\.\/([^`]+)`\)/g)) lazyFiles.add(match[1]);
-for (const file of lazyFiles) {
-  const mod = await load(file);
-  for (const name of mod.exports.values()) await select(mod, name);
-  // Dynamic modules have their own top-level initialization, unlike imported lazy chunks.
-  for (const node of mod.ast.program.body) if (t.isExpressionStatement(node)) for (const name of references(node)) await select(mod, name);
+const lazyFiles = new Set();
+if (rebuild) {
+  for (const file of rebuild) {
+    const mod = await load(file);
+    for (const name of previous.find(record => record.file === file).symbols) {
+      if (!boundary(file, name) && !mod.imports.has(name) && !mod.defs.has(name)) throw new Error(`Original binding is missing: ${file}:${name}`);
+      mod.selected.add(name);
+    }
+  }
+  for (const file of JSON.parse(await readFile(resolve(root, 'src/client/rea/lazy-modules.json'), 'utf8'))) lazyFiles.add(file);
+} else {
+  for (const [file, names] of roots) { const mod = await load(file); for (const name of names) await select(mod, name); }
+  const initial = await load('app-initial-c468e3fd7f91.js');
+  const resourceFactories = ['uyt', 'pyt', 'JCt'].map(name => initial.defs.get(name)).filter(Boolean);
+  for (const file of ['highlight-code-7c4c2ef3d4d8.js', 'lowlight-ac9e64ee8de6.js', 'lowlight-8c38fcddde20.js', 'wasm-7a831618ae1c.js', 'index.module-dcae5bed565a.js', 'decoder-f966011fa07a.js', 'docx-preview-8513c2dacad2.js', 'pdf-c29bb18a39db.js', 'workbook-panel-aa1c64a4a0e1.js', 'presentation-panel-2892de0b3010.js', 'workbook-a9ed5e9341c3.js', 'spreadsheet-a060a1e1b669.js', 'presentation-e38e6a3bf5bc.js', 'editor-ea825d60e97b.js']) lazyFiles.add(file);
+  for (const node of resourceFactories) for (const match of initial.source.slice(node.start, node.end).matchAll(/import\(`\.\/([^`]+)`\)/g)) lazyFiles.add(match[1]);
+  for (const file of lazyFiles) {
+    const mod = await load(file);
+    for (const name of mod.exports.values()) await select(mod, name);
+    // Dynamic modules have their own top-level initialization, unlike imported lazy chunks.
+    for (const node of mod.ast.program.body) if (t.isExpressionStatement(node)) for (const name of references(node)) await select(mod, name);
+  }
 }
 do {
   changed = false;
-  for (const mod of modules.values()) for (const name of [...mod.selected]) if (mod.init.has(name) && !boundary(mod.file, name)) {
+  for (const mod of modules.values()) for (const name of [...mod.selected]) {
+    if (boundary(mod.file, name) || mod.imports.has(name)) continue;
+    if (rebuild && !mod.init.has(name)) for (const dependency of references(mod.defs.get(name))) await select(mod, dependency);
+    if (!mod.init.has(name)) continue;
     const node = mod.defs.get(name);
     // Retain the lazy wrapper itself and only required original initialization edges.
     const ret = node.body.body.find(t.isReturnStatement);
@@ -380,6 +410,9 @@ do {
 } while (changed);
 // Keep dynamic public names separate from the internal names used by static imports.
 const dynamicNamespaces = new Map();
+if (rebuild) for (const file of lazyFiles) {
+  if ((await readFile(resolve(root, 'src/client/rea', file), 'utf8')).includes('export const __opencuDynamicExports =')) dynamicNamespaces.set(file, []);
+}
 for (const mod of modules.values()) if (lazyFiles.has(mod.file)
   && [...mod.exports].some(([external, local]) => external !== local && mod.selected.has(external))) {
   if (mod.selected.has('__opencuDynamicExports')) throw new Error(`REA dynamic namespace name collision: ${mod.file}`);
@@ -399,7 +432,8 @@ for (const mod of modules.values()) {
     const override = boundary(mod.file, name);
     if (override) out.push(`const ${name} = ${override};`);
     else if (mod.imports.has(name)) {
-      const imp = mod.imports.get(name), child = modules.get(imp.file), local = child.exports.get(imp.name);
+      const imp = mod.imports.get(name), child = modules.get(imp.file), local = rebuild ? previousImports.get(mod.file).get(name) : child.exports.get(imp.name);
+      if (!local) throw new Error(`Missing retained REA import: ${mod.file}:${name}`);
       out.push(`import { ${local} as ${name} } from ${JSON.stringify('./' + imp.file)};`);
     } else {
       const node = mod.defs.get(name);
@@ -571,7 +605,9 @@ for (const mod of modules.values()) {
   await writeFile(resolve(root, 'src/client/rea', mod.file), output);
   provenance.push({ file: mod.file, source: originals.get(mod.file)?.vendor ?? resolve(packed, mod.file), sha256: mod.sha256, symbols: exports, lazyInitializers: [...mod.init].filter(n => mod.selected.has(n)), hostBoundaries: Object.keys(overrides[mod.file] ?? {}).filter(n => mod.selected.has(n)) });
 }
-await writeFile(resolve(root, 'vendor/build-inputs/rea/manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-await writeFile(resolve(root, 'src/client/rea/lazy-modules.json'), JSON.stringify([...lazyFiles], null, 2) + '\n');
-await writeFile(resolve(root, 'src/client/rea/provenance.json'), JSON.stringify(provenance, null, 2));
+if (!rebuild) {
+  await writeFile(resolve(root, 'vendor/build-inputs/rea/manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  await writeFile(resolve(root, 'src/client/rea/lazy-modules.json'), JSON.stringify([...lazyFiles], null, 2) + '\n');
+}
+await writeFile(resolve(root, 'src/client/rea/provenance.json'), JSON.stringify(rebuild ? previous.map(record => provenance.find(next => next.file === record.file) ?? record) : provenance, null, 2));
 console.log(`REA dependency closure: ${modules.size} chunks, ${provenance.reduce((n, r) => n + r.symbols.length, 0)} symbols`);
