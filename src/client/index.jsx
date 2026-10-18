@@ -1,6 +1,7 @@
 import { resolveDesktopBrowserHost } from './host-compat.mjs';
 import { decodeBase64 } from './base64.mjs';
 import { createCoreClient } from './core-client.mjs';
+import { createAppApprovalResponder } from './app-approval-response.mjs';
 import { sharedConfigForm, configureCapability } from './configuration.mjs';
 import { createBrowserHistoryHost } from './browser-history.mjs';
 import { createDownloadsHost } from './downloads-host.mjs';
@@ -310,7 +311,13 @@ function mountClient(ctx) {
       getAppApprovals: () => Object.assign(client.request('appApprovals/read').then(value => value.approvals), { [Symbol.dispose]() {} }),
       removeAppApproval: bundleIdentifier => Object.assign(client.request('appApprovals/remove', { bundleIdentifier }).then(value => value.approvals), { [Symbol.dispose]() {} }),
       getPendingAppApprovals: conversationId => client.request('appApprovals/pending', { conversationId }).then(value => value.requests),
-      respondAppApproval: response => client.request('appApprovals/respond', response),
+      respondAppApproval: createAppApprovalResponder({
+        request: (method, response) => client.request(method, response),
+        notify: (conversationId, message) => {
+          const scope = ctx.sessions.scope(conversationId);
+          if (scope) return ctx.conversation.input.for(scope).notify('error', message);
+        },
+      }),
     },
     clipboard: { writeText: text => navigator.clipboard.writeText(text) },
     notify(tone, message) {

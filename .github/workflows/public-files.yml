@@ -19,3 +19,5 @@ jobs:
       - run: node scripts/check-public-files.mjs
       - name: Verify native approval availability and lifecycle
         run: node --test test/desktop-approval-availability.test.mjs test/app-approvals-lifecycle.test.mjs
+      - name: Verify application approval response feedback
+        run: node --unhandled-rejections=strict --experimental-vm-modules --test test/app-approval-feedback.test.mjs
