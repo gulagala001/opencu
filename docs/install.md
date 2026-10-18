@@ -1,7 +1,5 @@
 # OpenCU 安装与升级
 
-> **发行已撤回（2026-10-18）：** OMD 0.18.0、OpenCU 2.0.1、OMAA 0.16.0 已撤回，正在修复预设选择入口缺失。以下安装链接恢复为上一发行；main 分支改动不代表新版本已验收。已安装用户请保留数据与配置。
-
 [English](install_EN.md) · [返回首页](../README.md)
 
 **已经安装 OMD？不用再装 OpenCU。** OMD 已内置；请使用 [OMD 安装与升级指南](https://github.com/gulagala001/oh-my-dsh/blob/main/docs/install.md)。
@@ -39,13 +37,13 @@ https://github.com/gulagala001/oh-my-dsh/blob/main/docs/install.md
 **DSH `0.2.1-rc.2`，复制这一整行：**
 
 ```text
-https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.2/opencu-2.0.0-dsh.0.2.1-rc.2.tgz
+https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.2/opencu-2.0.1-dsh.0.2.1-rc.2.tgz
 ```
 
 **DSH `0.2.1-rc.1`，复制这一整行：**
 
 ```text
-https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/opencu-2.0.0-dsh.0.2.1-rc.1.tgz
+https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.1/opencu-2.0.1-dsh.0.2.1-rc.1.tgz
 ```
 
 `0.2.1-rc.2` 与 `0.2.0-rc.2` 不是同一版本。其他宿主版本没有列在这里时，不要混用这些包。
@@ -65,25 +63,25 @@ https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/op
 DSH `0.2.1-rc.2` 桌面：
 
 ```sh
-dsh plugin --profile desktop add 'https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.2/opencu-2.0.0-dsh.0.2.1-rc.2.tgz'
+dsh plugin --profile desktop add 'https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.2/opencu-2.0.1-dsh.0.2.1-rc.2.tgz'
 ```
 
 DSH `0.2.1-rc.2` Web：
 
 ```sh
-dsh plugin --profile web add 'https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.2/opencu-2.0.0-dsh.0.2.1-rc.2.tgz'
+dsh plugin --profile web add 'https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.2/opencu-2.0.1-dsh.0.2.1-rc.2.tgz'
 ```
 
 DSH `0.2.1-rc.1` 桌面：
 
 ```sh
-dsh plugin --profile desktop add 'https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/opencu-2.0.0-dsh.0.2.1-rc.1.tgz'
+dsh plugin --profile desktop add 'https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.1/opencu-2.0.1-dsh.0.2.1-rc.1.tgz'
 ```
 
 DSH `0.2.1-rc.1` Web：
 
 ```sh
-dsh plugin --profile web add 'https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/opencu-2.0.0-dsh.0.2.1-rc.1.tgz'
+dsh plugin --profile web add 'https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.1/opencu-2.0.1-dsh.0.2.1-rc.1.tgz'
 ```
 
 安装完成后按上文重启相应实例，保留原启动方式和环境。CLI 运行需要 Node.js ≥22.19；桌面应用使用其附带运行时。

@@ -1,7 +1,4 @@
 <p align="center"><img src="docs/images/opencu-hero-zh.jpg" alt="OpenCU — 让 AI 动手，让你始终在场。" width="100%" /></p>
-
-> **发行已撤回（2026-10-18）：** OMD 0.18.0、OpenCU 2.0.1、OMAA 0.16.0 已撤回，正在修复预设选择入口缺失。以下安装链接恢复为上一发行；main 分支改动不代表新版本已验收。已安装用户请保留数据与配置。
-
 <h1 align="center">OpenCU</h1>
 <p align="center"><strong>电脑与浏览器操作，直接发生在 DSH 对话里。</strong></p>
 <p align="center">真实页面 · 后台优先 · 轻量监看 · 批注协作</p>

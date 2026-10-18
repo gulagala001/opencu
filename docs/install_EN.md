@@ -1,7 +1,5 @@
 # Install and upgrade OpenCU
 
-> **Release withdrawn (2026-10-18):** OMD 0.18.0, OpenCU 2.0.1 and OMAA 0.16.0 have been withdrawn while a missing preset selector is investigated. The links below point to previous releases; main-branch changes are not a new verified release. Existing users should keep their data and settings.
-
 [简体中文](install.md) · [Home](../README_EN.md)
 
 **Already using OMD? Do not install OpenCU separately.** OMD includes it. Follow the [OMD installation and upgrade guide](https://github.com/gulagala001/oh-my-dsh/blob/main/docs/install_EN.md).
@@ -39,13 +37,13 @@ You may install or upgrade the matching plugin and restart the affected DSH inst
 **DSH `0.2.1-rc.2`: copy this entire line:**
 
 ```text
-https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.2/opencu-2.0.0-dsh.0.2.1-rc.2.tgz
+https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.2/opencu-2.0.1-dsh.0.2.1-rc.2.tgz
 ```
 
 **DSH `0.2.1-rc.1`: copy this entire line:**
 
 ```text
-https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/opencu-2.0.0-dsh.0.2.1-rc.1.tgz
+https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.1/opencu-2.0.1-dsh.0.2.1-rc.1.tgz
 ```
 
 `0.2.1-rc.2` and `0.2.0-rc.2` are different versions. Do not use these packages with an unlisted host.
@@ -65,25 +63,25 @@ Use the target DSH's bundled CLI or the same CLI that starts your existing Web s
 DSH `0.2.1-rc.2` desktop:
 
 ```sh
-dsh plugin --profile desktop add 'https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.2/opencu-2.0.0-dsh.0.2.1-rc.2.tgz'
+dsh plugin --profile desktop add 'https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.2/opencu-2.0.1-dsh.0.2.1-rc.2.tgz'
 ```
 
 DSH `0.2.1-rc.2` Web:
 
 ```sh
-dsh plugin --profile web add 'https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.2/opencu-2.0.0-dsh.0.2.1-rc.2.tgz'
+dsh plugin --profile web add 'https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.2/opencu-2.0.1-dsh.0.2.1-rc.2.tgz'
 ```
 
 DSH `0.2.1-rc.1` desktop:
 
 ```sh
-dsh plugin --profile desktop add 'https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/opencu-2.0.0-dsh.0.2.1-rc.1.tgz'
+dsh plugin --profile desktop add 'https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.1/opencu-2.0.1-dsh.0.2.1-rc.1.tgz'
 ```
 
 DSH `0.2.1-rc.1` Web:
 
 ```sh
-dsh plugin --profile web add 'https://github.com/gulagala001/opencu/releases/download/v2.0.0-dsh.0.2.1-rc.1/opencu-2.0.0-dsh.0.2.1-rc.1.tgz'
+dsh plugin --profile web add 'https://github.com/gulagala001/opencu/releases/download/v2.0.1-dsh.0.2.1-rc.1/opencu-2.0.1-dsh.0.2.1-rc.1.tgz'
 ```
 
 Restart the corresponding instance as described above, keeping its launch method and environment. The CLI needs Node.js ≥22.19; desktop uses its bundled runtime.
