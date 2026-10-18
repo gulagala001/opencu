@@ -2,6 +2,13 @@ import { ue as chinese, de as initializeChinese } from './rea/zh-CN-b05cfd55c534
 
 initializeChinese();
 const english = Object.freeze({
+  'opencu.capabilities.downloadExtension': "Download extension ZIP",
+  'opencu.capabilities.cancelExtensionDownload': "Cancel download",
+  'opencu.capabilities.extensionDownloadHelp': "Download to this browser’s computer. Extract the ZIP into a permanent local folder, then use Load unpacked in Chrome or Edge and select the folder containing manifest.json. Downloading across machines does not make loopback pairing reachable; existing connection restrictions still apply.",
+  'opencu.capabilities.extensionDownloadStarted': "Extension ZIP download started. Check your browser downloads.",
+  'opencu.capabilities.extensionDownloadCancelled': "Download cancelled.",
+  'opencu.capabilities.extensionDownloadPending': "Preparing extension ZIP…",
+
   'opencu.capabilities.extensionHostPath': "Extension folder on the DSH host",
   'opencu.capabilities.extensionHostHelp': "This path is on the machine running DSH. If your browser is on another machine, first copy the extension files to a local folder on that machine. This action does not export the files.",
   'opencu.capabilities.extensionRevealed': "Desktop adapter revealed the extension folder.",
@@ -27,6 +34,13 @@ const english = Object.freeze({
   'thread.browser.siteAnnotationPermission.summaryWithDomain': 'Annotation mode lets you leave comments for the AI on the page. {domain} can suggest comments and add context but cannot read or submit your prompts.',
 });
 const zh = Object.freeze({ ...chinese, ...english,
+  'opencu.capabilities.downloadExtension': "下载扩展 ZIP",
+  'opencu.capabilities.cancelExtensionDownload': "取消下载",
+  'opencu.capabilities.extensionDownloadHelp': "下载到当前浏览器所在电脑。请将 ZIP 解压到长期保留的本地目录，在 Chrome 或 Edge 中使用“加载已解压的扩展程序”，选择包含 manifest.json 的文件夹。跨机器下载不代表 loopback 配对地址可达；现有连接限制仍然适用。",
+  'opencu.capabilities.extensionDownloadStarted': "扩展 ZIP 已开始下载，请查看浏览器下载列表。",
+  'opencu.capabilities.extensionDownloadCancelled': "下载已取消。",
+  'opencu.capabilities.extensionDownloadPending': "正在准备扩展 ZIP…",
+
   'opencu.textAnnotation.annotate': '批注',
   'opencu.browser.rendererExited': '网页进程已退出，请刷新页面后继续。',
   'opencu.monitor.windowRequired': '选择具体应用窗口后即可显示预览。',

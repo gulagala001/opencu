@@ -1,3 +1,4 @@
+import { downloadExtensionZip } from './extension-download.mjs';
 import { resolveDesktopBrowserHost } from './host-compat.mjs';
 import { decodeBase64 } from './base64.mjs';
 import { createCoreClient } from './core-client.mjs';
@@ -326,6 +327,7 @@ function mountClient(ctx) {
       else console.error('OpenCU settings', message);
     },
     capabilities: {
+      downloadExtension: signal => downloadExtensionZip(signal),
       async read() { return { ...await client.request('capabilities'), inAppBrowser: host.service.available, desktopAdapterError }; },
       configure: (key, enabled) => configureCapability(capabilitiesConfig, key, enabled),
       openConfiguration: () => openSettings('/settings/computer-use'),

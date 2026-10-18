@@ -139,13 +139,14 @@ export function useBrowserConnectionInputs() {
 
 export function ConnectionInstallButton() {
   const intl = useIntl(), { pending, run, error, extensionFolder, isCurrentFolder } = React.useContext(Capabilities);
+  const [downloadState, setDownloadState] = React.useState(null), download = React.useRef(null);
   const [copyState, setCopyState] = React.useState(null);
   const copyStatus = copyState && copyState.folder === extensionFolder ? copyState.status : null;
   const [copyPending, setCopyPending] = React.useState(false);
   const alive = React.useRef(true), copying = React.useRef(false), sequence = React.useRef(0), write = React.useRef(0);
   React.useEffect(() => {
     alive.current = true; copying.current = false; setCopyPending(false);
-    return () => { alive.current = false; sequence.current++; write.current++; copying.current = false; };
+    return () => { download.current?.abort(); download.current = null; alive.current = false; sequence.current++; write.current++; copying.current = false; };
   }, []);
   React.useEffect(() => { sequence.current++; setCopyState(null); }, [extensionFolder]);
   const text = (key, fallback) => intl.formatMessage({ id: `opencu.capabilities.${key}`, defaultMessage: fallback });
@@ -164,6 +165,17 @@ export function ConnectionInstallButton() {
     } catch { if (current()) setCopyState({ folder: extensionFolder, status: 'failed' }); }
     finally { if (write.current === writing) { copying.current = false; if (alive.current) setCopyPending(false); } }
   };
+  const startDownload = async () => {
+    if (!alive.current || download.current) return;
+    const controller = new AbortController(); download.current = controller; setDownloadState({ status: 'pending' });
+    try {
+      await services.capabilities.downloadExtension(controller.signal);
+      if (alive.current && !controller.signal.aborted && download.current === controller) setDownloadState({ status: 'started' });
+    } catch (error) {
+      if (alive.current && download.current === controller) setDownloadState(controller.signal.aborted ? { status: 'cancelled' } : { status: 'failed', error: error.message });
+    } finally { if (download.current === controller) download.current = null; }
+  };
+  const cancelDownload = () => { download.current?.abort(); if (alive.current) setDownloadState({ status: 'cancelled' }); };
   return <div className="flex min-w-0 flex-col gap-2">
     <Button color="secondary" size="toolbar" disabled={pending != null} loading={pending === 'extensionFiles'}
       onClick={() => alive.current && run('extensionFiles', () => services.capabilities.showExtensionFiles())}>
@@ -184,6 +196,14 @@ export function ConnectionInstallButton() {
         {copyStatus === 'copied' ? text('extensionPathCopied', 'Path copied.') : text('extensionPathManual', 'Select the path and copy it manually if the clipboard is unavailable or denied.')}
       </p>
     </div>}
+    <Button color="secondary" size="toolbar" disabled={downloadState?.status === 'pending'} loading={downloadState?.status === 'pending'} onClick={startDownload}>
+      {text('downloadExtension', 'Download extension ZIP')}
+    </Button>
+    {downloadState?.status === 'pending' && <Button color="secondary" size="toolbar" onClick={cancelDownload}>{text('cancelExtensionDownload', 'Cancel download')}</Button>}
+    <p className="m-0 text-sm text-secondary">{text('extensionDownloadHelp', 'Download to this browser’s computer. Extract the ZIP into a permanent local folder, then use Load unpacked in Chrome or Edge and select the folder containing manifest.json. Downloading across machines does not make loopback pairing reachable; existing connection restrictions still apply.')}</p>
+    {downloadState && <p role={downloadState.status === 'failed' ? 'alert' : 'status'} className="m-0 text-sm">
+      {downloadState.status === 'started' ? text('extensionDownloadStarted', 'Extension ZIP download started. Check your browser downloads.') : downloadState.status === 'cancelled' ? text('extensionDownloadCancelled', 'Download cancelled.') : downloadState.status === 'failed' ? downloadState.error : text('extensionDownloadPending', 'Preparing extension ZIP…')}
+    </p>}
   </div>;
 }
 

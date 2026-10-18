@@ -96,7 +96,7 @@ export async function approvalFeedbackFixture(options = {}) {
     });
     modules.set(file, module);
     await module.link(async name => {
-      if (name === './rea-services.mjs' || name === './app-approval-response.mjs') return source(name.slice(2));
+      if (name === './rea-services.mjs' || name === './app-approval-response.mjs' || name === './extension-download.mjs') return source(name.slice(2));
       if (options.realClient && ['./host-compat.mjs', './host-target.mjs', './ipc-result.mjs', './core-client.mjs'].includes(name)) return source(name.slice(2));
       assert.ok(Object.hasOwn(stubs, name), `unexpected client import: ${name}`);
       return synthetic(name, stubs[name]);

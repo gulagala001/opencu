@@ -1,0 +1,33 @@
+{
+  "repository": "deepseek-ai/deepseek-harness",
+  "commit": "687f282e8625c6b8d11ff58211a90524be2e4317",
+  "directory": "packages/client/connection/src",
+  "files": {
+    "index.ts": "33a14e80298e0a0bc7bafef515d853d13584cd2433844b3dc2a89d4980d315e1",
+    "api-path.ts": "8d420a69c9e80584818433e3d909f09e9be13bc9a9d6a5be3bb02c427c328934",
+    "rpc-host.ts": "55cd4aaf34103aba890146a8168ec88ba45c0373e55367a74d4f547ed579bcf7",
+    "rpc.ts": "74ba5632fea441a4c76de677ddeb840de51a775b42514c0908a3ef207339d94b",
+    "peer.ts": "ceba1eda231ee9554a3620607360165479078cce994f74e13df83a53a92e6cc3",
+    "browser-auth.ts": "f1ebdb9fa8706414852420393d9f34b2d604a128928a2f5852d4832ce38b45f7",
+    "connect-protocol.ts": "ebae51ec20464a50fdd5a840bda57e5660fa3f2ffbc027a93f3e96ea39f784cc",
+    "api-request-trust.ts": "879a4f497ad41355771303a5956851da04661be24b08435fe7bf13d42e1e3b9b",
+    "loopback-hostname.ts": "4c21ef048250d543659c29a4876e820e90bdeb452f424dfbdbc19f3b500efa62",
+    "http-bridge.ts": "182a668579ec5701489f54449bb4b0e63e80b77f90edc147b993b1acba4bae86",
+    "rpc-schema.ts": "4224e854bb62b0c195c5a401683322fdc69cadf2a0cf27abd3fb7690ee35ffb2",
+    "recovery-config.ts": "677ba43668fc82c7e9da4c7e79389aae9d594055f49a5073349edd38ee111d6e"
+  },
+  "gitBlobs": {
+    "index.ts": "d563cd40e83f6048dd993f297650f821f6921d62",
+    "api-path.ts": "ee54f61b0317e4a44a23aa59c6d9963ecfaf548b",
+    "rpc-host.ts": "88e7b48baa54df58392b0f1bcec6d4416cb30c7a",
+    "rpc.ts": "aec79d07285e43d9bc0659499dbec18cf0940d98",
+    "peer.ts": "397839980e0c8086465176babb65958a061c7a0f",
+    "browser-auth.ts": "5c8594df6f6c8269dfef5db1faebe4da3f9e9f26",
+    "connect-protocol.ts": "4c0efe8cabc234bc8a2d5aba879a61901fc3f40c",
+    "api-request-trust.ts": "a2fb78ec6cf56bf56a3b0ae8e39e066b7fb69578",
+    "loopback-hostname.ts": "fe2fe93fc9669cb3023ce332abe0cfbccccb1792",
+    "http-bridge.ts": "61d89c01276d0d2f83c62fa07f347382efe6218b",
+    "rpc-schema.ts": "dc919a8187f45670abcdbfefed4342faf5b9036a",
+    "recovery-config.ts": "80f4b1d8cca2ecf396bbf1360f63fbb1779348f0"
+  }
+}

@@ -19,7 +19,9 @@ export async function extensionFolderFixture(options = {}) {
   const clipboard = options.clipboard === undefined ? { writeText: async value => { copied.push(value); } } : options.clipboard;
   const globals = { AbortController, AbortSignal, navigator: { clipboard },
     ...(options.browser === undefined ? {} : { dshDesktop: { browser: options.browser } }),
+    ...options.globals,
     fetch: async (_url, request) => {
+      if (request.method !== 'POST') { requests.push({ url: _url, method: request.method, signal: request.signal, credentials: request.credentials }); return options.downloadFetch(_url, request); }
       const { method, args } = JSON.parse(request.body); requests.push({ method, args });
       if (method === 'extensionFiles') {
         if (options.request) return options.request();
@@ -70,7 +72,7 @@ export async function extensionFolderFixture(options = {}) {
     './rea/browser-extension-connection-status-description-fb2767d472db.js': { c: noop, f: noop },
   };
   const focusListeners = new Set();
-  const context = vm.createContext({ ...globals, window: { addEventListener: (name, callback) => { if (name === 'focus') focusListeners.add(callback); }, removeEventListener: (name, callback) => { if (name === 'focus') focusListeners.delete(callback); } }, document: { addEventListener: noop, removeEventListener: noop }, setTimeout: () => 1, clearTimeout: noop });
+  const context = vm.createContext({ ...globals, window: { addEventListener: (name, callback) => { if (name === 'focus') focusListeners.add(callback); }, removeEventListener: (name, callback) => { if (name === 'focus') focusListeners.delete(callback); } }, document: { ...options.globals?.document, addEventListener: noop, removeEventListener: noop }, setTimeout: () => 1, clearTimeout: noop });
   const { code } = await transform(await readFile(new URL('../../src/client/capability-settings.jsx', import.meta.url), 'utf8'), { loader: 'jsx', format: 'esm' });
   const module = new vm.SourceTextModule(code, { context });
   await module.link(name => {
@@ -101,6 +103,8 @@ export async function extensionFolderFixture(options = {}) {
   render(); await tick(); render();
   return { requests, copied, production, render, nodes: () => nodes(render()),
     show: () => controls()[0].props.onClick(),
+    download: () => controls().find(node => node.props.children.includes('Download extension ZIP')).props.onClick(),
+    cancelDownload: () => controls().find(node => node.props.children.includes('Cancel download')).props.onClick(),
     copy: () => { const buttons = controls(); assert(buttons[1], 'Copy button must be visible'); return buttons[1].props.onClick(); },
     value: () => { render(); return value; },
     text: () => JSON.stringify(render()),
