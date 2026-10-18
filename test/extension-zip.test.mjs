@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile, cp, mkdtemp, rm, symlink, unlink, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { buildExtensionZip, validateExtensionNames } from '../src/extension/distribution.mjs';
@@ -53,5 +54,22 @@ test('direct prepack gate rejects a stale ZIP rather than silently shipping it',
   await writeFile(join(directory, 'lib/extension.zip'), 'STALE');
   assert.throws(() => execFileSync(process.execPath, ['scripts/check-extension-distribution.mjs'], { cwd: directory, stdio: 'pipe' }), /Command failed/);
   await writeFile(join(directory, 'lib/extension.zip'), await buildExtensionZip(directory));
-  execFileSync(process.execPath, ['scripts/check-extension-distribution.mjs'], { cwd: directory });
+  execFileSync(process.execPath, ['scripts/check-extension-distribution.mjs'], { cwd: directory, stdio: 'pipe' });
+  const pkg = JSON.parse(await readFile(join(directory, 'package.json'))); pkg.scripts = { prepack: 'node scripts/check-extension-distribution.mjs' }; await writeFile(join(directory, 'package.json'), JSON.stringify(pkg));
+  const packed = JSON.parse(execFileSync('npm', ['pack', '--json'], { cwd: directory, encoding: 'utf8', env: { ...process.env, npm_config_cache: join(directory, 'npm-cache') }, stdio: ['ignore', 'pipe', 'pipe'] }));
+  assert.equal(packed.length, 1, 'prepack status must not corrupt normal npm pack JSON');
+});
+
+for (const change of ['missing zip', 'stale zip', 'missing extension', 'changed extension', 'package version']) test(`actual installed production route returns503 for ${change}`, async t => {
+  const directory = await fixture(t); await mkdir(join(directory, 'src/extension'), { recursive: true }); await mkdir(join(directory, 'lib'));
+  for (const file of ['distribution.mjs', 'distribution.json']) await cp(new URL(`src/extension/${file}`, root), join(directory, 'src/extension', file));
+  await writeFile(join(directory, 'lib/extension.zip'), await buildExtensionZip(directory));
+  if (change === 'missing zip') await unlink(join(directory, 'lib/extension.zip'));
+  if (change === 'stale zip') await writeFile(join(directory, 'lib/extension.zip'), 'stale');
+  if (change === 'missing extension') await unlink(join(directory, 'extension/manifest.json'));
+  if (change === 'changed extension') await writeFile(join(directory, 'extension/options.js'), 'stale');
+  if (change === 'package version') { const p = JSON.parse(await readFile(join(directory, 'package.json'))); p.version = 'wrong'; await writeFile(join(directory, 'package.json'), JSON.stringify(p)); }
+  const production = await import(pathToFileURL(join(directory, 'src/extension/distribution.mjs'))); let route;
+  production.registerExtensionDownload({ connection: { fetch: { register(value) { route = value; } } } });
+  for (const method of ['GET', 'HEAD']) { const response = await route.fetch(new Request('http://synthetic.invalid/api/opencu/extension.zip', { method })); assert.equal(response.status, 503); assert.equal((await response.arrayBuffer()).byteLength, 0); assert(!response.headers.has('content-disposition')); }
 });

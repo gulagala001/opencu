@@ -83,3 +83,13 @@ test('real exact dispatcher rejects nonowner, query and alternate paths without 
   for (const path of ['/api/opencu/extension.zip/secret', '/api/opencu/extension-secret.zip']) assert.equal((await f.get('GET', {}, path)).status, 404);
   assert.equal((await f.get('POST')).status, 404);
 });
+test('real HTTP disconnect aborts the registered production request and leaves later downloads usable', async t => {
+  const f = await fixture(t), record = f.ctx.connection.fetchRoutes.get('/api/opencu/extension.zip'), original = record.fetch;
+  const entered = Promise.withResolvers(), held = Promise.withResolvers();
+  record.fetch = async request => { entered.resolve(request); await held.promise; return original(request); };
+  const client = httpRequest(f.base + '/api/opencu/extension.zip', { headers: { cookie: f.cookie } });
+  client.on('error', () => {}); client.end(); const request = await entered.promise; client.destroy();
+  for (let tries = 0; tries < 100 && !request.signal.aborted; tries++) await new Promise(resolve => setTimeout(resolve, 5));
+  assert(request.signal.aborted); record.fetch = original; held.resolve();
+  assert.equal((await f.get()).status, 200);
+});

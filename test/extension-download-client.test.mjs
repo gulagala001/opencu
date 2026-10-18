@@ -50,3 +50,8 @@ test('a failed attempt can retry; downloading never triggers permissions or sess
   const f = await extensionFolderFixture({ globals: globals(saved), downloadFetch: async (_url, request) => { if (failing) throw new Error('Synthetic offline'); return response(request.method); } }); t.after(() => f.unmount());
   await f.download(); failing = false; await f.download(); assert.equal(saved.length, 1); assert(!f.requests.some(x => /permission|appApprovals/.test(x.method)));
 });
+test('explicit cancel during GET prevents saving even if the response completes late', async t => {
+  const saved = [], held = deferred(), f = await extensionFolderFixture({ globals: globals(saved), downloadFetch: (_url, request) => request.method === 'GET' ? held.promise : Promise.resolve(response(request.method)) }); t.after(() => f.unmount());
+  const pending = f.download(); await tick(); assert.equal(f.requests.filter(x => x.url).length, 2);
+  f.cancelDownload(); held.resolve(response('GET')); await pending; assert.equal(saved.length, 0); assert.match(f.text(), /Download cancelled/);
+});
