@@ -28,7 +28,7 @@ export function acquireOpenCU(ctx, { namespace = 'opencu', config = {}, getConfi
     entry = { root, leases: new Set(), tools: new Map(), config: () => config };
     entry.browserHost = createBrowserHost();
     let cursorOwner;
-    entry.runtime = createPluginRuntime({ getConfig: () => entry.config(), dshBrowser: entry.browserHost.backend,
+    entry.runtime = createPluginRuntime({ getConfig: () => entry.config(), dshBrowser: entry.browserHost.backend, onAppApprovalsChanged: () => entry.activity?.invalidate(),
       async onCursor(cursor, sessionId) {
         if (!cursor.visible) {
           const previous = cursorOwner; cursorOwner = undefined;
@@ -69,7 +69,10 @@ export function acquireOpenCU(ctx, { namespace = 'opencu', config = {}, getConfi
       if (endpoint === 'settings/read') return { ok: true, settings: await entry.preferences.read() };
       if (endpoint === 'settings/write') return { ok: true, settings: await entry.preferences.write(args.key, args.value) };
       if (endpoint.startsWith('history/')) return { ok: true, value: await entry.history.handle(endpoint.slice(8), args) };
-      if (endpoint === 'events') return entry.activity.wait(args.after, signal, { heartbeat: args.heartbeat === true, compact: args.compact === true });
+      if (endpoint === 'events') {
+        const snapshot = await entry.activity.wait(args.after, signal, { heartbeat: args.heartbeat === true, compact: args.compact === true });
+        return snapshot.unchanged ? snapshot : { ...snapshot, appApprovals: entry.runtime.pendingAppApprovals() };
+      }
       if (endpoint === 'presentation/event') return entry.presentation.event(args);
       if (endpoint.startsWith('presentation/')) return entry.presentation.handle(endpoint.slice(13), args);
       if (endpoint.startsWith('browser/')) {

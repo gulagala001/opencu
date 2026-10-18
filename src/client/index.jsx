@@ -2,6 +2,8 @@ import { downloadExtensionZip } from './extension-download.mjs';
 import { resolveDesktopBrowserHost } from './host-compat.mjs';
 import { decodeBase64 } from './base64.mjs';
 import { createCoreClient } from './core-client.mjs';
+import { createPendingAppApprovals, selectAppApproval } from './pending-app-approvals.mjs';
+import { AppApprovalSlot } from './app-approval-slot.jsx';
 import { createAppApprovalResponder } from './app-approval-response.mjs';
 import { sharedConfigForm, configureCapability } from './configuration.mjs';
 import { createBrowserHistoryHost } from './browser-history.mjs';
@@ -39,7 +41,7 @@ import { createPresentationLayout } from './presentation-layout.mjs';
 import { guestPortalStyles } from './portal-host.mjs';
 
 export const name = 'opencu/client';
-export const inject = ['connection', 'slots', 'sidebarRight', 'sidebarRightTabs', 'locale', 'conversation', 'sessions', 'inputTriggers', 'configForms', 'uiWorkspace'];
+export const inject = ['connection', 'slots', 'sidebarRight', 'sidebarRightTabs', 'locale', 'conversation', 'sessions', 'inputTriggers', 'configForms', 'uiWorkspace', 'uiSession'];
 
 const clients = globalThis[Symbol.for('opencu.shared-client.v1')] ??= new WeakMap();
 
@@ -63,6 +65,10 @@ export async function apply(ctx) {
 
 function mountClient(ctx) {
   const client = createCoreClient();
+  const publishApproval = ctx.uiSession.registerPendingInteraction(() => -1);
+  const appApprovalManager = createPendingAppApprovals({client,publish:publishApproval});
+  ctx.effect(() => () => appApprovalManager.dispose(), 'opencu: pending app approvals');
+  ctx.effect(() => ctx.slots.inject('conversation.composer', () => ctx.slots.register({name:'conversation.composer',priority:1,select:selectAppApproval}, AppApprovalSlot)), 'opencu: application approval composer');
   ctx.effect(() => {
     const unprovide = ctx.provide('opencuClient', client);
     client.start();
@@ -313,7 +319,7 @@ function mountClient(ctx) {
       removeAppApproval: bundleIdentifier => Object.assign(client.request('appApprovals/remove', { bundleIdentifier }).then(value => value.approvals), { [Symbol.dispose]() {} }),
       getPendingAppApprovals: conversationId => client.request('appApprovals/pending', { conversationId }).then(value => value.requests),
       respondAppApproval: createAppApprovalResponder({
-        request: (method, response) => client.request(method, response),
+        request: (_method, response) => appApprovalManager.respond(response),
         notify: (conversationId, message) => {
           const scope = ctx.sessions.scope(conversationId);
           if (scope) return ctx.conversation.input.for(scope).notify('error', message);

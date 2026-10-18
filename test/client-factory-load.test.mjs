@@ -128,6 +128,7 @@ for (const kind of ['classic-module-loader', 'esm-createOpenCU']) await test(kin
       conversation: {}, sessions: {}, inputTriggers: { registerSource: () => noop },
       configForms: { describe: () => observable({ view: { namespaces: [] } }), get: () => observable({ value: {} }) },
       uiWorkspace: {},
+      uiSession: { registerPendingInteraction: () => () => noop },
     };
     for (const [name, service] of Object.entries(injections)) root.provide(name, service);
     result.stage = 'real-cordis-apply';
@@ -140,16 +141,16 @@ for (const kind of ['classic-module-loader', 'esm-createOpenCU']) await test(kin
     };
     try {
       const first = root.plugin(plugin); await first;
-      assert.equal(activeSlots.size, 25); checkpoint('first-apply');
+      assert.equal(activeSlots.size, 26); checkpoint('first-apply');
       const alternate = await instantiate();
       const second = root.plugin(alternate); await second;
-      assert.equal(activeSlots.size, 25); checkpoint('second-owner');
+      assert.equal(activeSlots.size, 26); checkpoint('second-owner');
       await first.dispose();
-      assert.equal(activeSlots.size, 25); checkpoint('first-owner-disposed');
+      assert.equal(activeSlots.size, 26); checkpoint('first-owner-disposed');
       await second.dispose();
       assert.equal(activeSlots.size, 0); checkpoint('all-owners-disposed');
       const remount = root.plugin(plugin); await remount;
-      assert.equal(activeSlots.size, 25); checkpoint('remount');
+      assert.equal(activeSlots.size, 26); checkpoint('remount');
       await remount.dispose();
       assert.equal(activeSlots.size, 0); checkpoint('remount-disposed');
       result.stage = 'slots-registered';

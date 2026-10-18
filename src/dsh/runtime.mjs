@@ -44,7 +44,7 @@ export function createPluginRuntime(options = {}) {
   const files = new Map(), imageRefs = new Map();
   const sidebarDownloads = createSidebarDownloads(() => dataDir ?? resolve(getConfig().dataDir || DEFAULT_DATA_DIR));
   const deliveryFiles = createDeliveryFiles(() => dataDir ?? resolve(getConfig().dataDir || DEFAULT_DATA_DIR));
-  const appApprovals = createAppApprovals(() => dataDir ?? resolve(getConfig().dataDir || DEFAULT_DATA_DIR));
+  const appApprovals = createAppApprovals(() => dataDir ?? resolve(getConfig().dataDir || DEFAULT_DATA_DIR), () => options.onAppApprovalsChanged?.());
   let imageRegistry, startedConfig, reconfiguring;
   const configurationKey = config => JSON.stringify([config.browserEnabled, config.nativeEnabled, config.extensionEnabled, config.managedHeadless === true]);
   async function start() {
@@ -336,6 +336,7 @@ export function createPluginRuntime(options = {}) {
     }
   }
   return {
+    pendingAppApprovals: () => appApprovals.snapshot(),
     forgetSession: sessionId => appApprovals.forgetSession(sessionId),
     get dataDir() { return dataDir ?? resolve(getConfig().dataDir || DEFAULT_DATA_DIR); },
     request: (endpoint, args, context = {}) => cursorContext.run(context.sessionKey, () => request(endpoint, args, context)),

@@ -3,7 +3,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ReaProviders } from './rea-root.jsx';
 import { DeliveryCards, initializeDeliveryCards } from './delivery-cards.jsx';
-import { PermissionNotice, ApplicationPermissionNotice, initializePermissionNotice } from './permission-notice.jsx';
+import { PermissionNotice, initializePermissionNotice } from './permission-notice.jsx';
 import { xa as ToolContent, Ia } from './rea/mcp-tool-item-content-f32f64d93b42.js';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import styles from './rea-styles.css';
@@ -18,7 +18,6 @@ function ToolRoute({ sessionId, item, files }) {
         clientThreadId: `local:${sessionId}`, routeConversationId: sessionId, browserTabMentionConversationId: sessionId }}>
         <ToolContent item={item} conversationId={sessionId} hostId="local" renderMcpApps={false} />
         <PermissionNotice item={item} />
-        <ApplicationPermissionNotice sessionId={sessionId} completed={item.completed} />
         <DeliveryCards sessionId={sessionId} files={files} />
       </Shared._lt>
     </Shared._lt>
