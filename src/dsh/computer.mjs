@@ -169,7 +169,7 @@ export function createComputerSession(request) {
     const inventory = async () => (await call('targets')).targets;
     const browserAPI = browserId => ({ id: browserId, browserId, capabilities: { list: () => ['tabs'] },
       documentation: () => documentation('browser', true),
-      tabs: { list: async () => (await inventory()).filter(target => target.browserId === browserId), get: async id => select({id, browserId}), new: async url => createTab(browserId, url) },
+      tabs: { list: async () => (await call('targets', {browserId})).targets.filter(target => target.browserId === browserId), get: async id => select({id, browserId}), new: async url => createTab(browserId, url) },
       getTab: async reference => select(typeof reference === 'string' ? { id: reference, browserId } : { ...reference, browserId }),
       newTab: async url => createTab(browserId, url),
     });
@@ -188,7 +188,7 @@ export function createComputerSession(request) {
       getBrowser: async reference => {
         if (reference?.browser) await call('connectBrowser', {browser: reference.browser});
         if (String(reference?.id).startsWith('extension:')) await call('connectBrowser', {browser: reference.id});
-        const inventory = await call('targets');
+        const inventory = await call('targets', reference?.id ? {browserId: reference.id} : {});
         const list = inventory.targets.filter(target => target.backend === 'browser' && (!reference?.browser || target.provider === 'extension' && (reference.browser === 'external' || (inventory.browsers ?? []).some(browser => browser.id === target.browserId && browser.name.toLowerCase().includes(reference.browser.toLowerCase())))));
         const matches = reference?.id ? list.filter(target => target.browserId === reference.id) : reference?.url ? list.filter(target => target.url === reference.url) : list;
         const connected = (inventory.browsers ?? []).filter(browser => !browser.pairingRequired && !reference?.url && (!reference?.id || browser.id === reference.id) && (!reference?.browser || browser.provider === 'extension' && (reference.browser === 'external' || browser.name.toLowerCase().includes(reference.browser.toLowerCase()))));
