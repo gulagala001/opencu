@@ -252,22 +252,22 @@ export function BrowserConnectionControls() {
     } finally { if (pairing.current === controller) pairing.current = null; }
   };
   const steps = <Group>
-    <Row className="gap-3 max-sm:flex-col max-sm:items-stretch" label={text('installStep', '1 · Install the extension (first time only)')}
+    <Row variant="stacked" label={text('installStep', '1 · Install the extension (first time only)')}
       description={text('installStepHelp', 'Open chrome://extensions or edge://extensions, enable Developer mode, then choose Load unpacked and select the extension folder shown by this button. Already installed? Skip this step.')}
       control={<ConnectionInstallButton />} />
-    <Row className="gap-3 max-sm:flex-col max-sm:items-stretch" label={text('pairStep', '2 · Allow once, keep paired')}
+    <Row variant="stacked" label={text('pairStep', '2 · Allow once, keep paired')}
       description={<>{text('pairStepHelp', 'Click Connect browser to open the approval window now, then click Allow and remember. AI can also request it automatically. No copying or pasting is needed.')}{pairingStatus && <span className="mt-2 block" role="status">{pairingStatus}</span>}</>}
       control={state && !state.config.extensionEnabled ? action('enableExtension', text('enableExtension', 'Enable browser connections'), () => services.capabilities.configure('extensionEnabled', true))
         : <div className="flex flex-wrap items-center gap-2">{action('connectBrowser', text('pairNow', 'Connect browser'), () => connect('external'))}
           {pending === 'connectBrowser' && <Button color="secondary" size="toolbar" onClick={() => pairing.current?.abort()}>{text('pairCancel', 'Cancel')}</Button>}</div>} />
-    {choices.length > 0 && <Row className="gap-3 max-sm:flex-col max-sm:items-stretch" label={text('pairChoose', 'Choose the browser profile to connect')}
+    {choices.length > 0 && <Row variant="stacked" label={text('pairChoose', 'Choose the browser profile to connect')}
       control={<div className="flex flex-wrap items-center gap-2">{choices.map(browser => <React.Fragment key={browser.id}>{action('connectBrowser', `${browser.name} · ${browser.id.slice(-8)}`, () => connect(browser.id))}</React.Fragment>)}</div>} />}
   </Group>;
   const connected = state?.connections.length > 0;
   return <>
     {error && <Group><Row label={<span role="alert">{error}</span>} control={action('refresh', text('retry', 'Retry'), refresh)} /></Group>}
     {connected ? <Section><Section.Content><Group>
-      {state.connections.map(connection => <Row key={connection.instanceId} className="gap-3 max-sm:flex-col max-sm:items-stretch" label={connection.label}
+      {state.connections.map(connection => <Row key={connection.instanceId} variant="stacked" label={connection.label}
         description={text('connectionReady', 'Ready. Return to your conversation and ask AI to use a webpage in this browser.')}
         control={<div className="flex flex-wrap items-center gap-2">{action(connection.instanceId, text('manageConnection', 'Connection settings'), () => services.capabilities.manageConnection(connection.instanceId))}{action(`disconnect:${connection.instanceId}`, text('disconnect', 'Disconnect'), () => services.capabilities.disconnectBrowser(connection.instanceId))}{action(`forget:${connection.instanceId}`, text('forgetPairing', 'Revoke pairing'), () => services.capabilities.forgetBrowser(connection.instanceId))}</div>} />)}
     </Group></Section.Content></Section> : <Section><Section.Content>{steps}</Section.Content></Section>}
