@@ -9,6 +9,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt';
 import ToolRuntime from '@deepseek-ai/dsh-tools';
 import AttachmentStore from '@deepseek-ai/dsh-attachment';
 import plugin from '../src/dsh/index.mjs';
+import { createComputerSession } from '../src/dsh/computer.mjs';
 
 // Only physical Playwright browser/CDP objects and extension peer are synthetic.
 // Production plugin/shared/runtime/tools/computer/pairing/controller remain intact.
@@ -156,5 +157,48 @@ for (const spec of cases) test(spec.name,{timeout:10000},async()=>{
   if(spec.kind==='empty'&&!spec.end&&!spec.multiple) { assert.deepEqual(result.value.targets,[]); assert.deepEqual(result.value.errors,[]); }
  } catch(error) {record.primaryFailure={code:error.code??error.name,message:error.message};throw error;}
  finally {const cleanup=await capture(()=>f.finish());if(!cleanup.returned)record.cleanupErrorCode=cleanup.code;reports.push(record);console.log('ROUTING '+JSON.stringify(record));if(!record.primaryFailure)assert(cleanup.returned);}
+});
+test('empty-explicit-local-id-never-demands-extension', {timeout:10000}, async () => {
+ const f = await fixture('empty'), record = {case:'empty-explicit-local-id-never-demands-extension',events:f.events,cleanup:f.cleanup};
+ try {
+  await f.discover();
+  const caller = new AbortController(); let settled = false;
+  const pending = capture(() => f.invoke('computer',caller.signal,"await cua.getBrowser({id:'browser:local'})")).then(value => {settled=true;return value;});
+  const end = Date.now()+2500;
+  do {
+   const state = await f.discover();
+   if(state.requestId) {
+    record.unexpectedDemand=true; f.events.push('unexpected-demand:observed');
+    await f.post('decline',{requestId:state.requestId}); f.events.push('bounded-peer:decline'); break;
+   }
+   if(!settled) await pause(5);
+  } while(!settled&&Date.now()<end);
+  if(!settled&&!record.unexpectedDemand) { record.boundExceeded=true; caller.abort(Object.assign(new Error('Synthetic observation bound'),{code:'SYNTHETIC_BOUND'})); }
+  const result=await pending; record.returned=result.returned;record.errorCode=result.code??null;record.demandSeen=f.demandSeen;
+  assert.equal(record.boundExceeded,undefined,'explicit local rejection must settle within harness bound');
+  assert.equal(f.demandSeen,0,'explicit local ID must not create an extension pairing demand');
+  assert.equal(result.returned,false,'absent local browser must reject without choosing an extension');
+  assert.notEqual(result.code,'PAIRING_DECLINED','local rejection must not be extension rejection');
+  assert(!(await f.discover()).requestId);record.demandCleared=true;
+ } catch(error) {record.primaryFailure={code:error.code??error.name,message:error.message};throw error;}
+ finally {const cleanup=await capture(()=>f.finish());if(!cleanup.returned)record.cleanupErrorCode=cleanup.code;reports.push(record);console.log('ROUTING '+JSON.stringify(record));if(!record.primaryFailure)assert(cleanup.returned);}
+});
+test('bound-tabs-list-forwards-id-after-inventory-disappears', {timeout:5000}, async () => {
+ const requests=[],record={case:'bound-tabs-list-forwards-id-after-inventory-disappears',boundary:'real createComputerSession; recorded request boundary',cleanup:{}};
+ let reads=0;
+ const computer=createComputerSession(async (method,args)=>{
+  requests.push({method,args});
+  if(method==='targets') return ++reads===1 ? {ok:true,targets:[],browsers:[{id:'browser:local',provider:'browser',connected:true}]} : {ok:true,targets:[],browsers:[]};
+  if(method==='stop') return {ok:true};
+  throw new Error('Unexpected synthetic boundary method');
+ });
+ try {
+  const result=await computer.run({code:"var bound = await cua.getBrowser({id:'browser:local'}); await bound.tabs.list()"});
+  const inventories=requests.filter(value=>value.method==='targets');record.targetsPayloads=inventories.map(value=>value.args);
+  assert.equal(inventories.length,2);
+  assert.deepEqual(inventories[1].args,{browserId:'browser:local'},'bound tabs.list must preserve browserId after inventory disappearance');
+  assert.deepEqual(JSON.parse(result.outputs.at(-1)),[]);record.emptyTabs=true;
+ } catch(error) {record.primaryFailure={code:error.code??error.name,message:error.message};throw error;}
+ finally {const cleanup=await capture(()=>computer.close());record.cleanup.computerClosed=cleanup.returned;if(!cleanup.returned)record.cleanupErrorCode=cleanup.code;reports.push(record);console.log('ROUTING '+JSON.stringify(record));if(!record.primaryFailure)assert(cleanup.returned);}
 });
 test.after(async()=>{if(process.env.ROUTING_REPORT)await writeFile(process.env.ROUTING_REPORT,JSON.stringify(reports,null,2)+'\n');});
