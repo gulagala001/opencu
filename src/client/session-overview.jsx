@@ -105,18 +105,21 @@ export function OverviewContent({ sessionId, overview, variant = 'summary', pane
  * original styles, React context, task cards and input services remain intact. */
 export function OverviewSlot(props) {
   const host = HostReact.useRef(null), mounted = HostReact.useRef(null);
+  const [renderError, setRenderError] = HostReact.useState(null);
   HostReact.useLayoutEffect(() => {
     initializeOverview();
-    const shadow = host.current.attachShadow({ mode: 'open' });
+    const shadow = host.current.shadowRoot ?? host.current.attachShadow({ mode: 'open' });
+    shadow.replaceChildren();
     const sheet = document.createElement('style'); sheet.textContent = styles;
     const container = document.createElement('div'); container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
     shadow.append(sheet, container);
     const { portal, dispose } = createReaPortal(styles, container, 70);
-    const root = createRoot(container);
+    const root = createRoot(container, { onUncaughtError: error => setRenderError(error?.message || String(error)) });
     mounted.current = { root, portal };
-    return () => { root.unmount(); dispose(); };
+    return () => { mounted.current = null; root.unmount(); dispose(); };
   }, []);
   HostReact.useLayoutEffect(() => {
+    if (!mounted.current) return;
     const { root, portal } = mounted.current, { sessionId } = props;
     root.render(<ReaProviders portal={portal} path={`/ca/${sessionId}`}>
       <Shared._lt scope={Shared.jX} value={{ clientThreadId: `local:${sessionId}`, routeConversationId: sessionId }}>
@@ -126,6 +129,8 @@ export function OverviewSlot(props) {
       </Shared._lt>
     </ReaProviders>);
   }, [props]);
-  return HostReact.createElement('div', { ref: host, style: { minWidth: 0, width: '100%' } },
-    (props.panels ?? []).map(panel => HostReact.createElement('div', { key: panel.id, slot: panel.id }, panel.content)));
+  return HostReact.createElement(HostReact.Fragment, null,
+    renderError && HostReact.createElement('div', { role: 'alert', style: { padding: 16 } }, `会话总览加载失败：${renderError}`),
+    HostReact.createElement('div', { ref: host, style: { minWidth: 0, width: '100%' } },
+      (props.panels ?? []).map(panel => HostReact.createElement('div', { key: panel.id, slot: panel.id }, panel.content))));
 }

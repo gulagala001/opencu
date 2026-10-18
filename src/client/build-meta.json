@@ -2741,7 +2741,7 @@
           "bytesInOutput": 3637
         },
         "src/client/rea/app-shared-2f2228189a8d.js": {
-          "bytesInOutput": 6054329
+          "bytesInOutput": 6054340
         },
         "src/client/rea/panel-state-1fd21df9ae53.js": {
           "bytesInOutput": 798
@@ -3368,7 +3368,7 @@
           "bytesInOutput": 2622
         },
         "src/client/session-overview.jsx": {
-          "bytesInOutput": 9079
+          "bytesInOutput": 9402
         },
         "src/client/rea/remote-hosted-pip-anchor-bridge-173ba37b33ec.js": {
           "bytesInOutput": 3304
@@ -3377,7 +3377,7 @@
           "bytesInOutput": 2591
         }
       },
-      "bytes": 28111937
+      "bytes": 28112271
     }
   }
 }
