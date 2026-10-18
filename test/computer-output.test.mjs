@@ -4,6 +4,7 @@ import {createComputerSession} from '../src/dsh/computer.mjs';
 import {modelResult} from '../src/dsh/model-output.mjs';
 import {createObservationProjector, semanticAX} from '../src/dsh/observation-output.mjs';
 import {installToolDefinitions, renderResult, TOOLS} from '../src/dsh/tools.mjs';
+import {BROWSER_ACTIONS, errorJSON} from '../src/protocol.mjs';
 
 function fixture() {
   const target = {id:'tab-1', backend:'browser', browserId:'browser-1', verified:true};
@@ -28,6 +29,57 @@ function fixture() {
   return {target, ax, image, observation, payload, calls, request};
 }
 
+test('browser editing methods preserve IDs, exact context and literal paste contracts',async t => {
+  const f=fixture(),computer=createComputerSession(f.request);
+  t.after(()=>computer.close());
+  await computer.run({code:"var tab = await cua.getTab('tab-1')"});
+  await computer.run({code:"await tab.selectText(1,'same'); await tab.selectText('frame:field','same',{prefix:'first ',suffix:' end',selectionType:'cursor_after'}); await tab.paste(null,'**literal**',{format:'md'}); await tab.paste(1,'plain')"});
+  const actions=f.calls.filter(call=>call.endpoint==='act').map(call=>call.args);
+  assert.deepEqual(actions.map(({action,elementId,text,prefix,suffix,selectionType,format})=>({action,elementId,text,prefix,suffix,selectionType,format})),[
+    {action:'selectText',elementId:1,text:'same',prefix:undefined,suffix:undefined,selectionType:'text',format:undefined},
+    {action:'selectText',elementId:'frame:field',text:'same',prefix:'first ',suffix:' end',selectionType:'cursor_after',format:undefined},
+    {action:'paste',elementId:undefined,text:'**literal**',prefix:undefined,suffix:undefined,selectionType:undefined,format:'md'},
+    {action:'paste',elementId:1,text:'plain',prefix:undefined,suffix:undefined,selectionType:undefined,format:'text'},
+  ]);
+  assert.equal(Object.hasOwn(actions[2],'elementId'),false);
+  assert.ok(BROWSER_ACTIONS.includes('selectText'));assert.ok(BROWSER_ACTIONS.includes('paste'));
+  f.target.backend='native';
+  const native=createComputerSession(f.request);t.after(()=>native.close());
+  await native.run({code:"var app = await cua.getApp('tab-1')"});
+  assert.deepEqual((await native.run({code:'nodeRepl.write([typeof app.selectText,typeof app.paste])'})).outputs,['["undefined","undefined"]']);
+});
+
+test('browser editing invalid arguments and unsupported HTML fail before dispatch',async t => {
+  const f=fixture(),computer=createComputerSession(f.request);
+  t.after(()=>computer.close());
+  await computer.run({code:"var tab = await cua.getTab('tab-1')"});
+  for(const expression of [
+    "tab.selectText(null,'same')","tab.selectText(1,'')","tab.selectText(1,7)","tab.selectText(1,'same',null)",
+    "tab.selectText(1,'same',{prefix:7})","tab.selectText(1,'same',{suffix:null})","tab.selectText(1,'same',{selectionType:'all'})",
+    "tab.selectText(1,'same',{selectionType:null})","tab.selectText(1,'same',{unknown:true})","tab.selectText(1,'same',{},'extra')",
+    "tab.paste(undefined,'text')","tab.paste(null,7)","tab.paste(null,'text',[])","tab.paste(null,'text',{format:null})",
+    "tab.paste(null,'text',{unknown:true})","tab.paste(null,'text',{[Symbol('unknown')]:true})","tab.paste(null,'text',{},'extra')",
+  ]) await assert.rejects(computer.run({code:`await ${expression}`}),error=>error.code==='INVALID_ARGUMENT'&&error.details.inputDispatched===false,expression);
+  for(const format of ['html','rtf']) await assert.rejects(computer.run({code:`await tab.paste(1,'<strong>literal</strong>',{format:${JSON.stringify(format)}})`}),error=>error.code==='UNSUPPORTED_PASTE_FORMAT'&&error.details.inputDispatched===false);
+  assert.equal(f.calls.some(call=>call.endpoint==='act'),false);
+});
+
+test('browser editing preserves backend recovery details without replaying input',async t => {
+  const f=fixture(),computer=createComputerSession(async(endpoint,args)=>{
+    const result=await f.request(endpoint,args);
+    return endpoint==='act'&&args.action==='selectText'
+      ? args.text==='uncertain'
+        ? {ok:false,error:{code:'INPUT_UNCONFIRMED',message:'Dispatch outcome is unknown',details:{inputDispatched:true}}}
+        : {ok:false,error:{code:'AMBIGUOUS_TEXT',message:'Multiple exact matches remain',details:{inputDispatched:false,matches:2}}}:result;
+  });
+  t.after(()=>computer.close());
+  await computer.run({code:"var tab = await cua.getTab('tab-1')"});
+  await assert.rejects(computer.run({code:"await tab.selectText(1,'same')"}),error=>error.code==='AMBIGUOUS_TEXT'&&error.details.inputDispatched===false&&error.details.matches===2);
+  await assert.rejects(computer.run({code:"await tab.selectText(1,'uncertain')"}),error=>error.code==='INPUT_UNCONFIRMED'&&error.details.inputDispatched===true);
+  assert.equal(f.calls.filter(call=>call.endpoint==='act'&&call.args.action==='selectText'&&call.args.text==='same').length,1);
+  assert.equal(f.calls.filter(call=>call.endpoint==='act'&&call.args.action==='selectText'&&call.args.text==='uncertain').length,1);
+});
+
 test('real REPL emits observations once, suppresses requested output, and keeps computed results', async t => {
   const f = fixture(), computer = createComputerSession(f.request);
   t.after(() => computer.reset());
@@ -51,8 +103,54 @@ test('real REPL emits observations once, suppresses requested output, and keeps 
   assert.deepEqual((await run('await tab.click(1)')).outputs, [JSON.stringify({ok:true, result:{acknowledged:true}})]);
   assert.equal((await run('await cua.downloads.list()')).outputs.length, 1);
   assert.deepEqual((await run('await cua.downloads.list({emit:false})')).outputs, []);
+  assert.deepEqual(f.calls.filter(call=>call.endpoint==='deliveries').map(call=>call.args),[{emit:true},{emit:false}]);
   assert.deepEqual((await run('6 * 7')).outputs, ['42']);
   assert.deepEqual((await run(JSON.stringify(JSON.stringify(f.ax)))).outputs, [JSON.stringify(f.ax)]);
+});
+
+test('REPL display always produces strings for absent dialogs and non-JSON primitive values', async t => {
+  const f = fixture(), computer = createComputerSession(f.request);
+  t.after(() => computer.close());
+  await computer.run({code:"var tab = await cua.getTab('tab-1')"});
+  assert.deepEqual((await computer.run({code:'nodeRepl.write(await tab.getJsDialog())'})).outputs, ['undefined']);
+  const examples = [['undefined', 'undefined'], ['NaN', 'NaN'], ['Infinity', 'Infinity'], ['-Infinity', '-Infinity'],
+    ['-0', '-0'], ['42n', '42n'], ['function named() {}', '[Function: named]'], ["Symbol('fixture')", 'Symbol(fixture)']];
+  for (const [expression, expected] of examples) {
+    const result = await computer.run({code:`nodeRepl.write(${expression})`});
+    assert.deepEqual(result.outputs, [expected]);
+    assert.deepEqual(JSON.parse(JSON.stringify(result)), result, 'The tool result must survive a lossless JSON round trip');
+    if (expression !== 'undefined') assert.deepEqual((await computer.run({code:`(${expression})`})).outputs, [expected]);
+  }
+  assert.deepEqual((await computer.run({code:'undefined'})).outputs, [], 'An absent final expression stays silent');
+  assert.deepEqual((await computer.run({code:'nodeRepl.write({value:1, optional:undefined, method(){}})'})).outputs, ['{"value":1}']);
+  assert.match((await computer.run({code:'nodeRepl.write({value:NaN, count:2n})'})).outputs[0], /value: NaN, count: 2n/);
+});
+
+test('failed REPL batches keep completed observations in the error channel without replaying actions', async t => {
+  const f = fixture(), computer = createComputerSession((endpoint, args) => endpoint === 'act' && args.action === 'domSnapshot'
+    ? Promise.resolve({ok:false,error:{code:'DOM_BLOCKED',message:'Fixture frame observation failed',details:{scope:'fixture'}}})
+    : f.request(endpoint, args));
+  t.after(() => computer.close());
+  await computer.run({code:"var tab = await cua.getTab('tab-1')"});
+  await assert.rejects(computer.run({code:"await tab.click(1); await tab.getAXState(); await tab.getAXState({disableDiffing:true}); await tab.playwright.frameLocator('iframe').domSnapshot()"}), error => {
+    assert.equal(error.code, 'DOM_BLOCKED');
+    assert.equal(error.details.scope, 'fixture');
+    assert.equal(error.details.partialResult.ok, false);
+    assert.equal(error.details.partialResult.error.code, 'DOM_BLOCKED');
+    assert.equal(error.details.partialResult.outputs.length, 2);
+    assert.match(error.details.partialResult.outputs[1], /Save/);
+    assert.match(error.message, /Partial output produced before this failure/);
+    assert.match(error.message, /actions were not rolled back/);
+    assert.match(error.message, /Save/);
+    assert.equal(error.cause.code, 'DOM_BLOCKED');
+    const envelope = {ok:false,error:errorJSON(error)};
+    assert.deepEqual(JSON.parse(JSON.stringify(envelope)), envelope);
+    return true;
+  });
+  assert.equal(f.calls.filter(call => call.endpoint === 'act' && call.args.action === 'click').length, 1);
+  const next = await computer.run({code:'6 * 7'});
+  assert.equal(next.outputs.at(-1), '42');
+  assert.equal(next.outputs.some(value => value.includes('Save')), false, 'Partial outputs do not leak into the next cell');
 });
 
 test('discovery projects history without losing control, live inventory, or explicit access', async t => {
@@ -210,8 +308,36 @@ test('REPL restores docs without losing bindings and routes locators with curren
   assert.match((await computer.run({code:'await tab.getAXState()'})).outputs[0], /Save/);
   await assert.rejects(computer.run({code:"await tab.getAXState(); throw new Error('after-observation')"}), /after-observation/);
   const recovered=await computer.run({code:'await tab.getAXState()'});
-  assert.match(recovered.outputs[0], /OpenCU core API/);
-  assert.match(recovered.outputs.at(-1), /Save/);
+  assert.deepEqual(recovered.outputs, ['[1] button \"Save\" disabled=false']);
+  for (const options of [{code:'await cua.rewriteDocumentation()'}, {code:'tab.id',restoreDocumentation:true}]) {
+    const restored=await computer.run(options);
+    assert.equal(restored.outputs.filter(text=>text.includes('OpenCU core API')).length,1);
+    assert.equal(restored.outputs.filter(text=>text.includes('OpenCU browser API')).length,1);
+  }
+  assert.deepEqual((await computer.run({code:'tab.id'})).outputs,['tab-1']);
+});
+
+test('failed-cell documents replay once while timeout and cancellation clear loaded topics', async t => {
+  const f=fixture(),computer=createComputerSession(f.request);
+  t.after(()=>computer.close());
+  await assert.rejects(computer.run({code:"var tab = await cua.getTab('tab-1'); throw new Error('first-cell')"}),/first-cell/);
+  const recovered=await computer.run({code:'tab.id'});
+  assert.equal(recovered.outputs.filter(text=>text.includes('OpenCU core API')).length,1);
+  assert.equal(recovered.outputs.filter(text=>text.includes('OpenCU browser API')).length,1);
+  assert.deepEqual((await computer.run({code:'tab.id'})).outputs,['tab-1']);
+  await assert.rejects(computer.run({code:'await new Promise(()=>{})',timeoutMs:20}),error=>error.code==='COMPUTER_TIMEOUT');
+  const timedOut=await computer.run({code:'typeof tab'});
+  assert.equal(timedOut.outputs.filter(text=>text.includes('OpenCU core API')).length,1);
+  assert.equal(timedOut.outputs.some(text=>text.includes('OpenCU browser API')),false);
+  assert.equal(timedOut.outputs.at(-1),'undefined');
+  await computer.run({code:"var tab = await cua.getTab('tab-1')"});
+  const aborter=new AbortController(),timer=setTimeout(()=>aborter.abort(new Error('cancel-doc-cell')),20);
+  try { await assert.rejects(computer.run({code:'await new Promise(()=>{})'},aborter.signal),/cancel-doc-cell/); }
+  finally { clearTimeout(timer); }
+  const cancelled=await computer.run({code:'typeof tab'});
+  assert.equal(cancelled.outputs.filter(text=>text.includes('OpenCU core API')).length,1);
+  assert.equal(cancelled.outputs.some(text=>text.includes('OpenCU browser API')),false);
+  assert.equal(cancelled.outputs.at(-1),'undefined');
 });
 
 

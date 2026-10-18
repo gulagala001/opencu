@@ -17,14 +17,14 @@ async function original(file) {
   if (fingerprints.has(file)) return original(fingerprints.get(file));
   const record = sources.get(file);
   if (record) return { bytes: await readFile(resolve(root, record.vendor)), source: record.source, expected: record.sha256 };
-  try { return { bytes: await readFile(resolve(originalRoot, file)), source: resolve(originalRoot, file) }; }
+  try { return { bytes: await readFile(resolve(originalRoot, file)), source: `webview/assets/${file}` }; }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
-  try { return { bytes: await readFile(resolve(vendor, file)), source: resolve(vendor, file) }; }
+  try { return { bytes: await readFile(resolve(vendor, file)), source: `vendor/build-inputs/rea/assets/${file}` }; }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   const archive = process.env.OPENCU_REA_ARCHIVE;
   if (!archive) throw new Error(`Missing original REA resource ${file}; set OPENCU_REA_ARCHIVE to the matching original archive`);
   asar ??= createRequire(import.meta.url)(process.env.OPENCU_ASAR_MODULE || '@electron/asar');
-  return { bytes: asar.extractFile(archive, `webview/assets/${file}`), source: `${archive}/webview/assets/${file}` };
+  return { bytes: asar.extractFile(archive, `webview/assets/${file}`), source: `webview/assets/${file}` };
 }
 async function collect(file, expected) {
   if (file.includes('/') || file.includes('\\') || file.includes('..')) throw new Error(`Unexpected REA resource path ${file}`);

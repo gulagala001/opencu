@@ -7,6 +7,9 @@ import { createReaPortal } from './portal-host.mjs';
 import { NativeBrowserSlot } from './native-browser-slot.jsx';
 
 export function BrowserSlot(props) {
+  if (props.browserAvailable === false) return HostReact.createElement('div', {
+    role: 'status', style: { padding: '16px', whiteSpace: 'pre-wrap', lineHeight: 1.6 },
+  }, props.browserUnavailableMessage);
   return props.updateBounds ? HostReact.createElement(NativeBrowserSlot, props) : HostReact.createElement(EmbeddedBrowserSlot, props);
 }
 
@@ -19,7 +22,6 @@ function EmbeddedBrowserSlot(props) {
     const container = document.createElement('div');
     container.dataset.reaRoot = '';
     container.dataset.codexWindowType = 'electron';
-    container.dataset.theme = getComputedStyle(document.documentElement).colorScheme === 'dark' ? 'dark' : 'light';
     container.style.cssText = 'height:100%;width:100%;min-height:0;position:relative';
     shadow.append(sheet, container);
     const { dispose: disposePortal, portal: portalContainer } = createReaPortal(styles, container);

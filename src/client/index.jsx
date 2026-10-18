@@ -1,7 +1,10 @@
-import { desktopBrowserHost } from './host-compat.mjs';
+import { downloadExtensionZip } from './extension-download.mjs';
+import { resolveDesktopBrowserHost } from './host-compat.mjs';
 import { decodeBase64 } from './base64.mjs';
 import { createCoreClient } from './core-client.mjs';
-import { sharedConfigForm } from './configuration.mjs';
+import { createPendingAppApprovals, selectAppApproval } from './pending-app-approvals.mjs';
+import { createAppApprovalResponder } from './app-approval-response.mjs';
+import { sharedConfigForm, configureCapability } from './configuration.mjs';
 import { createBrowserHistoryHost } from './browser-history.mjs';
 import { createDownloadsHost } from './downloads-host.mjs';
 import { createBrowserTransport } from './browser-transport.mjs';
@@ -19,6 +22,7 @@ import { SettingsSlot } from './settings-slot.jsx';
 import { ImageSlot } from './image-slot.jsx';
 import { DocumentSlot } from './document-slot.jsx';
 import { ToolSlot } from './tool-slot.jsx';
+import { AppApprovalSlot } from './app-approval-slot.jsx';
 import { createFilesHost } from './files-host.mjs';
 import { createArtifactDocumentsHost } from './artifact-documents.mjs';
 import { createSourcesHost } from './sources-host.mjs';
@@ -37,7 +41,8 @@ import { createPresentationLayout } from './presentation-layout.mjs';
 import { guestPortalStyles } from './portal-host.mjs';
 
 export const name = 'opencu/client';
-export const inject = ['connection', 'slots', 'sidebarRight', 'sidebarRightTabs', 'locale', 'conversation', 'sessions', 'inputTriggers', 'configForms', 'uiWorkspace'];
+export { OverviewSlot } from './session-overview.jsx';
+export const inject = ['connection', 'slots', 'sidebarRight', 'sidebarRightTabs', 'locale', 'conversation', 'sessions', 'inputTriggers', 'configForms', 'uiWorkspace', 'uiSession'];
 
 const clients = globalThis[Symbol.for('opencu.shared-client.v1')] ??= new WeakMap();
 
@@ -61,12 +66,16 @@ export async function apply(ctx) {
 
 function mountClient(ctx) {
   const client = createCoreClient();
+  const publishApproval = ctx.uiSession.registerPendingInteraction(() => -1);
+  const appApprovalManager = createPendingAppApprovals({client,publish:publishApproval});
+  ctx.effect(() => () => appApprovalManager.dispose(), 'opencu: pending app approvals');
+  ctx.effect(() => ctx.slots.inject('conversation.composer', () => ctx.slots.register({name:'conversation.composer',priority:1,select:selectAppApproval}, AppApprovalSlot)), 'opencu: application approval composer');
   ctx.effect(() => {
     const unprovide = ctx.provide('opencuClient', client);
     client.start();
     return () => { client.dispose(); unprovide(); };
   }, 'opencu: core events');
-  const desktop = desktopBrowserHost();
+  const { desktop, error: desktopAdapterError } = resolveDesktopBrowserHost();
   const transport = createBrowserTransport(client, desktop);
   transport.setSessionOwner(() => [ctx.sidebarRight.mounted.getSnapshot()].filter(Boolean));
   ctx.effect(() => ctx.sidebarRight.mounted.subscribe(() => {
@@ -310,7 +319,13 @@ function mountClient(ctx) {
       getAppApprovals: () => Object.assign(client.request('appApprovals/read').then(value => value.approvals), { [Symbol.dispose]() {} }),
       removeAppApproval: bundleIdentifier => Object.assign(client.request('appApprovals/remove', { bundleIdentifier }).then(value => value.approvals), { [Symbol.dispose]() {} }),
       getPendingAppApprovals: conversationId => client.request('appApprovals/pending', { conversationId }).then(value => value.requests),
-      respondAppApproval: response => client.request('appApprovals/respond', response),
+      respondAppApproval: createAppApprovalResponder({
+        request: (_method, response) => appApprovalManager.respond(response),
+        notify: (conversationId, message) => {
+          const scope = ctx.sessions.scope(conversationId);
+          if (scope) return ctx.conversation.input.for(scope).notify('error', message);
+        },
+      }),
     },
     clipboard: { writeText: text => navigator.clipboard.writeText(text) },
     notify(tone, message) {
@@ -319,11 +334,9 @@ function mountClient(ctx) {
       else console.error('OpenCU settings', message);
     },
     capabilities: {
-      async read() { return { ...await client.request('capabilities'), inAppBrowser: host.service.available }; },
-      async configure(key, enabled) {
-        if (!['browserEnabled', 'nativeEnabled', 'extensionEnabled'].includes(key)) throw new Error('Unknown computer capability');
-        if (!await capabilitiesConfig.set(key, enabled)) throw new Error('The host did not accept the capability setting; reload settings and retry');
-      },
+      downloadExtension: signal => downloadExtensionZip(signal),
+      async read() { return { ...await client.request('capabilities'), inAppBrowser: host.service.available, desktopAdapterError }; },
+      configure: (key, enabled) => configureCapability(capabilitiesConfig, key, enabled),
       openConfiguration: () => openSettings('/settings/computer-use'),
       connectBrowser: (browser, signal) => client.request('connectBrowser', { browser, requestApproval: true }, signal),
       manageConnection: instanceId => client.request('browserSettings/open', { instanceId, section: 'connection' }),
@@ -331,7 +344,18 @@ function mountClient(ctx) {
       forgetBrowser: instanceId => client.request('browserSettings/forget', { instanceId }),
       async showExtensionFiles() {
         const { path } = await client.request('extensionFiles');
-        return desktop.files('reveal', { path });
+        if (typeof path !== 'string' || !path.trim() || /[\u0000-\u001f\u007f]/.test(path) ||
+          !(path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path) || /^\\\\[^\\]+\\[^\\]+/.test(path))) {
+          throw new Error('DSH returned an invalid extension folder path.');
+        }
+        if (typeof desktop?.files !== 'function') return { path, revealed: false };
+        try {
+          const result = await desktop.files('reveal', { path });
+          if (result?.success !== true) throw new Error('The desktop did not confirm revealing the extension folder.');
+          return { path, revealed: true };
+        } catch (error) {
+          return { path, revealed: false, revealError: error?.message || 'Could not reveal the extension folder.' };
+        }
       },
       installBrowser: () => client.request('browserResources/install'),
       openPermissionSettings: permission => client.request('openPermissionSettings', { permission }),
@@ -397,8 +421,8 @@ function mountClient(ctx) {
     };
   }, 'opencu: real browser host');
   ctx.effect(() => ctx.locale.register('opencuBrowser', {
-    zh: { title: '浏览器', description: '浏览网页', preferences: '浏览器偏好', capabilities: '电脑与浏览器', sources: '来源' },
-    en: { title: 'Browser', description: 'Browse the web', preferences: 'Browser preferences', capabilities: 'Computer and browsers', sources: 'Sources' },
+    zh: { title: '浏览器', description: '浏览网页', preferences: '浏览器偏好', capabilities: '电脑与浏览器', sources: '来源', unavailable: '当前网页没有内嵌浏览器所需的桌面适配，无法在此打开受控页面。\n请到「设置 → 电脑与浏览器」查看其他已配置的浏览器连接及其可用状态。' },
+    en: { title: 'Browser', description: 'Browse the web', preferences: 'Browser preferences', capabilities: 'Computer and browsers', sources: 'Sources', unavailable: 'This web page has no desktop adapter for the embedded browser, so controlled pages cannot open here.\nCheck Settings → Computer and browsers for other configured browser connections and their availability.' },
   }), 'opencu: browser copy');
   const browserCopy = ctx.locale.bind('opencuBrowser');
   ctx.effect(() => ctx.sidebarRightTabs.register({ id: 'opencu.sources', kind: 'opencu-sources', multiple: false,
@@ -471,6 +495,7 @@ function mountClient(ctx) {
   }, BrowserTitleSlot)), 'opencu: REA browser title and activity');
   ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
     name: 'sidebar.right.pane.tab', key: 'opencu.browser',
-    inject: sessionId => ({ sessionId, mountTab: host.mountTab, updateBounds: host.updateBounds }),
+    inject: sessionId => ({ sessionId, mountTab: host.mountTab, updateBounds: host.updateBounds,
+      browserAvailable: host.service.available, browserUnavailableMessage: browserCopy('unavailable') }),
   }, BrowserSlot)), 'opencu: REA browser body');
 }

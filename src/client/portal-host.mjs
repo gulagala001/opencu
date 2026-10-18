@@ -1,3 +1,5 @@
+import { subscribeReaTheme } from './rea-theme.mjs';
+
 const portals = new Map();
 
 /** Keep body-positioned overlays in their owning component's styled portal. */
@@ -25,17 +27,14 @@ export function createReaPortal(styles, source, zIndex = 50) {
   const portal = document.createElement('div');
   Object.assign(portal.dataset, dataset);
   portal.style.cssText = 'display:contents;pointer-events:auto';
+  const unsubscribeTheme = subscribeReaTheme(theme => {
+    if (dataset.theme !== theme) dataset.theme = theme;
+    if (portal.dataset.theme !== theme) portal.dataset.theme = theme;
+  });
   shadow.append(sheet, portal);
   document.body.append(host);
-  const syncTheme = () => {
-    const theme = getComputedStyle(document.documentElement).colorScheme === 'dark' ? 'dark' : 'light';
-    dataset.theme = theme; portal.dataset.theme = theme;
-  };
-  const theme = new MutationObserver(syncTheme), media = window.matchMedia('(prefers-color-scheme: dark)');
-  theme.observe(document.documentElement, { attributes: true });
-  media.addEventListener('change', syncTheme); syncTheme();
   if (body) portals.set(body, portal);
-  return { host, portal, dispose() { if (body) portals.delete(body); theme.disconnect(); media.removeEventListener('change', syncTheme); host.remove(); } };
+  return { host, portal, dispose() { if (body) portals.delete(body); unsubscribeTheme(); host.remove(); } };
 }
 
 export const guestPortalStyles = `
@@ -44,3 +43,18 @@ export const guestPortalStyles = `
 [data-browser-host-root]{contain:paint}
 [data-browser-sidebar-webview]>webview{display:flex;width:100%;height:100%}
 `;
+
+/** Preserve visible render failures without writing into an already disposed root. */
+export function createReaRenderFallback(container, label) {
+  let active = true;
+  return {
+    onUncaughtError(error) {
+      if (!active) return;
+      console.error(label, error);
+      const alert = document.createElement('pre'); alert.setAttribute('role', 'alert');
+      alert.style.whiteSpace = 'pre-wrap'; alert.textContent = error.stack || error.message;
+      queueMicrotask(() => { if (active) container.replaceChildren(alert); });
+    },
+    dispose() { active = false; },
+  };
+}

@@ -1,25 +1,29 @@
 {
   "inputs": [
+    "src/client/extension-download.mjs",
     "src/client/host-target.mjs",
     "src/client/ipc-result.mjs",
     "src/client/host-compat.mjs",
     "src/client/base64.mjs",
     "src/client/core-client.mjs",
+    "src/client/pending-app-approvals.mjs",
+    "src/client/app-approval-response.mjs",
     "src/client/configuration.mjs",
     "src/client/browser-history.mjs",
-    ".local/frontend-deps/node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react.production.js",
-    ".local/frontend-deps/node_modules/.pnpm/react@19.2.7/node_modules/react/index.js",
-    ".local/frontend-deps/node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react-jsx-runtime.production.js",
-    ".local/frontend-deps/node_modules/.pnpm/react@19.2.7/node_modules/react/jsx-runtime.js",
-    ".local/frontend-deps/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/cjs/react-dom.production.js",
-    ".local/frontend-deps/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/index.js",
-    ".local/frontend-deps/node_modules/.pnpm/scheduler@0.27.0/node_modules/scheduler/cjs/scheduler.production.js",
-    ".local/frontend-deps/node_modules/.pnpm/scheduler@0.27.0/node_modules/scheduler/index.js",
-    ".local/frontend-deps/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/cjs/react-dom-client.production.js",
-    ".local/frontend-deps/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/client.js",
-    ".local/frontend-deps/node_modules/.pnpm/react-compiler-runtime@1.0.0_react@19.2.7/node_modules/react-compiler-runtime/dist/index.js",
+    "node_modules/react/cjs/react.production.js",
+    "node_modules/react/index.js",
+    "node_modules/react/cjs/react-jsx-runtime.production.js",
+    "node_modules/react/jsx-runtime.js",
+    "node_modules/react-dom/cjs/react-dom.production.js",
+    "node_modules/react-dom/index.js",
+    "node_modules/scheduler/cjs/scheduler.production.js",
+    "node_modules/scheduler/index.js",
+    "node_modules/react-dom/cjs/react-dom-client.production.js",
+    "node_modules/react-dom/client.js",
+    "node_modules/react-compiler-runtime/dist/index.js",
     "src/client/rea-services.mjs",
     "src/client/document-source.mjs",
+    "src/client/rea-theme.mjs",
     "src/client/portal-host.mjs",
     "src/client/rea/rolldown-runtime-2d059c5e81f4.js",
     "src/client/rea/computer-use-app-approval-request-card-82a4252ecef7.js",
@@ -185,6 +189,8 @@
     "src/client/rea/app-shared-2f2228189a8d.js",
     "src/client/downloads-host.mjs",
     "extension/keyboard.js",
+    "extension/click-options.js",
+    "extension/key-options.js",
     "src/client/guest-driver.mjs",
     "src/client/browser-transport.mjs",
     "src/client/page-annotations-source.mjs",
@@ -361,6 +367,7 @@
     "src/client/delivery-cards.jsx",
     "src/client/permission-notice.jsx",
     "src/client/tool-slot.jsx",
+    "src/client/app-approval-slot.jsx",
     "src/client/files-host.mjs",
     "src/client/artifact-documents.mjs",
     "src/client/sources-host.mjs",
@@ -378,6 +385,8 @@
     "src/client/presentation-completion.jsx",
     "src/client/presentation-frame.jsx",
     "src/client/presentation-stack.jsx",
+    "src/client/presentation.css",
+    "src/client/session-overview.jsx",
     "src/client/presentation-slot.jsx",
     "src/client/rea/remote-hosted-pip-anchor-bridge-173ba37b33ec.js",
     "src/client/presentation-layout.mjs",
@@ -2185,6 +2194,16 @@
           "path": "react",
           "kind": "require-call",
           "external": true
+        },
+        {
+          "path": "react",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "react",
+          "kind": "require-call",
+          "external": true
         }
       ],
       "exports": [],
@@ -2193,37 +2212,37 @@
         "src/client/base64.mjs": {
           "bytesInOutput": 152
         },
-        ".local/frontend-deps/node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react.production.js": {
+        "node_modules/react/cjs/react.production.js": {
           "bytesInOutput": 8217
         },
-        ".local/frontend-deps/node_modules/.pnpm/react@19.2.7/node_modules/react/index.js": {
+        "node_modules/react/index.js": {
           "bytesInOutput": 55
         },
-        ".local/frontend-deps/node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react-jsx-runtime.production.js": {
+        "node_modules/react/cjs/react-jsx-runtime.production.js": {
           "bytesInOutput": 393
         },
-        ".local/frontend-deps/node_modules/.pnpm/react@19.2.7/node_modules/react/jsx-runtime.js": {
+        "node_modules/react/jsx-runtime.js": {
           "bytesInOutput": 55
         },
-        ".local/frontend-deps/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/cjs/react-dom.production.js": {
+        "node_modules/react-dom/cjs/react-dom.production.js": {
           "bytesInOutput": 3482
         },
-        ".local/frontend-deps/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/index.js": {
+        "node_modules/react-dom/index.js": {
           "bytesInOutput": 279
         },
-        ".local/frontend-deps/node_modules/.pnpm/scheduler@0.27.0/node_modules/scheduler/cjs/scheduler.production.js": {
+        "node_modules/scheduler/cjs/scheduler.production.js": {
           "bytesInOutput": 4086
         },
-        ".local/frontend-deps/node_modules/.pnpm/scheduler@0.27.0/node_modules/scheduler/index.js": {
+        "node_modules/scheduler/index.js": {
           "bytesInOutput": 56
         },
-        ".local/frontend-deps/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/cjs/react-dom-client.production.js": {
+        "node_modules/react-dom/cjs/react-dom-client.production.js": {
           "bytesInOutput": 196959
         },
-        ".local/frontend-deps/node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/client.js": {
+        "node_modules/react-dom/client.js": {
           "bytesInOutput": 278
         },
-        ".local/frontend-deps/node_modules/.pnpm/react-compiler-runtime@1.0.0_react@19.2.7/node_modules/react-compiler-runtime/dist/index.js": {
+        "node_modules/react-compiler-runtime/dist/index.js": {
           "bytesInOutput": 6072
         },
         "src/client/rea-services.mjs": {
@@ -2232,8 +2251,11 @@
         "src/client/document-source.mjs": {
           "bytesInOutput": 318
         },
+        "src/client/rea-theme.mjs": {
+          "bytesInOutput": 843
+        },
         "src/client/portal-host.mjs": {
-          "bytesInOutput": 1753
+          "bytesInOutput": 1803
         },
         "src/client/rea/rolldown-runtime-2d059c5e81f4.js": {
           "bytesInOutput": 1404
@@ -2497,7 +2519,7 @@
           "bytesInOutput": 26651
         },
         "src/client/rea/app-initial-c468e3fd7f91.js": {
-          "bytesInOutput": 4522412
+          "bytesInOutput": 4522494
         },
         "src/client/rea/settings-loading-row-a463682dc109.js": {
           "bytesInOutput": 611
@@ -2572,7 +2594,7 @@
           "bytesInOutput": 89533
         },
         "src/client/capability-settings.jsx": {
-          "bytesInOutput": 20688
+          "bytesInOutput": 26076
         },
         "src/client/profile-settings.jsx": {
           "bytesInOutput": 5642
@@ -2608,7 +2630,7 @@
           "bytesInOutput": 3414135
         },
         "src/client/rea-locale.mjs": {
-          "bytesInOutput": 21294
+          "bytesInOutput": 28799
         },
         "src/client/rea/site-annotation-permission-dialog-5a46eeaa20cf.js": {
           "bytesInOutput": 4851
@@ -2683,7 +2705,7 @@
           "bytesInOutput": 3968
         },
         "src/client/rea/cursor-chat-2be21330f98f.js": {
-          "bytesInOutput": 13565
+          "bytesInOutput": 13612
         },
         "src/client/rea/comment-light-dismiss-70f8d7781e01.js": {
           "bytesInOutput": 950
@@ -2719,7 +2741,7 @@
           "bytesInOutput": 3637
         },
         "src/client/rea/app-shared-2f2228189a8d.js": {
-          "bytesInOutput": 6054235
+          "bytesInOutput": 6054340
         },
         "src/client/rea/panel-state-1fd21df9ae53.js": {
           "bytesInOutput": 798
@@ -2944,7 +2966,10 @@
           "bytesInOutput": 104
         },
         "src/client/index.jsx": {
-          "bytesInOutput": 21104
+          "bytesInOutput": 22653
+        },
+        "src/client/extension-download.mjs": {
+          "bytesInOutput": 1202
         },
         "src/client/host-target.mjs": {
           "bytesInOutput": 62
@@ -2953,13 +2978,19 @@
           "bytesInOutput": 214
         },
         "src/client/host-compat.mjs": {
-          "bytesInOutput": 969
+          "bytesInOutput": 1285
         },
         "src/client/core-client.mjs": {
           "bytesInOutput": 1417
         },
+        "src/client/pending-app-approvals.mjs": {
+          "bytesInOutput": 1639
+        },
+        "src/client/app-approval-response.mjs": {
+          "bytesInOutput": 327
+        },
         "src/client/configuration.mjs": {
-          "bytesInOutput": 385
+          "bytesInOutput": 781
         },
         "src/client/browser-history.mjs": {
           "bytesInOutput": 3345
@@ -2968,19 +2999,25 @@
           "bytesInOutput": 3026
         },
         "extension/keyboard.js": {
-          "bytesInOutput": 3035
+          "bytesInOutput": 4424
+        },
+        "extension/click-options.js": {
+          "bytesInOutput": 1981
+        },
+        "extension/key-options.js": {
+          "bytesInOutput": 1370
         },
         "src/client/guest-driver.mjs": {
-          "bytesInOutput": 11141
+          "bytesInOutput": 12244
         },
         "src/client/browser-transport.mjs": {
-          "bytesInOutput": 6719
+          "bytesInOutput": 6784
         },
         "src/client/rea-browser-host.mjs": {
-          "bytesInOutput": 32278
+          "bytesInOutput": 34547
         },
         "src/client/page-annotations-source.mjs": {
-          "bytesInOutput": 539910
+          "bytesInOutput": 541548
         },
         "src/client/annotation-host.mjs": {
           "bytesInOutput": 8131
@@ -2989,10 +3026,10 @@
           "bytesInOutput": 3177
         },
         "src/client/browser-surfaces.mjs": {
-          "bytesInOutput": 8793
+          "bytesInOutput": 9208
         },
         "src/client/browser-slot.jsx": {
-          "bytesInOutput": 1798
+          "bytesInOutput": 1855
         },
         "src/client/native-browser-slot.jsx": {
           "bytesInOutput": 1559
@@ -3004,7 +3041,7 @@
           "bytesInOutput": 1432
         },
         "src/client/browser-title.jsx": {
-          "bytesInOutput": 2812
+          "bytesInOutput": 2717
         },
         "src/client/references.mjs": {
           "bytesInOutput": 1922
@@ -3019,7 +3056,7 @@
           "bytesInOutput": 1838
         },
         "src/client/image-slot.jsx": {
-          "bytesInOutput": 8326
+          "bytesInOutput": 8231
         },
         "src/client/rea/image-tools-toolbar-6d3d3fb8d826.js": {
           "bytesInOutput": 60395
@@ -3133,7 +3170,7 @@
           "bytesInOutput": 428
         },
         "src/client/document-slot.jsx": {
-          "bytesInOutput": 6065
+          "bytesInOutput": 5970
         },
         "src/client/rea/docx-preview-panel-ce9d293c8160.js": {
           "bytesInOutput": 37594
@@ -3196,13 +3233,13 @@
           "bytesInOutput": 1333
         },
         "src/client/tool-slot.jsx": {
-          "bytesInOutput": 3760
+          "bytesInOutput": 3460
         },
         "src/client/delivery-cards.jsx": {
           "bytesInOutput": 2206
         },
         "src/client/rea/local-conversation-sources-side-panel-tab-ced36bc5770b.js": {
-          "bytesInOutput": 10995
+          "bytesInOutput": 10994
         },
         "src/client/rea/thread-summary-panel-components-3aba951edec7.js": {
           "bytesInOutput": 30434
@@ -3217,7 +3254,7 @@
           "bytesInOutput": 1599
         },
         "src/client/rea/mcp-tool-item-content-f32f64d93b42.js": {
-          "bytesInOutput": 59039
+          "bytesInOutput": 59038
         },
         "src/client/rea/mcp-tool-call-approval-b02f87023626.js": {
           "bytesInOutput": 2377
@@ -3268,7 +3305,10 @@
           "bytesInOutput": 446
         },
         "src/client/permission-notice.jsx": {
-          "bytesInOutput": 2422
+          "bytesInOutput": 1642
+        },
+        "src/client/app-approval-slot.jsx": {
+          "bytesInOutput": 1525
         },
         "src/client/files-host.mjs": {
           "bytesInOutput": 3279
@@ -3280,13 +3320,13 @@
           "bytesInOutput": 1397
         },
         "src/client/sources-slot.jsx": {
-          "bytesInOutput": 2033
+          "bytesInOutput": 1938
         },
         "src/client/reference-editor.mjs": {
           "bytesInOutput": 1712
         },
         "src/client/reference-editor-slot.jsx": {
-          "bytesInOutput": 2173
+          "bytesInOutput": 2078
         },
         "src/client/rea/annotation-editor-2d914a40819d.js": {
           "bytesInOutput": 3003
@@ -3295,7 +3335,7 @@
           "bytesInOutput": 3783
         },
         "src/client/text-annotation-slot.jsx": {
-          "bytesInOutput": 2330
+          "bytesInOutput": 2245
         },
         "src/client/rea/annotation-editor-8063237bdf92.js": {
           "bytesInOutput": 4101
@@ -3307,22 +3347,28 @@
           "bytesInOutput": 817
         },
         "src/client/presentation-host.mjs": {
-          "bytesInOutput": 3831
+          "bytesInOutput": 4457
         },
         "src/client/presentation-slot.jsx": {
-          "bytesInOutput": 3049
+          "bytesInOutput": 3468
         },
         "src/client/rea/local-conversation-thread-6508b6dc26ad.js": {
           "bytesInOutput": 11440
         },
         "src/client/presentation-stack.jsx": {
-          "bytesInOutput": 2989
+          "bytesInOutput": 3668
         },
         "src/client/presentation-frame.jsx": {
-          "bytesInOutput": 3523
+          "bytesInOutput": 6488
         },
         "src/client/presentation-completion.jsx": {
-          "bytesInOutput": 1649
+          "bytesInOutput": 1641
+        },
+        "src/client/presentation.css": {
+          "bytesInOutput": 2622
+        },
+        "src/client/session-overview.jsx": {
+          "bytesInOutput": 9402
         },
         "src/client/rea/remote-hosted-pip-anchor-bridge-173ba37b33ec.js": {
           "bytesInOutput": 3304
@@ -3331,7 +3377,7 @@
           "bytesInOutput": 2591
         }
       },
-      "bytes": 28065947
+      "bytes": 28112271
     }
   }
 }

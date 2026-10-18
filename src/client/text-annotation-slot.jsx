@@ -36,7 +36,7 @@ export function TextAnnotationSlot(props) {
   const value = props.useAnnotation(value => value), mounted = HostReact.useRef(null);
   HostReact.useLayoutEffect(() => {
     m(); Shared.NGi();
-    const { dispose: disposePortal, portal } = createReaPortal(styles, { reaRoot: '', codexWindowType: 'electron', theme: getComputedStyle(document.documentElement).colorScheme === 'dark' ? 'dark' : 'light' }, 70);
+    const { dispose: disposePortal, portal } = createReaPortal(styles, { reaRoot: '', codexWindowType: 'electron' }, 70);
     const mount = document.createElement('div'); portal.append(mount);
     const root = createRoot(mount, { onUncaughtError: error => props.report(error.message) }); mounted.current = { root, portal };
     return () => { root.unmount(); disposePortal(); mounted.current = null; };

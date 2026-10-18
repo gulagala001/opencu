@@ -68,6 +68,9 @@ test('runtime delivery lists commit completed prefixes on failure and reopen all
       const id = randomUUID(); await mkdir(join(downloads, id)); await writeFile(join(downloads, id, name), name);
       await runtime.request('downloads/update', { download: { id, filename: name, startedAtMs, status: 'complete', receivedBytes: Buffer.byteLength(name) } });
     }
+    const quiet = await runtime.request('deliveries', { emit: false });
+    assert.ok(quiet.deliveries.every(item => item.fileExists && !item.file && !item.deliverable));
+    assert.equal(saves, 0);
     await assert.rejects(runtime.request('deliveries', {}, { attachments }), /isolated attachment failure/);
     const index = join(directory, 'delivered-files', 'index.json');
     assert.deepEqual(Object.values(JSON.parse(await readFile(index, 'utf8'))).map(ref => ref.name), ['first.txt']);
@@ -80,5 +83,47 @@ test('runtime delivery lists commit completed prefixes on failure and reopen all
       const resolved = await runtime.request('files/resolve', item.file, { attachments });
       assert.equal(await readFile(resolved.path, 'utf8'), item.file.name);
     }
+  } finally { await runtime.close(); }
+});
+
+test('missing, changed and cold unindexed downloads preserve valid history and delivery receipts', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'opencu-delivery-history-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const config = { dataDir: directory, browserEnabled: false, nativeEnabled: false, extensionEnabled: false };
+  let runtime = createPluginRuntime(config), saves = 0;
+  const paths = new Map(), ids = new Map();
+  const attachments = { async saveFileStream({ data, name }) {
+    const chunks = []; for await (const chunk of data) chunks.push(chunk);
+    saves++; return reference(Buffer.concat(chunks).toString(), name);
+  } };
+  try {
+    const { directory: downloads } = await runtime.request('downloads/configure');
+    for (const [name, startedAtMs] of [['valid.txt', 4], ['missing.txt', 3], ['changed.txt', 2]]) {
+      const id = randomUUID(), path = join(downloads, id, name);
+      await mkdir(join(downloads, id)); await writeFile(path, 'original'); paths.set(name, path); ids.set(name, id);
+      await runtime.request('downloads/update', { download: { id, filename: name, startedAtMs, status: 'complete', receivedBytes: 8 } });
+    }
+    await rm(paths.get('missing.txt'));
+    await writeFile(paths.get('changed.txt'), 'modified'); // Same length; only the stream digest can detect this change.
+    const coldId = randomUUID(); await mkdir(join(downloads, coldId));
+    await writeFile(join(downloads, coldId, 'record.json'), JSON.stringify({ id: coldId, filename: 'expired.txt', status: 'complete', receivedBytes: 8, startedAtMs: 1 }));
+    await runtime.close(); runtime = createPluginRuntime(config);
+    const quiet = await runtime.request('deliveries', { emit: false });
+    assert.equal(quiet.deliveries.length, 4); assert.equal(saves, 0);
+    assert.ok(quiet.deliveries.every(item => !item.file && !item.deliverable));
+    assert.equal(quiet.deliveries.find(item => item.id === coldId).fileExists, false);
+    const result = await runtime.request('deliveries', {}, { attachments });
+    assert.equal(result.deliveries.length, 4); assert.equal(saves, 1);
+    for (const name of ['missing.txt', 'changed.txt']) {
+      const item = result.deliveries.find(item => item.id === ids.get(name));
+      assert.equal(item.fileExists, false); assert.equal(item.deliverable, false); assert.equal(item.file, undefined); assert.ok(item.fileError.code);
+    }
+    const valid = result.deliveries.find(item => item.id === ids.get('valid.txt'));
+    assert.equal(valid.fileExists, true); assert.equal(valid.deliverable, true);
+    await rm(paths.get('valid.txt'));
+    const vanished = await runtime.request('deliveries', {}, { attachments });
+    assert.equal(vanished.deliveries.find(item => item.id === valid.id).fileExists, false);
+    assert.equal(vanished.deliveries.find(item => item.id === valid.id).file, undefined);
+    assert.equal(saves, 1, 'A cached attachment must not turn a missing source into a new completion receipt');
   } finally { await runtime.close(); }
 });

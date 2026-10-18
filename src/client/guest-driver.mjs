@@ -1,4 +1,6 @@
-import { keyEventKey } from '../../extension/keyboard.js';
+import { guestKeySpec, keyEventKey } from '../../extension/keyboard.js';
+import { clickParameters, checkClickHeld, holdClick } from '../../extension/click-options.js';
+import { pressParameters, checkPressHeld } from '../../extension/key-options.js';
 
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 
@@ -11,16 +13,6 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
   const invalidate = () => { exited = true; generation++; lastObservation = null; keys.clear(); buttons.clear(); cancelNavigation?.(); };
   element.addEventListener('render-process-gone', invalidate);
   element.addEventListener('dom-ready', () => { exited = false; });
-  const execute = source => {
-    live();
-    return new Promise((resolve, reject) => {
-      const gone = () => { finish(); reject(Object.assign(new Error('The browser page process exited'), { code: 'BROWSER_GUEST_CRASHED' })); };
-      const finish = () => element.removeEventListener('render-process-gone', gone);
-      element.addEventListener('render-process-gone', gone, { once: true });
-      try { Promise.resolve(element.executeJavaScript(source)).then(value => { finish(); resolve(value); }, error => { finish(); reject(error); }); }
-      catch (error) { finish(); reject(error); }
-    });
-  };
   const navigate = action => new Promise((resolve, reject) => {
     let settled = false;
     const finish = error => {
@@ -46,22 +38,35 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
   });
   const evaluate = async (operation, args = {}) => {
     if (!automate) fail('HOST_ADAPTER_REQUIRED', 'This DSH version needs the OpenCU accessibility and upload adapter');
-    const writing = ['input', 'insertText', 'selectOption', 'upload'].includes(operation);
+    const writing = ['input', 'insertText', 'focus', 'selectAll', 'selectOption', 'upload', 'selectText', 'paste'].includes(operation);
     try {const result = await automate(operation, args); if (writing) inputSequence++; return result;}
     catch (error) {
+      if (['selectText','paste'].includes(operation) && /Unsupported guest automation operation/u.test(error.message)) throw Object.assign(new Error('This DSH host lacks text selection and source paste; build the matching OpenCU host adapter'),{code:'UNSUPPORTED_ACTION',details:{inputDispatched:false}});
       if (writing && error.details?.inputDispatched !== false) {inputSequence++; error.details = {...error.details,inputDispatched:true};}
       if (['locator', 'domSnapshot'].includes(operation) && /Unsupported guest automation operation/u.test(error.message)) fail('UNSUPPORTED_LOCATOR', 'This DSH host lacks locator and DOM snapshot automation; build the matching OpenCU host adapter');
       throw error;
     }
   };
   const metadata = () => ({ ...target, url: element.getURL(), title: element.getTitle() });
+  let dialogSupported;
+  const assertNoDialog = async () => {
+    if (dialogSupported === false) return;
+    let result;
+    try { result = await evaluate('getDialog'); dialogSupported = true; }
+    catch (error) {
+      if (error.code === 'HOST_DIALOG_UNSUPPORTED' || /Unsupported guest automation operation/u.test(error.message)) { dialogSupported = false; return; }
+      throw error;
+    }
+    if (result?.dialog) throw Object.assign(new Error('A JavaScript dialog is open. Read this target.getJsDialog() before continuing.'),
+      { code: 'JS_DIALOG_OPEN', details: { dialog: result.dialog, inputDispatched: false } });
+  };
   const verifyScreenshot = async observation => {
-    const current = await execute('({ documentId: globalThis.__opencuDocument?.id, url: location.href, width: innerWidth, height: innerHeight, scrollX, scrollY })');
+    const current = await evaluate('pageState');
     if (current.documentId !== observation.documentId || current.url !== observation.url) fail('STALE_SCREENSHOT', 'The screenshot document changed; observe again');
     if (['width', 'height', 'scrollX', 'scrollY'].some(key => current[key] !== observation.viewport[key])) fail('STALE_SCREENSHOT', 'Viewport or scroll changed; observe again');
   };
   const modifiers = () => [...keys].flatMap(key => ({ Control: ['control'], Meta: ['meta'], Alt: ['alt'], Shift: ['shift'] })[key] ?? []);
-  const expectInput = (events, pending = false) => execute(`globalThis.__opencuAnnotations?.expectInput(${JSON.stringify(events)}, ${pending})`);
+  const expectInput = (events, pending = false) => evaluate('inputMarker', { method: 'expect', events, pending });
   const send = async (event, observation, elementId) => {
     const epoch = generation;
     let marker, submitted = false, dispatched = false, failure;
@@ -82,21 +87,29 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     } catch (error) {
       failure = error; dispatched = submitted && error.details?.inputDispatched !== false; throw error;
     } finally {
-      if (marker && !rendererExited()) try { await execute(`globalThis.__opencuAnnotations?.finishInput(${JSON.stringify(marker)}, ${dispatched})`); }
+      if (marker && !rendererExited() && failure?.code !== 'JS_DIALOG_OPEN') try { await evaluate('inputMarker', { method: 'finish', marker, dispatched }); }
       catch (error) {
         if (!failure) { error.details = { ...error.details, inputDispatched: dispatched }; throw error; }
         failure.details = { ...failure.details, inputMarkerError: error.message };
       }
     }
   };
-  const release = async () => {
+  const release = async ({ dismissDialogs = true } = {}) => {
     generation++;
     const failures = [];
+    cursor?.({ ...position, visible: false });
+    // The host owns the authoritative held-input journal and the synchronous dialog
+    // callback. Resolve those before waiting for page JS or the client's pending work.
+    if (!rendererExited()) {
+      const result = await evaluate('releaseInput', { dismissDialogs });
+      keys.clear(); buttons.clear();
+      if (result?.deferredFocus) return { released: true };
+    }
     try { cancelNavigation?.(); } catch (error) { failures.push(error); }
     cursor?.({ ...position, visible: false });
     const cancelled = await Promise.allSettled(['cancelSiteTool', 'cancelUpload'].map(operation => Promise.resolve().then(() => evaluate(operation))));
     await Promise.allSettled([...pending]);
-    if (!rendererExited()) try { await execute('globalThis.__opencuAnnotations?.clearInput()'); } catch (error) { failures.push(error); }
+    if (!rendererExited()) try { await evaluate('inputMarker', { method: 'clear' }); } catch (error) { failures.push(error); }
     else { keys.clear(); buttons.clear(); lastObservation = null; }
     failures.push(...cancelled.filter(result => result.status === 'rejected').map(result => result.reason));
     for (const key of [...keys].reverse()) {
@@ -105,7 +118,6 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     for (const button of [...buttons]) {
       try { await send({ type: 'mouseUp', ...position, button, clickCount: 1 }); buttons.delete(button); } catch (error) { failures.push(error); }
     }
-    if (!keys.size && !buttons.size) { try { await evaluate('releaseInput'); } catch (error) { failures.push(error); } }
     cursor?.({ ...position, visible: false });
     if (failures.length) throw new AggregateError(failures, 'Sidebar input release could not be fully acknowledged');
     return { released: true };
@@ -126,11 +138,13 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     metadata, release,
     async preview() {
       live();
+      await assertNoDialog();
       const image = await capture();
-      return { dataUrl: image.toDataURL(), ...image.getSize(), active: await execute('document.hasFocus()') };
+      return { dataUrl: image.toDataURL(), ...image.getSize(), active: (await evaluate('pageState')).focused };
     },
     async observe(options = {}) {
       live();
+      await assertNoDialog();
       const observation = await evaluate('observe');
       if (options.format !== 'ax') {
         const image = await capture();
@@ -145,6 +159,12 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       const inputStart = inputSequence;
       try {
       if (!['background', 'foreground'].includes(args.inputMode ?? 'background')) fail('INVALID_ARGUMENT', 'inputMode must be background or foreground');
+      if (args.action === 'getDialog' || args.action === 'handleDialog') {
+        const result = await evaluate(args.action, args);
+        if (args.action === 'handleDialog' && result.handled && !result.releasePending) { keys.clear(); buttons.clear(); }
+        return { action: args.action, ...result };
+      }
+      await assertNoDialog();
       if (!['navigate', 'reload', 'back', 'forward'].includes(args.action)) live();
       const epoch = generation, screenshot = args.elementId == null && args.coordinateSpace?.includes('screenshot') ? lastObservation : null;
       const sendInput = event => send(event, screenshot, args.elementId);
@@ -171,8 +191,9 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
           const checking = ['check', 'uncheck', 'setChecked'].includes(method);
           const checked = method === 'setChecked' ? options.checked : method === 'check';
           if (!checking || result.checked !== checked) {
-            await this.act({action: checking ? 'click' : method === 'dblclick' ? 'doubleClick' : method,
+            const performed = await this.act({action: checking ? 'click' : method === 'dblclick' ? 'doubleClick' : method,
               elementId: result.elementId, button: options.button, key: options.key, value: options.value, inputMode: args.inputMode});
+            if (performed.pendingDialog) return performed;
             if (checking && (await step(() => evaluate('checked', {elementId: result.elementId}))).checked !== checked) fail('LOCATOR_ACTION_FAILED', 'Click did not produce the requested checked state');
           }
           return {action: args.action, value: null};
@@ -185,12 +206,17 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         case 'focus': case 'activate': await step(focus); break;
         case 'move': await move(args); break;
         case 'click': case 'doubleClick': {
+          const click = clickParameters(args, {mac:/Mac/u.test(navigator.platform),count:args.action === 'doubleClick' ? 2 : 1});
+          checkClickHeld({keys,buttons}, click);
           await move(args);
-          const button = args.button ?? 'left', count = args.action === 'doubleClick' ? 2 : 1;
-          for (let clickCount = 1; clickCount <= count; clickCount++) {
+          const {button} = click;
+          for (const key of click.keys) { keys.add(key); await step(() => sendInput({ type:'keyDown', keyCode:key })); }
+          for (let clickCount = 1; clickCount <= click.count; clickCount++) {
             buttons.add(button); await step(() => sendInput({ type: 'mouseDown', ...position, button, clickCount }));
+            await step(() => holdClick(click.durationMs, () => {if (epoch !== generation) fail('CONTROL_STOPPED','Input sequence was cancelled');}));
             await step(() => sendInput({ type: 'mouseUp', ...position, button, clickCount })); buttons.delete(button);
           }
+          for (const key of [...click.keys].reverse()) { await step(() => sendInput({type:'keyUp',keyCode:key})); keys.delete(key); }
           break;
         }
         case 'mouseDown': if (args.x != null || args.elementId != null) await move(args); await down(args.button ?? 'left'); break;
@@ -202,33 +228,39 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
           for (const value of args.path.slice(1)) await move({ ...args, ...value });
           await up(args.button ?? 'left'); break;
         }
-        case 'keyDown': keys.add(args.key); await step(() => sendInput({ type: 'keyDown', keyCode: args.key })); break;
-        case 'keyUp': await step(() => sendInput({ type: 'keyUp', keyCode: args.key })); keys.delete(args.key); break;
+        case 'keyDown': {const key=guestKeySpec(args.key).key; keys.add(key); await step(() => sendInput({ type:'keyDown',keyCode:key })); break;}
+        case 'keyUp': {
+          const spec=guestKeySpec(args.key);
+          await step(() => sendInput({type:'keyUp',keyCode:spec.key}));
+          keys.delete(spec.key);
+          break;
+        }
         case 'press': {
+          const keyboard={mac:/Mac/u.test(navigator.platform),identity:key=>guestKeySpec(key).code};
+          const press=pressParameters(args,keyboard), chord=press.keys.map(key=>guestKeySpec(key).key), {durationMs}=press;
+          checkPressHeld({keys},chord,keyboard);
           if (args.elementId != null) await step(() => evaluate('focus', args));
-          if (typeof args.key !== 'string' || !args.key) fail('INVALID_ARGUMENT', 'key must be a non-empty string');
-          const parts = [];
-          let token = '';
-          for (const character of args.key) {
-            if (character === '+' && token) { parts.push(token); token = ''; }
-            else token += character;
+          for (const key of chord) {
+            keys.add(key);
+            try { await step(() => sendInput({ type:'keyDown',keyCode:key })); }
+            catch (error) { if (error.details?.inputDispatched === false) keys.delete(key); throw error; }
           }
-          parts.push(token);
-          if (parts.some(key => !key)) fail('INVALID_ARGUMENT', 'Shortcut contains an empty key');
-          const chord = parts.map(key => key === 'ControlOrMeta' ? /Mac/.test(navigator.platform) ? 'Meta' : 'Control' : key);
-          if (chord.some(key => keys.has(key))) fail('INVALID_ARGUMENT', 'press cannot reuse an explicitly held key');
-          for (const key of chord) { keys.add(key); await step(() => sendInput({ type: 'keyDown', keyCode: key })); }
-          for (const key of chord.reverse()) { await step(() => sendInput({ type: 'keyUp', keyCode: key })); keys.delete(key); }
+          await step(() => holdClick(durationMs, () => {if (epoch !== generation) fail('CONTROL_STOPPED','Input sequence was cancelled');}));
+          for (const key of [...chord].reverse()) { await step(() => sendInput({ type: 'keyUp', keyCode: key })); keys.delete(key); }
           break;
         }
         case 'type':
           if (args.elementId != null) await step(() => evaluate('focus', args));
-          await step(() => expectInput([{ type: 'input' }]));
           if (args.elementId != null) await step(() => evaluate('verifyElement', args));
           await step(() => evaluate('insertText', { text: args.text, elementId: args.elementId })); break;
+        case 'selectText':
+        case 'paste': {
+          const result = await step(() => evaluate(args.action,args));
+          lastObservation=null;changed();
+          return {action:args.action,...result,target:metadata(),inputMode:'background',delivery:'target-cdp'};
+        }
         case 'fill':
           await step(() => evaluate('selectAll', args));
-          await step(() => expectInput([{ type: 'input' }]));
           await step(() => evaluate('verifyElement', args));
           await step(() => evaluate('insertText', { text: String(args.value ?? args.text ?? ''), elementId: args.elementId })); break;
         case 'selectOption':
@@ -260,6 +292,10 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       return { action: args.action, target: metadata(), inputMode: 'background', delivery: 'target-cdp', effectVerified: false };
       } catch (error) {
         error.details = {...error.details,inputDispatched:error.details?.inputDispatched === true || inputSequence !== inputStart};
+        if (error.code === 'JS_DIALOG_OPEN' && error.details.inputDispatched && error.details.dialog) {
+          lastObservation = null; changed();
+          return { action: args.action, pendingDialog: error.details.dialog, inputDispatched: true, effectVerified: false };
+        }
         throw error;
       }
     },

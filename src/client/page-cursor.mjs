@@ -45,7 +45,7 @@ function update(cursor) {
     style.textContent = styles; mount.dataset.reaRoot = ''; mount.dataset.theme = 'light';
     mount.style.cssText = 'position:absolute;inset:0;pointer-events:none';
     shadow.append(style, mount); document.documentElement.append(host);
-    renderer = createCursor(mount, { assetUrl, glowColor: 'var(--app-color-accent-blue)',
+    renderer = createCursor(mount, { assetUrl, glowColor: cursor.glowColor ?? 'var(--app-color-accent-blue)',
       onArrived: value => { if (pending?.sequence === value) settle(); }, onHidden: finishHide });
   }
   settle(Object.assign(new Error('Cursor movement was superseded'), { code: 'CONTROL_STOPPED' }));
@@ -59,8 +59,15 @@ function update(cursor) {
     turnKey: 'opencu', viewportSize: { width: innerWidth, height: innerHeight } });
   return arrival ?? { visible: true, visualDeferred: document.hidden, x: cursor.x, y: cursor.y };
 }
+function settled(point) {
+  // A sampled drag skips positional springs. Resume the original REA idle
+  // motion once its last button is released, without replaying any input.
+  if (!renderer || !lastCursor || hiding || pending || lastCursor.animateMovement !== false
+    || point.x !== lastCursor.x || point.y !== lastCursor.y) return { visible: !!renderer };
+  return update({ ...lastCursor, animateMovement: true, waitForArrival: false });
+}
 if (!globalThis.__opencuCursor) {
-  globalThis.__opencuCursor = { update, dispose };
+  globalThis.__opencuCursor = { update, settled, dispose };
   addEventListener('pagehide', dispose);
   document.addEventListener('visibilitychange', () => { if (document.hidden) settle(undefined, { visible: true, visualDeferred: true }); });
   const unsubscribe = globalThis.opencuCursorHost?.subscribe(cursor => {

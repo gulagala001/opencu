@@ -1,0 +1,21 @@
+{
+  "repository": "deepseek-ai/deepseek-harness",
+  "commit": "687f282e8625c6b8d11ff58211a90524be2e4317",
+  "directory": "packages/client/modules/src/client",
+  "files": {
+    "system.ts": "0953d346d3a642c3cde2b72b19a23f96d4285c8394a3774d5b64cc24c4d2de84",
+    "entries.ts": "a0347ea85e10c19669ea83f24e8faa0e9748343038c6671abce950a802276dbb",
+    "release-change.ts": "756a26411ba30c4da16e48c5367a6b941b8f2f381c2e49823bc5fca65e35aada",
+    "manifest.ts": "dca304d22bda0d467b47dba653d245eaf335f3b225af24decd8a294e91840c6b",
+    "notify.ts": "e1015b1044e66d86ec7d347bf1a441f672b1c2e172682195ad390087d25d0891",
+    "entry-lifecycle.ts": "1b6f54b4fbebf5c440e753b9c104d4741e632b744b496a6a23af6f8fc20cc198"
+  },
+  "gitBlobs": {
+    "system.ts": "6597f54afca908f34bf93a8140c2ce628ed2945f",
+    "entries.ts": "587d3ffdd0bd0a34572c89f8195412f084d060ef",
+    "release-change.ts": "acf6ba4432ba2b038c864ca0718d513cd512cf06",
+    "manifest.ts": "1926d812a19f26f122d604559f7412222672766f",
+    "notify.ts": "1e658872b6ca7e5b75860f6292370e644645cb71",
+    "entry-lifecycle.ts": "48d07a756de064b87efeb1c2e91420ce3bcbf9f2"
+  }
+}

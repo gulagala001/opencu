@@ -41,7 +41,7 @@ export function createBrowserTransport(client, desktop) {
         const target = command.params.target;
         const values = target ? [guests.get(target.identity?.guestId)].filter(Boolean) : [...guests.values()];
         if (target && !values.length) throw new Error('The cancelled sidebar guest is no longer available');
-        const releases = await Promise.all(values.map(guest => guest.driver.release()));
+        const releases = await Promise.all(values.map(guest => guest.driver.release({ dismissDialogs: command.params.dismissDialogs !== false })));
         result = { released: releases.every(value => value.released === true) };
       } else {
         const guest = guests.get(command.params.target?.identity?.guestId);
@@ -81,7 +81,7 @@ export function createBrowserTransport(client, desktop) {
         sessionId, sidebarTabId: tabId, backend: 'browser', provider: 'dsh', kind: 'tab', browserId: `dsh:${rendererId}`,
         capabilities: ['ax', 'screenshot', 'navigation', 'tabs', 'focus', 'mouse', 'keyboard', 'uploads', 'downloads', 'hitTest', 'getDOM', 'designTweak'] };
       const guest = { element: { isConnected: true }, target, ready: false, focus: () => request('focus'), driver: {
-        metadata: () => target, release: () => request('release'), preview: () => request('preview'),
+        metadata: () => target, release: options => request('release', options), preview: () => request('preview'),
         observe: options => request('observe', options), act: action => request('act', action),
       } };
       guests.set(guestId, guest);
@@ -130,7 +130,7 @@ export function createBrowserTransport(client, desktop) {
             }
           } catch (error) {
             connectionEpoch++;
-            await Promise.allSettled([...guests.values()].map(guest => guest.driver.release()).concat(desktop?.presentation?.('cursor', { visible: false })));
+            await Promise.allSettled([...guests.values()].map(guest => guest.driver.release({ dismissDialogs: false })).concat(desktop?.presentation?.('cursor', { visible: false })));
             if (aborter.signal.aborted) break;
             console.error('OpenCU sidebar transport; reconnecting the same guests', error);
             reconnect = true;

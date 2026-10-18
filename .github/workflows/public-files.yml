@@ -17,6 +17,11 @@ jobs:
         with:
           node-version: "24"
       - run: node scripts/check-public-files.mjs
-      - run: node --test test/browser-host-generation.test.mjs
-      - name: Verify approval cancellation ownership and lifecycle
-        run: node --unhandled-rejections=strict --test test/app-approval-session-cancel.test.mjs test/app-approvals-lifecycle.test.mjs
+      - name: Verify renderer generation and approval ownership
+        run: node --unhandled-rejections=strict --test test/browser-host-generation.test.mjs test/app-approval-session-cancel.test.mjs test/desktop-approval-availability.test.mjs test/app-approvals-lifecycle.test.mjs
+      - name: Verify application approval response feedback
+        run: node --unhandled-rejections=strict --experimental-vm-modules --test test/app-approval-feedback.test.mjs
+      - name: Install locked browser test dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify browser lifecycle and screenshot guards
+        run: node --test test/browser-cleanup-retry.test.mjs test/browser-registration-recovery.test.mjs test/browser-registration-inputs.test.mjs test/browser-context-init.test.mjs test/browser-screenshot-consistency.test.mjs

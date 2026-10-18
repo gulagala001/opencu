@@ -51,7 +51,6 @@ export function BrowserTitleSlot(props) {
     const sheet = document.createElement('style'); sheet.textContent = styles;
     const container = document.createElement('span');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
-    container.dataset.theme = getComputedStyle(document.documentElement).colorScheme === 'dark' ? 'dark' : 'light';
     const { dispose: disposePortal, portal } = createReaPortal(styles, container, 70);
     shadow.append(sheet, container);
     const root = createRoot(container); mounted.current = { root, portal };

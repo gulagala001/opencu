@@ -6,17 +6,43 @@ export function createPresentationClient({ client, transport, desktop, dock, not
   let disposed = false, timer, pending, generation = 0, changing = Promise.resolve();
   const homes = new Map();
   let handoff = null, imagesCurrent = false;
-  const publish = value => { snapshot = { ...value, handoff }; for (const listener of listeners) listener(); };
+  let publishedSignature;
+  const publish = value => {
+    const next = { ...value, handoff };
+    const signature = JSON.stringify(next, function (key, item) {
+      if (key === 'revision' || key === 'imageDataURL' && this.imageRevision) return undefined;
+      return item;
+    });
+    if (signature === publishedSignature) return;
+    publishedSignature = signature;
+    snapshot = next;
+    for (const listener of listeners) listener();
+  };
   const painted = () => new Promise(resolve => {
     let animation;
     const finish = () => { clearTimeout(timer); cancelAnimationFrame(animation); resolve(); };
     const timer = setTimeout(finish, 100);
     animation = requestAnimationFrame(() => { animation = requestAnimationFrame(finish); });
   });
-  async function homeFor(id) {
+  async function homeFor(id, frames) {
     const deadline = performance.now() + 2000;
-    do { if (homes.has(id)) return homes.get(id); await painted(); } while (!disposed && performance.now() < deadline);
-    throw new Error('The monitoring dock did not mount');
+    let mounted = false;
+    do {
+      await painted();
+      aborter.signal.throwIfAborted();
+      // The resident slot registers before it has frames. React replaces that
+      // measure when the handoff mounts; never retain the empty render's closure.
+      const measure = homes.get(id);
+      if (measure) {
+        mounted = true;
+        const rects = measure();
+        if (Array.isArray(rects) && frames.every(frame => rects.some(rect => rect.id === frame.presentationID
+          && [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) && rect.width > 0 && rect.height > 0))) return rects;
+      }
+    } while (!disposed && performance.now() < deadline);
+    aborter.signal.throwIfAborted();
+    if (mounted && !homes.has(id)) throw new Error('The monitoring dock was unmounted during the handoff');
+    throw new Error(mounted ? 'The monitoring dock frames did not become ready' : 'The monitoring dock did not mount');
   }
   async function refresh() {
     if (disposed || !transport.rendererId) return;
@@ -66,6 +92,14 @@ export function createPresentationClient({ client, transport, desktop, dock, not
       hideTask: id => run('hideTask', id),
       hideForAllActiveTasks: () => run('hideAll'),
       showTask: id => run('showTask', id),
+      async hideTarget(frame) {
+        try {
+          const result = await client.request('presentation/event', { rendererId: transport.rendererId, type: 'hide-target',
+            sessionId: frame.threadID, targetId: frame.presentationID, visibilityKey: frame.visibilityKey }, aborter.signal);
+          if (result.ok === false) throw new Error(result.error.message);
+          generation++; await refresh();
+        } catch (error) { if (!disposed) notify(frame.threadID, error.message); }
+      },
       registerHome(id, measure) { homes.set(id, measure); return () => { if (homes.get(id) === measure) homes.delete(id); }; },
       setPlacement(id, placement) {
         generation++;
@@ -81,11 +115,8 @@ export function createPresentationClient({ client, transport, desktop, dock, not
           handoff = { id: token, sessionId: id, placement, frames, moving: false, landed: false }; publish(snapshot);
           try {
             await dock(id);
-            const measure = await homeFor(id), deadline = performance.now() + 2000;
-            let rects;
-            do { await painted(); rects = measure(); } while (!rects && !disposed && performance.now() < deadline);
+            const rects = await homeFor(id, frames);
             aborter.signal.throwIfAborted();
-            if (!rects) throw new Error('The monitoring dock frames did not become ready');
             await desktop.presentation('transfer-prepare', { id: token, placement, frames, rects }); prepared = true;
             handoff = { ...handoff, moving: true }; publish(snapshot);
             await painted();
