@@ -42,3 +42,7 @@ Main may contain fixes added after a fixed Release. Merging a PR, editing a READ
 升级时沿用原 profile、`DSH_HOME` 和数据目录，先备份，再按[中文步骤](install.md)或[English steps](install_EN.md)更新并重启对应实例。
 
 For upgrades, retain the original profile, `DSH_HOME` and data directory. Back up, follow the [installation steps](install_EN.md), and restart the corresponding instance.
+
+## 市场同步记录（2026-10-18）
+
+[Awesome DSH Plugin 投稿／更新](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/7930)：本次投稿待审。本次维护同一仓库条目，向共用该数据源的下游不重复投稿。自动发现 topics 已配置，市场同步与外部审核尚未确认完成；当前安装请使用上方固定 Release 地址。
