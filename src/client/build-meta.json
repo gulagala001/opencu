@@ -2966,7 +2966,7 @@
           "bytesInOutput": 104
         },
         "src/client/index.jsx": {
-          "bytesInOutput": 22653
+          "bytesInOutput": 22849
         },
         "src/client/extension-download.mjs": {
           "bytesInOutput": 1202
@@ -3377,7 +3377,7 @@
           "bytesInOutput": 2591
         }
       },
-      "bytes": 28112271
+      "bytes": 28112467
     }
   }
 }

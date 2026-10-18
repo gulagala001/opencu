@@ -37,21 +37,30 @@ import { TextAnnotationSlot } from './text-annotation-slot.jsx';
 import { installAnnotationMessages } from './annotation-message-slot.jsx';
 import { createPresentationClient } from './presentation-host.mjs';
 import { PresentationSlot } from './presentation-slot.jsx';
+import { OverviewSlot } from './session-overview.jsx';
 import { createPresentationLayout } from './presentation-layout.mjs';
 import { guestPortalStyles } from './portal-host.mjs';
 
 export const name = 'opencu/client';
-export { OverviewSlot } from './session-overview.jsx';
+export { OverviewSlot };
 export const inject = ['connection', 'slots', 'sidebarRight', 'sidebarRightTabs', 'locale', 'conversation', 'sessions', 'inputTriggers', 'configForms', 'uiWorkspace', 'uiSession'];
 
 const clients = globalThis[Symbol.for('opencu.shared-client.v1')] ??= new WeakMap();
+
+// Standalone and bundled installations share one mounted client. Its REA
+// components must use that same bundle's initialized renderer and services.
+export function getOverviewSlot(ctx) {
+  const slot = clients.get(ctx.root)?.overviewSlot;
+  if (!slot) throw new Error('OpenCU shared client is not initialized');
+  return slot;
+}
 
 export async function apply(ctx) {
   const root = ctx.root;
   let entry = clients.get(root);
   if (entry?.closing) { await entry.closing; entry = clients.get(root); }
   if (!entry) {
-    entry = { owners: new Set(), fiber: root.plugin({ name: 'opencu/shared-client', inject, apply: mountClient }) };
+    entry = { owners: new Set(), overviewSlot: OverviewSlot, fiber: root.plugin({ name: 'opencu/shared-client', inject, apply: mountClient }) };
     clients.set(root, entry);
   }
   const owner = {};
