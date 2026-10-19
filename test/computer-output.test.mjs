@@ -46,7 +46,7 @@ test('browser editing methods preserve IDs, exact context and literal paste cont
   f.target.backend='native';
   const native=createComputerSession(f.request);t.after(()=>native.close());
   await native.run({code:"var app = await cua.getApp('tab-1')"});
-  assert.deepEqual((await native.run({code:'nodeRepl.write([typeof app.selectText,typeof app.paste])'})).outputs,['["undefined","undefined"]']);
+  assert.deepEqual((await native.run({code:'nodeRepl.write([typeof app.selectText,typeof app.paste])'})).outputs,['["function","function"]']);
 });
 
 test('browser editing invalid arguments and unsupported HTML fail before dispatch',async t => {
