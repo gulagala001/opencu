@@ -10,17 +10,17 @@
     "src/client/app-approval-response.mjs",
     "src/client/configuration.mjs",
     "src/client/browser-history.mjs",
-    "node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react.production.js",
-    "node_modules/.pnpm/react@19.2.7/node_modules/react/index.js",
-    "node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react-jsx-runtime.production.js",
-    "node_modules/.pnpm/react@19.2.7/node_modules/react/jsx-runtime.js",
-    "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/cjs/react-dom.production.js",
-    "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/index.js",
-    "node_modules/.pnpm/scheduler@0.27.0/node_modules/scheduler/cjs/scheduler.production.js",
-    "node_modules/.pnpm/scheduler@0.27.0/node_modules/scheduler/index.js",
-    "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/cjs/react-dom-client.production.js",
-    "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/client.js",
-    "node_modules/.pnpm/react-compiler-runtime@1.0.0_react@19.2.7/node_modules/react-compiler-runtime/dist/index.js",
+    "node_modules/react/cjs/react.production.js",
+    "node_modules/react/index.js",
+    "node_modules/react/cjs/react-jsx-runtime.production.js",
+    "node_modules/react/jsx-runtime.js",
+    "node_modules/react-dom/cjs/react-dom.production.js",
+    "node_modules/react-dom/index.js",
+    "node_modules/scheduler/cjs/scheduler.production.js",
+    "node_modules/scheduler/index.js",
+    "node_modules/react-dom/cjs/react-dom-client.production.js",
+    "node_modules/react-dom/client.js",
+    "node_modules/react-compiler-runtime/dist/index.js",
     "src/client/rea-services.mjs",
     "src/client/document-source.mjs",
     "src/client/rea-theme.mjs",
@@ -2212,37 +2212,37 @@
         "src/client/base64.mjs": {
           "bytesInOutput": 152
         },
-        "node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react.production.js": {
+        "node_modules/react/cjs/react.production.js": {
           "bytesInOutput": 8217
         },
-        "node_modules/.pnpm/react@19.2.7/node_modules/react/index.js": {
+        "node_modules/react/index.js": {
           "bytesInOutput": 55
         },
-        "node_modules/.pnpm/react@19.2.7/node_modules/react/cjs/react-jsx-runtime.production.js": {
+        "node_modules/react/cjs/react-jsx-runtime.production.js": {
           "bytesInOutput": 393
         },
-        "node_modules/.pnpm/react@19.2.7/node_modules/react/jsx-runtime.js": {
+        "node_modules/react/jsx-runtime.js": {
           "bytesInOutput": 55
         },
-        "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/cjs/react-dom.production.js": {
+        "node_modules/react-dom/cjs/react-dom.production.js": {
           "bytesInOutput": 3482
         },
-        "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/index.js": {
+        "node_modules/react-dom/index.js": {
           "bytesInOutput": 279
         },
-        "node_modules/.pnpm/scheduler@0.27.0/node_modules/scheduler/cjs/scheduler.production.js": {
+        "node_modules/scheduler/cjs/scheduler.production.js": {
           "bytesInOutput": 4086
         },
-        "node_modules/.pnpm/scheduler@0.27.0/node_modules/scheduler/index.js": {
+        "node_modules/scheduler/index.js": {
           "bytesInOutput": 56
         },
-        "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/cjs/react-dom-client.production.js": {
+        "node_modules/react-dom/cjs/react-dom-client.production.js": {
           "bytesInOutput": 196959
         },
-        "node_modules/.pnpm/react-dom@19.2.7_react@19.2.7/node_modules/react-dom/client.js": {
+        "node_modules/react-dom/client.js": {
           "bytesInOutput": 278
         },
-        "node_modules/.pnpm/react-compiler-runtime@1.0.0_react@19.2.7/node_modules/react-compiler-runtime/dist/index.js": {
+        "node_modules/react-compiler-runtime/dist/index.js": {
           "bytesInOutput": 6072
         },
         "src/client/rea-services.mjs": {
@@ -2966,7 +2966,7 @@
           "bytesInOutput": 104
         },
         "src/client/index.jsx": {
-          "bytesInOutput": 22849
+          "bytesInOutput": 22986
         },
         "src/client/extension-download.mjs": {
           "bytesInOutput": 1202
@@ -3170,7 +3170,7 @@
           "bytesInOutput": 428
         },
         "src/client/document-slot.jsx": {
-          "bytesInOutput": 5970
+          "bytesInOutput": 6381
         },
         "src/client/rea/docx-preview-panel-ce9d293c8160.js": {
           "bytesInOutput": 37594
@@ -3314,7 +3314,7 @@
           "bytesInOutput": 3279
         },
         "src/client/artifact-documents.mjs": {
-          "bytesInOutput": 1939
+          "bytesInOutput": 2301
         },
         "src/client/sources-host.mjs": {
           "bytesInOutput": 1397
@@ -3377,7 +3377,7 @@
           "bytesInOutput": 2591
         }
       },
-      "bytes": 28115740
+      "bytes": 28116650
     }
   }
 }

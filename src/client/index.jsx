@@ -60,20 +60,23 @@ export async function apply(ctx) {
   let entry = clients.get(root);
   if (entry?.closing) { await entry.closing; entry = clients.get(root); }
   if (!entry) {
-    entry = { owners: new Set(), overviewSlot: OverviewSlot, fiber: root.plugin({ name: 'opencu/shared-client', inject, apply: mountClient }) };
+    entry = { owners: new Set(), overviewSlot: OverviewSlot };
+    entry.fiber = root.plugin({ name: 'opencu/shared-client', inject, apply: scope => mountClient(scope, entry) });
     clients.set(root, entry);
   }
   const owner = {};
   entry.owners.add(owner);
   ctx.effect(() => async () => {
     if (!entry.owners.delete(owner) || entry.owners.size) return;
-    entry.closing = entry.fiber.dispose();
-    try { await entry.closing; } finally { if (clients.get(root) === entry) clients.delete(root); }
+    entry.closing = (async () => { await entry.beforeDispose?.(); await entry.fiber.dispose(); })();
+    try { await entry.closing; }
+    catch (error) { entry.closing = undefined; throw error; }
+    if (clients.get(root) === entry) clients.delete(root);
   }, 'opencu: shared client ownership');
   await entry.fiber;
 }
 
-function mountClient(ctx) {
+function mountClient(ctx, entry) {
   const client = createCoreClient();
   const publishApproval = ctx.uiSession.registerPendingInteraction(() => -1);
   const appApprovalManager = createPendingAppApprovals({client,publish:publishApproval});
@@ -268,9 +271,9 @@ function mountClient(ctx) {
     },
   });
   const files = createFilesHost({ client, desktop, sidebar: ctx.sidebarRight, openSession: id => ctx.uiWorkspace.openSession(id) });
-  ctx.effect(() => () => files.dispose(), 'opencu: local file actions');
   const artifactDocuments = createArtifactDocumentsHost(desktop);
-  ctx.effect(() => () => artifactDocuments.dispose(), 'opencu: workbook persistence');
+  entry.beforeDispose = () => artifactDocuments.dispose();
+  ctx.effect(() => async () => { await artifactDocuments.dispose(); files.dispose(); }, 'opencu: workbook and file services');
   const sources = createSourcesHost({ client, sidebar: ctx.sidebarRight, openSession: id => ctx.uiWorkspace.openSession(id) });
   ctx.effect(() => () => sources.dispose(), 'opencu: conversation sources');
   const browserSettings = createBrowserSettings(client);
@@ -425,6 +428,7 @@ function mountClient(ctx) {
       for (const dispose of [() => host.dispose(), () => downloads.dispose(), () => transport.dispose()]) {
         try { await dispose(); } catch (error) { failures.push(error); }
       }
+      await artifactDocuments.dispose();
       uninstall();
       if (failures.length) throw new AggregateError(failures, 'OpenCU client cleanup failed');
     };
@@ -448,7 +452,7 @@ function mountClient(ctx) {
     keepMounted: true, priority: 'extension', title: () => browserCopy('title'),
     guide: [{ id: 'new', commandId: 'browser.new', order: 30, title: () => browserCopy('title'), description: () => browserCopy('description') }],
   }), 'opencu: browser presentation');
-  ctx.inject(['documentPreviews'], previewCtx => {
+  if (desktop) ctx.inject(['documentPreviews'], previewCtx => {
     previewCtx.effect(() => previewCtx.documentPreviews.register({ id: 'opencu.document', extensions: ['pdf', 'docx', 'xlsx', 'pptx', 'csv', 'tsv', 'ipynb'],
       binaryExtensions: ['pdf', 'docx', 'xlsx', 'pptx', 'csv', 'tsv', 'ipynb'], priority: 'extension', title: () => 'OpenCU', loading: 'bytes-complete', wrap: false,
     }), 'opencu: REA document previews');

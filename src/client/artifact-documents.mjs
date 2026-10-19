@@ -1,7 +1,7 @@
 /** Adapt REA's exact-file workbook sessions to the desktop's durable journal. */
 export function createArtifactDocumentsHost(desktop) {
-  const bindings = new Set(), pending = new Set();
-  let disposed = false;
+  const bindings = new Map(), pending = new Set(), editors = new Set();
+  let disposed = false, closing = false, disposal;
   const retained = promise => {
     pending.add(promise);
     void promise.finally(() => pending.delete(promise)).catch(() => undefined);
@@ -9,9 +9,16 @@ export function createArtifactDocumentsHost(desktop) {
     return promise;
   };
   return {
+    registerEditor(editor) {
+      if (closing) { editor.stop(); return () => {}; }
+      editors.add(editor);
+      return () => editors.delete(editor);
+    },
     bindToExactFile({ publicFilePath, onError }) {
-      if (disposed || !desktop?.files) throw new Error('The workbook persistence host is unavailable');
+      if (closing || disposed || !desktop?.files) throw new Error('The workbook persistence host is unavailable');
       let closed = false;
+      let finish;
+      const drained = new Promise(resolve => { finish = resolve; });
       const subscriptions = new Set();
       const operate = (command, args) => retained(Promise.resolve().then(() => {
         if (closed || disposed) throw new Error('The workbook file binding is closed');
@@ -51,15 +58,32 @@ export function createArtifactDocumentsHost(desktop) {
             } }, [Symbol.dispose]: stop };
           })());
         },
-        [Symbol.dispose]() { closed = true; for (const stop of subscriptions) stop(); bindings.delete(binding); },
+        [Symbol.dispose]() { closed = true; for (const stop of subscriptions) stop(); bindings.delete(binding); finish(); },
       };
-      bindings.add(binding);
+      bindings.set(binding, drained);
       return retained(Promise.resolve(binding));
     },
-    async dispose() {
-      disposed = true;
-      for (const binding of bindings) binding[Symbol.dispose]();
-      await Promise.allSettled([...pending]);
+    dispose() {
+      if (disposal) return disposal;
+      closing = true;
+      const currentEditors = [...editors];
+      disposal = (async () => {
+        for (const editor of currentEditors) editor.quiesce();
+        // Flush while mounted so a save failure can preserve the editor for retry.
+        await Promise.all(currentEditors.map(editor => editor.flush()));
+        // Unmount while both persistence and file services still work.
+        // REA releases its binding only after worker drain, append and flush.
+        for (const editor of currentEditors) editor.stop();
+        editors.clear();
+        while (bindings.size) await Promise.all([...bindings.values()]);
+        while (pending.size) await Promise.allSettled([...pending]);
+        disposed = true;
+      })().catch(error => {
+        closing = false; disposal = undefined;
+        for (const editor of currentEditors) editor.resume();
+        throw error;
+      });
+      return disposal;
     },
   };
 }

@@ -13,7 +13,7 @@ import { createReaPortal } from './portal-host.mjs';
 import { ViewerControls, initializeViewerControls } from './viewer-controls.jsx';
 import { createDocumentSource } from './document-source.mjs';
 
-function DocumentContent({ sessionId, resourceAddress, data, path, title, kind, deliver, pane }) {
+function DocumentContent({ sessionId, resourceAddress, data, path, title, kind, deliver, pane, lifecycle }) {
   const scope = Shared.oA(Shared.X);
   const target = React.useMemo(() => ({ conversationId: sessionId, hostId: 'local', path }), [sessionId, path]);
   const comments = Shared.iA(Shared.h2, target);
@@ -63,6 +63,10 @@ function DocumentContent({ sessionId, resourceAddress, data, path, title, kind, 
   const flush = React.useCallback(async () => {
     if (await preview.current?.flush() === false) throw new Error(intl.formatMessage({ id: 'opencu.document.unsaved', defaultMessage: 'This document has unsaved changes. Keep it open and try saving again.' }));
   }, [intl]);
+  React.useLayoutEffect(() => {
+    lifecycle.flush = flush;
+    return () => { if (lifecycle.flush === flush) lifecycle.flush = async () => {}; };
+  }, [lifecycle, flush]);
   const workbook = React.useMemo(() => kind === 'xlsx' && editable ? {
     artifactDocuments: { bindToExactFile: args => services.artifactDocuments.bindToExactFile({ ...args, onError: setError }) },
     publicFilePath: path, workspaceRoot: path.slice(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))),
@@ -125,16 +129,29 @@ export function DocumentSlot(props) {
       alert.style.whiteSpace = 'pre-wrap'; alert.textContent = error.stack || error.message;
       queueMicrotask(() => container.replaceChildren(alert));
     } });
-    shadow.append(sheet, container); mounted.current = { root, portal };
+    let stopped = false;
+    const stop = () => {
+      if (stopped) return;
+      stopped = true; container.inert = true;
+      root.unmount(); disposePortal(); mounted.current = null;
+    };
+    const lifecycle = { flush: async () => {} };
+    shadow.append(sheet, container); mounted.current = { root, portal, lifecycle };
+    const unregister = services.artifactDocuments.registerEditor({
+      quiesce: () => { container.inert = true; },
+      flush: () => lifecycle.flush(), stop,
+      resume: () => { if (!stopped) container.inert = false; },
+    });
     props.scrollportRef(container);
-    return () => { root.unmount(); disposePortal(); mounted.current = null; props.scrollportRef(null); };
+    return () => { unregister(); stop(); props.scrollportRef(null); };
   }, []);
   HostReact.useLayoutEffect(() => {
-    const { root, portal } = mounted.current;
+    if (!mounted.current) return;
+    const { root, portal, lifecycle } = mounted.current;
     if (props.content.kind !== 'bytes' || !resource.value?.absolutePath) { root.render(null); return; }
     const title = decodeURIComponent(props.resourceAddress.split('/').at(-1));
     root.render(<ReaProviders portal={portal} path={`/ca/${props.sessionId}`}>
-      <DocumentRoute key={props.resourceAddress} sessionId={props.sessionId} resourceAddress={props.resourceAddress}
+      <DocumentRoute key={props.resourceAddress} sessionId={props.sessionId} resourceAddress={props.resourceAddress} lifecycle={lifecycle}
         data={props.content.data} path={resource.value.absolutePath} title={title} kind={title.split('.').at(-1).toLowerCase()} deliver={props.deliverDocument} pane={pane} />
     </ReaProviders>);
   }, [props.content, props.resourceAddress, props.sessionId, props.deliverDocument, resource.value?.absolutePath, pane]);
