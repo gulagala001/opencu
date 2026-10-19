@@ -346,6 +346,8 @@ function mountClient(ctx, entry) {
       else console.error('OpenCU settings', message);
     },
     capabilities: {
+      prepareRecovery: () => client.request('recovery/prepare'),
+      confirmRecovery: nonce => client.request('recovery/confirm', { nonce, confirmedClosed: true }),
       downloadExtension: signal => downloadExtensionZip(signal),
       async read() { return { ...await client.request('capabilities'), inAppBrowser: host.service.available, desktopAdapterError }; },
       configure: (key, enabled) => configureCapability(capabilitiesConfig, key, enabled),

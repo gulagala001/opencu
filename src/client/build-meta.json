@@ -2594,7 +2594,7 @@
           "bytesInOutput": 89533
         },
         "src/client/capability-settings.jsx": {
-          "bytesInOutput": 25928
+          "bytesInOutput": 27178
         },
         "src/client/profile-settings.jsx": {
           "bytesInOutput": 5642
@@ -2966,7 +2966,7 @@
           "bytesInOutput": 104
         },
         "src/client/index.jsx": {
-          "bytesInOutput": 22986
+          "bytesInOutput": 23156
         },
         "src/client/extension-download.mjs": {
           "bytesInOutput": 1202
@@ -3377,7 +3377,7 @@
           "bytesInOutput": 2591
         }
       },
-      "bytes": 28116650
+      "bytes": 28118070
     }
   }
 }
