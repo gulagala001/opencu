@@ -1,3 +1,14 @@
+# OpenCU 2.0.6
+
+- 为真实 REA 地址建议补齐当前会话的 ThreadScope／RouteScope，修复该建议入口触发的 `Missing scope instance`。
+- 保留选择建议、Escape 关闭、继续编辑和组件卸载行为。
+- 分别提供 `2.0.6-dsh.0.2.1-rc.1` 与 `2.0.6-dsh.0.2.1-rc.2`，保留原有 Helper 与扩展身份。
+
+- Supplies the current conversation's ThreadScope/RouteScope to the original REA address suggestions, fixing `Missing scope instance` in that suggestion entry.
+- Preserves suggestion selection, Escape dismissal, continued editing and component teardown.
+
+[下载、完整双语更新说明与安装](docs/releases.md)
+
 # OpenCU 2.0.3
 
 - 隔离电脑 JavaScript 执行，保持停止、会话绑定与故障恢复。

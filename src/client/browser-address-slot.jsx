@@ -2,6 +2,7 @@ import * as HostReact from 'react-host';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ReaProviders } from './rea-root.jsx';
+import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import { he as BrowserAddressSuggestionOverlay, ye as initializeBrowserAddress } from './rea/browser-address-suggestion-overlay-185e242f325f.js';
 import { xfl as ComposerOverlay, Ofl as initializeComposerOverlay } from './rea/app-initial-c468e3fd7f91.js';
 import { createReaPortal } from './portal-host.mjs';
@@ -17,10 +18,15 @@ export function BrowserAddressOverlay(props) {
 
 function Suggestions({ sessionId, controller, value, portal }) {
   return <ReaProviders portal={portal} path={`/ca/${sessionId}`}>
-    <BrowserAddressContext.Provider value={controller}>
-      <BrowserAddressSuggestionOverlay browserConversationId={sessionId} composerId={`opencu:${sessionId}`}
-        composerController={controller} placement="top" suggestionState={value} />
-    </BrowserAddressContext.Provider>
+    <Shared._lt scope={Shared.jX} value={{ clientThreadId: `local:${sessionId}`, routeConversationId: sessionId }}>
+      <Shared._lt scope={Shared.h1} value={{ routeKind: 'local-thread', routeTemplate: '/ca/:conversationId',
+        pathname: `/ca/${sessionId}`, conversationId: sessionId, hostId: 'local' }}>
+        <BrowserAddressContext.Provider value={controller}>
+          <BrowserAddressSuggestionOverlay browserConversationId={sessionId} composerId={`opencu:${sessionId}`}
+            composerController={controller} placement="top" suggestionState={value} />
+        </BrowserAddressContext.Provider>
+      </Shared._lt>
+    </Shared._lt>
   </ReaProviders>;
 }
 

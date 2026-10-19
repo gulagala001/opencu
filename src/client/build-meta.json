@@ -2726,7 +2726,7 @@
           "bytesInOutput": 1646471
         },
         "src/client/browser-address-slot.jsx": {
-          "bytesInOutput": 1686
+          "bytesInOutput": 1941
         },
         "src/client/browser-address.mjs": {
           "bytesInOutput": 7653
@@ -3377,7 +3377,7 @@
           "bytesInOutput": 2591
         }
       },
-      "bytes": 28118070
+      "bytes": 28118325
     }
   }
 }
