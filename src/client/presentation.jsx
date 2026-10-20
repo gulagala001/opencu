@@ -5,6 +5,7 @@ import { Jw } from './rea/local-conversation-thread-6508b6dc26ad.js';
 import { MonitorStack, useReducedMotion } from './presentation-stack.jsx';
 import { reaIntl } from './rea-locale.mjs';
 import styles from './rea-styles.css';
+import { adoptReaStyles } from './rea-sheets.mjs';
 import presentationStyles from './presentation.css';
 import { connectPresentationInteraction, createPresentationUpdateQueue } from './presentation-interaction.mjs';
 
@@ -14,8 +15,7 @@ Shared.MLt(stored, (key, value) => {
   if (value === undefined) delete stored[key]; else stored[key] = value;
   localStorage.setItem('opencu:presentation-state', JSON.stringify(stored));
 });
-const style = document.createElement('style'); style.textContent = styles + '\n' + presentationStyles;
-document.head.append(style);
+adoptReaStyles(document, styles, presentationStyles);
 const mount = document.getElementById('root');
 mount.dataset.reaRoot = ''; mount.dataset.codexWindowType = 'electron'; mount.dataset.theme = 'light';
 mount.style.boxSizing = 'border-box';
@@ -74,4 +74,5 @@ const closeFront = () => {
   if (frame && !state.transferId) close(frame);
 };
 window.addEventListener('keydown', event => { if (event.key === 'Escape') closeFront(); });
-window.addEventListener('contextmenu', event => { event.preventDefault(); closeFront(); });
+// A secondary click must not dismiss a preview; closing stays explicit (button or Escape).
+window.addEventListener('contextmenu', event => event.preventDefault());

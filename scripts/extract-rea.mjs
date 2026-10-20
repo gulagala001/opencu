@@ -372,6 +372,8 @@ const roots = [
   ['browser-use-policy-site-permissions-2bd40069d7f2.js', ['Zt', 'wn']],
 ];
 const lazyFiles = new Set();
+// Served data-only and standalone modules ship from lib/rea-assets as originals; no bundled copy is kept.
+const served = new Set(JSON.parse(await readFile(resolve(root, 'scripts/lazy-grammars.json'), 'utf8')));
 if (rebuild) {
   for (const file of rebuild) {
     const mod = await load(file);
@@ -411,6 +413,7 @@ do {
 // Keep dynamic public names separate from the internal names used by static imports.
 const dynamicNamespaces = new Map();
 if (rebuild) for (const file of lazyFiles) {
+  if (served.has(file)) continue;
   if ((await readFile(resolve(root, 'src/client/rea', file), 'utf8')).includes('export const __opencuDynamicExports =')) dynamicNamespaces.set(file, []);
 }
 for (const mod of modules.values()) if (lazyFiles.has(mod.file)
@@ -606,7 +609,7 @@ for (const mod of modules.values()) {
     } });
     for (const end of imports.sort((a, b) => b - a)) output = output.slice(0, end) + '.then(module => module.__opencuDynamicExports)' + output.slice(end);
   }
-  await writeFile(resolve(root, 'src/client/rea', mod.file), output);
+  if (!served.has(mod.file)) await writeFile(resolve(root, 'src/client/rea', mod.file), output);
   provenance.push({ file: mod.file, source: originals.get(mod.file)?.vendor ?? resolve(packed, mod.file), sha256: mod.sha256, symbols: exports, lazyInitializers: [...mod.init].filter(n => mod.selected.has(n)), hostBoundaries: Object.keys(overrides[mod.file] ?? {}).filter(n => mod.selected.has(n)) });
 }
 if (!rebuild) {

@@ -3,7 +3,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ReaRoot } from './rea-root.jsx';
 import styles from './rea-styles.css';
-import { createReaPortal } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
 import { NativeBrowserSlot } from './native-browser-slot.jsx';
 
 export function BrowserSlot(props) {
@@ -18,12 +18,11 @@ function EmbeddedBrowserSlot(props) {
   const host = HostReact.useRef(null), root = HostReact.useRef(null), overlay = HostReact.useRef(null);
   HostReact.useLayoutEffect(() => {
     const shadow = host.current.attachShadow({ mode: 'open' });
-    const sheet = document.createElement('style'); sheet.textContent = styles;
     const container = document.createElement('div');
     container.dataset.reaRoot = '';
     container.dataset.codexWindowType = 'electron';
     container.style.cssText = 'height:100%;width:100%;min-height:0;position:relative';
-    shadow.append(sheet, container);
+    adoptReaStyles(shadow, styles); shadow.append(container);
     const { dispose: disposePortal, portal: portalContainer } = createReaPortal(styles, container);
     overlay.current = portalContainer;
     root.current = createRoot(container, {

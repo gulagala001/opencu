@@ -44,7 +44,7 @@ export async function loadBuildInputs(id, manifest) {
   const target = hostTargets[id];
   const pkg = hostManifest(manifest, id);
   const expected = { ...pkg.peerDependencies, ...pkg.dependencies, '@deepseek-ai/dsh-system-prompt': target.version,
-    '@deepseek-ai/dsh-attachment-local': target.version, typescript: '6.0.3', '@types/node': ['rc1', '021rc2'].includes(id) ? '22.20.1' : '22.20.0', electron: target.electron ?? '44.0.0', 'electron-chrome-extensions': '4.9.0' };
+    '@deepseek-ai/dsh-attachment-local': target.version, typescript: '6.0.3', '@types/node': '22.20.1', electron: target.electron, 'electron-chrome-extensions': '4.9.0' };
   if (JSON.stringify(sdk.dependencies) !== JSON.stringify(expected)) throw new Error(`Fixed SDK manifest does not match source dependencies: ${id}`);
   // Check every package and peer context, including transitive DSH packages.
   const lock = files['pnpm-lock.yaml'].toString();

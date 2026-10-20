@@ -7,7 +7,7 @@ import { tT as MonitorMenu, aT, Jw, Q as SummaryPanel, Te as Menu } from './rea/
 import { MonitorStack } from './presentation-stack.jsx';
 import styles from './rea-styles.css';
 import presentationStyles from './presentation.css';
-import { createReaPortal } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
 import { OverviewContent, initializeOverview } from './session-overview.jsx';
 
 function Monitor({ sessionId, state, docked, service, report, overview }) {
@@ -31,11 +31,20 @@ function Monitor({ sessionId, state, docked, service, report, overview }) {
   const [exiting, setExiting] = React.useState(false);
   React.useLayoutEffect(() => { if (frames.length) setExiting(true); }, [frames.length]);
   if ((docked ? !frames.length && !exiting : !active && !overview)) return null;
-  const label = overview ? '会话总览' : intl.formatMessage({ id: 'codex.localConversation.remoteHostedPip.pictureInPicture', defaultMessage: 'Picture in Picture' });
+  const zh = intl.locale.startsWith('zh');
+  const label = overview ? intl.formatMessage({ id: 'opencu.overview.title', defaultMessage: zh ? '会话总览' : 'Session overview' })
+    : intl.formatMessage({ id: 'codex.localConversation.remoteHostedPip.pictureInPicture', defaultMessage: 'Picture in Picture' });
+  const overflow = state.overflowCounts?.[sessionId] ?? 0;
   const controls = <><MonitorMenu sessionId={sessionId} active={active} shown={shown}
     layout={{ activeThreadID: sessionId, placement: state.placements[sessionId] }} service={service} />
     {shown && state.hiddenTargetCounts?.[sessionId] > 0 && <Shared.r5 color="secondary" size="toolbar" onClick={() => service.showTask(sessionId)}>
-      {intl.formatMessage({ id: 'opencu.monitor.restoreClosed', defaultMessage: intl.locale.startsWith('zh') ? '显示已关闭的预览' : 'Show closed previews' })}
+      {intl.formatMessage({ id: 'opencu.monitor.restoreClosed', defaultMessage: zh ? '显示已关闭的预览' : 'Show closed previews' })}
+    </Shared.r5>}
+    {shown && overflow > 0 && <Shared.r5 color="secondary" size="toolbar" onClick={() => service.expand(sessionId, true)}>
+      {intl.formatMessage({ id: 'opencu.monitor.overflow', defaultMessage: zh ? '另有 {count} 个预览' : '{count} more previews' }, { count: overflow })}
+    </Shared.r5>}
+    {shown && state.expanded && !overflow && state.frames.filter(frame => frame.threadID === sessionId).length > 5 && <Shared.r5 color="secondary" size="toolbar" onClick={() => service.expand(sessionId, false)}>
+      {intl.formatMessage({ id: 'opencu.monitor.collapse', defaultMessage: zh ? '收起预览' : 'Show fewer previews' })}
     </Shared.r5>}</>;
   return docked ? <>
     <SummaryPanel.Content>{controls}</SummaryPanel.Content>
@@ -58,10 +67,9 @@ export function PresentationSlot(props) {
   HostReact.useLayoutEffect(() => {
     aT(); Jw(); initializeOverview();
     const shadow = host.current.attachShadow({ mode: 'open' });
-    const sheet = document.createElement('style'); sheet.textContent = styles + '\n' + presentationStyles;
     const container = document.createElement('div');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
-    shadow.append(sheet, container);
+    adoptReaStyles(shadow, styles, presentationStyles); shadow.append(container);
     const { dispose: disposePortal, portal } = createReaPortal(styles, container, 70);
     const root = createRoot(container, { onUncaughtError(error) { props.report({ type: 'error', message: error.message }); } });
     mounted.current = { root, portal };

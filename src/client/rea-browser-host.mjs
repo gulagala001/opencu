@@ -466,7 +466,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
             emit('browser-sidebar-command-error', { ...args, error: { message: error.message, code: error.code } });
           }
         } finally {
-          if (!closed) timer = setTimeout(poll, failure ? 2000 : 250);
+          if (!closed) timer = setTimeout(poll, failure || document.hidden ? 2000 : 250);
         }
       };
       const pending = poll();

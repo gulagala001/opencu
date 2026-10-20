@@ -9,7 +9,7 @@ import { Se as NotebookPreview, $ as initializeNotebook } from './rea/notebook-p
 import { Do as ArtifactPreview, ns as initializeArtifacts } from './rea/artifact-tab-content.electron-64a58871ee86.js';
 import { services } from './rea-services.mjs';
 import styles from './rea-styles.css';
-import { createReaPortal } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
 import { ViewerControls, initializeViewerControls } from './viewer-controls.jsx';
 import { createDocumentSource } from './document-source.mjs';
 
@@ -118,7 +118,6 @@ export function DocumentSlot(props) {
   HostReact.useLayoutEffect(() => {
     Nn(); Wn(); initializeNotebook(); initializeArtifacts(); initializeViewerControls();
     const shadow = host.current.attachShadow({ mode: 'open' });
-    const sheet = document.createElement('style'); sheet.textContent = styles;
     const container = document.createElement('div');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
     container.style.cssText = 'height:100%;width:100%;min-height:0;position:relative';
@@ -136,7 +135,7 @@ export function DocumentSlot(props) {
       root.unmount(); disposePortal(); mounted.current = null;
     };
     const lifecycle = { flush: async () => {} };
-    shadow.append(sheet, container); mounted.current = { root, portal, lifecycle };
+    adoptReaStyles(shadow, styles); shadow.append(container); mounted.current = { root, portal, lifecycle };
     const unregister = services.artifactDocuments.registerEditor({
       quiesce: () => { container.inert = true; },
       flush: () => lifecycle.flush(), stop,

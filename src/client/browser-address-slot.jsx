@@ -5,7 +5,7 @@ import { ReaProviders } from './rea-root.jsx';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import { he as BrowserAddressSuggestionOverlay, ye as initializeBrowserAddress } from './rea/browser-address-suggestion-overlay-185e242f325f.js';
 import { xfl as ComposerOverlay, Ofl as initializeComposerOverlay } from './rea/app-initial-c468e3fd7f91.js';
-import { createReaPortal } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
 import styles from './rea-styles.css';
 
 const BrowserAddressContext = React.createContext(null);
@@ -37,19 +37,18 @@ export function BrowserAddressSlot(props) {
   HostReact.useLayoutEffect(() => {
     initializeBrowserAddress(); initializeComposerOverlay();
     const shadow = host.current.shadowRoot ?? host.current.attachShadow({ mode: 'open' });
-    const sheet = document.createElement('style'); sheet.textContent = styles;
     const container = document.createElement('div');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
     const { dispose: disposePortal, portal } = createReaPortal(styles, container, 70);
     portal.dataset.composerOverlay = '';
-    shadow.append(sheet, container);
+    adoptReaStyles(shadow, styles); shadow.append(container);
     const root = createRoot(container, { onUncaughtError(error) { props.report(error.message); } });
     let binding;
     try { binding = props.connectBrowserAddress(host.current, container, portal, props.inputActions); }
-    catch (error) { root.unmount(); disposePortal(); sheet.remove(); container.remove(); throw error; }
+    catch (error) { root.unmount(); disposePortal(); container.remove(); throw error; }
     mounted.current = { root, portal, controller: binding.controller };
     return () => {
-      root.unmount(); binding.dispose(); disposePortal(); sheet.remove(); container.remove(); mounted.current = null;
+      root.unmount(); binding.dispose(); disposePortal(); container.remove(); mounted.current = null;
     };
   }, [props.sessionId, props.connectBrowserAddress]);
   HostReact.useLayoutEffect(() => {

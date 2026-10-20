@@ -1,4 +1,8 @@
-import pageSource from './page-annotations-source.mjs';
+let pageSource;
+/** The page runtime is large and only needed once a page is annotated; fetch it on first install. */
+const loadPageSource = () => pageSource ??= fetch(new URL('/api/opencu/page-annotations.js', document.baseURI))
+  .then(response => { if (!response.ok) throw new Error(`OpenCU annotations unavailable: HTTP ${response.status}`); return response.text(); })
+  .catch(error => { pageSource = undefined; throw error; });
 
 /** Owns the REA page runtime and editor data for one real guest occurrence. */
 export function createAnnotationHost({ element, capture, ids, target, state, changed, deliver, settings, saveImage, intl, userActivity }) {
@@ -97,7 +101,9 @@ export function createAnnotationHost({ element, capture, ids, target, state, cha
     const choice = JSON.parse(localStorage.getItem(siteKey()) || 'null');
     changed({ siteAnnotationPermissionGranted: choice === true, siteAnnotationFeaturesEnabled: choice !== false, comments: pending(),
       siteAnnotationPermissionRequest: null, siteAnnotationFeatures: [], siteToolsAvailability: { ...state().siteToolsAvailability, annotations: 'unavailable' } });
-    await element.executeJavaScript(`${pageSource}\nOpenCUPageAnnotations.install(${JSON.stringify(snapshot())});`);
+    const source = await loadPageSource();
+    if (disposed || epoch !== generation) return;
+    await element.executeJavaScript(`${source}\nOpenCUPageAnnotations.install(${JSON.stringify(snapshot())});`);
     if (disposed || epoch !== generation) return;
     enabled = true; void drain(epoch);
   }

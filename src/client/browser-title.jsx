@@ -6,7 +6,7 @@ import * as Initial from './rea/app-initial-c468e3fd7f91.js';
 import styles from './rea-styles.css';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import { services } from './rea-services.mjs';
-import { createReaPortal } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
 
 function BrowserTitle({ sessionId, tabId, fallback }) {
   const subscribe = React.useCallback(listener => Initial.AW.subscribe(listener), []);
@@ -48,11 +48,10 @@ export function BrowserTitleSlot(props) {
   HostReact.useLayoutEffect(() => {
     Initial.H8n(); Initial.Pfa(); Initial.Gfa(); Shared.mMi();
     const shadow = host.current.attachShadow({ mode: 'open' });
-    const sheet = document.createElement('style'); sheet.textContent = styles;
     const container = document.createElement('span');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
     const { dispose: disposePortal, portal } = createReaPortal(styles, container, 70);
-    shadow.append(sheet, container);
+    adoptReaStyles(shadow, styles); shadow.append(container);
     const root = createRoot(container); mounted.current = { root, portal };
     return () => { root.unmount(); disposePortal(); mounted.current = null; };
   }, []);

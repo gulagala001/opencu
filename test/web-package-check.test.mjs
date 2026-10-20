@@ -13,7 +13,6 @@ async function fixture(t, mutate = () => {}) {
   const files = {
     'package.json': JSON.stringify({ name: 'opencu', version: 'test', exports: { './client': './lib/client.js' } }),
     'lib/client.js': 'managedHeadless browserUnavailableMessage This web page has no desktop adapter for the embedded browser Start a separate headless browser on the DSH server machine',
-    'lib/client.factory.mjs': 'managedHeadless browserUnavailableMessage This web page has no desktop adapter for the embedded browser Start a separate headless browser on the DSH server machine',
     ...Object.fromEntries(['src/runtime.mjs', 'src/dsh/runtime.mjs', 'src/dsh/browser-host.mjs', 'src/dsh/config.mjs', 'src/dsh/index.mjs'].map(file => [file, 'export {};\n'])),
   };
   const packed = { ...files }; mutate(packed, files);
@@ -29,7 +28,7 @@ async function fixture(t, mutate = () => {}) {
 
 test('package checker accepts matching synthetic rebuilt files and returns hashes only', async t => {
   const f = await fixture(t); const result = await verifyWebPackage(f.archive, f.source);
-  assert.equal(result.frontend.length, 2); assert.match(result.frontend[0].sha256, /^[a-f0-9]{64}$/);
+  assert.equal(result.frontend.length, 1); assert.match(result.frontend[0].sha256, /^[a-f0-9]{64}$/);
 });
 test('package checker rejects stale packed client bytes', async t => {
   const f = await fixture(t, packed => { packed['lib/client.js'] += 'old'; });

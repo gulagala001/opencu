@@ -1,4 +1,8 @@
 import { subscribeReaTheme } from './rea-theme.mjs';
+import { adoptReaStyles } from './rea-sheets.mjs';
+
+export { adoptReaStyles };
+const noDrag = '[data-rea-root] * { -webkit-app-region: no-drag; }';
 
 const portals = new Map();
 
@@ -22,8 +26,6 @@ export function createReaPortal(styles, source, zIndex = 50) {
   host.dataset.opencuPortal = '';
   host.style.cssText = `position:fixed;inset:0;z-index:${zIndex};pointer-events:none;-webkit-app-region:initial`;
   const shadow = host.attachShadow({ mode: 'open' });
-  const sheet = document.createElement('style');
-  sheet.textContent = `${styles}\n[data-rea-root] * { -webkit-app-region: no-drag; }`;
   const portal = document.createElement('div');
   Object.assign(portal.dataset, dataset);
   portal.style.cssText = 'display:contents;pointer-events:auto';
@@ -31,7 +33,8 @@ export function createReaPortal(styles, source, zIndex = 50) {
     if (dataset.theme !== theme) dataset.theme = theme;
     if (portal.dataset.theme !== theme) portal.dataset.theme = theme;
   });
-  shadow.append(sheet, portal);
+  adoptReaStyles(shadow, styles, noDrag);
+  shadow.append(portal);
   document.body.append(host);
   if (body) portals.set(body, portal);
   return { host, portal, dispose() { if (body) portals.delete(body); unsubscribeTheme(); host.remove(); } };

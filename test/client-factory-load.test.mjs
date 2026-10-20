@@ -90,7 +90,11 @@ for (const kind of ['classic-module-loader', 'esm-createOpenCU']) await test(kin
       finally { result.loadCache = [...loader.loadCache.keys()]; }
       instantiate = () => loader.import('opencu/client');
     } else {
-      const source = await readFile(resolve(checkout, 'lib/client.factory.mjs'), 'utf8');
+      // Bundling hosts derive this ES factory from the shipped classic client.
+      const head = 'window.__ModuleLoader__.load({id:"opencu",factory:(require)=>{var module={exports:{}};var exports=module.exports;', tail = 'return module.exports;}});';
+      const client = (await readFile(resolve(checkout, 'lib/client.js'), 'utf8')).trimEnd();
+      assert(client.startsWith(head) && client.endsWith(tail), 'Unexpected OpenCU client wrapper');
+      const source = `export function createOpenCU(require) {\nvar module={exports:{}};var exports=module.exports;\n${client.slice(head.length, -tail.length)}\nreturn module.exports;\n}\n`;
       const module = new vm.SourceTextModule(source, { context, identifier: resolve(checkout, 'lib/client.factory.mjs') });
       await module.link(specifier => { throw new Error('Unexpected factory import: ' + specifier); });
       await module.evaluate({ timeout: 20000 });

@@ -7,7 +7,7 @@ import { jA as useLocation, _lt as Scope, jX as ThreadScope, h1 as RouteScope } 
 import { CapabilitySettings, CapabilityDetails, CapabilityProvider, initializeCapabilities } from './capability-settings.jsx';
 import { services } from './rea-services.mjs';
 import styles from './rea-styles.css';
-import { createReaPortal } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
 
 function SettingsContent() {
   const { pathname, search } = useLocation();
@@ -28,7 +28,6 @@ export function SettingsSlot() {
   HostReact.useLayoutEffect(() => {
     Va(); gi(); initializeCapabilities();
     const shadow = host.current.shadowRoot ?? host.current.attachShadow({ mode: 'open' });
-    const style = document.createElement('style'); style.textContent = styles;
     const mount = document.createElement('div');
     mount.dataset.reaRoot = ''; mount.dataset.codexWindowType = 'electron';
     // DSH's settings overlay is at 1000; body-portaled menus must sit above it.
@@ -39,7 +38,7 @@ export function SettingsSlot() {
       alert.style.whiteSpace = 'pre-wrap'; alert.textContent = error.stack || error.message;
       queueMicrotask(() => mount.replaceChildren(alert));
     } });
-    shadow.replaceChildren(style, mount);
+    adoptReaStyles(shadow, styles); shadow.replaceChildren(mount);
     mounted.current = { root, portal };
     return () => { root.unmount(); disposePortal(); mounted.current = null; shadow.replaceChildren(); };
   }, []);

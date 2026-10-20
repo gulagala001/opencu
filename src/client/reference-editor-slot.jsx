@@ -6,7 +6,7 @@ import { b as ComposerAnnotationEditor, w } from './rea/annotation-editor-2d914a
 import { Qri } from './rea/app-initial-c468e3fd7f91.js';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import styles from './rea-styles.css';
-import { createReaPortal } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
 import { ReferenceEditorDialogContext } from './host-boundaries.mjs';
 
 function Editor({ value, portal, save, remove, close }) {
@@ -49,11 +49,10 @@ export function ReferenceEditorSlot(props) {
   HostReact.useLayoutEffect(() => {
     w();
     const shadow = host.current.attachShadow({ mode: 'open' });
-    const sheet = document.createElement('style'); sheet.textContent = styles;
     const container = document.createElement('div');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
     const { dispose: disposePortal, portal } = createReaPortal(styles, container, 70);
-    shadow.append(sheet, container);
+    adoptReaStyles(shadow, styles); shadow.append(container);
     const root = createRoot(container, { onUncaughtError(error) { props.report(error.message); } });
     mounted.current = { root, portal };
     return () => { root.unmount(); disposePortal(); mounted.current = null; };

@@ -7,7 +7,7 @@ import { d as createMarkupPreview, f as initializeMarkupExport } from './rea/exp
 import { Ot as ImageViewport, Pt, mn as ImageTools, _n, Ft as RemoveSurface, Jt } from './rea/image-tools-toolbar-6d3d3fb8d826.js';
 import { mi as CommentSurface, wi, Ti as CommentToolbar, Oi, Ii as FloatingToolbar, Vi } from './rea/image-side-panel-6c7023add54c.js';
 import styles from './rea-styles.css';
-import { createReaPortal } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
 import { ViewerControls, initializeViewerControls } from './viewer-controls.jsx';
 import { services } from './rea-services.mjs';
 import { ImageMarkupCloseContext } from './host-boundaries.mjs';
@@ -177,7 +177,6 @@ export function ImageSlot(props) {
   HostReact.useLayoutEffect(() => {
     Pt(); _n(); Jt(); wi(); Oi(); Vi(); initializeMarkupExport(); initializeViewerControls();
     const shadow = host.current.attachShadow({ mode: 'open' });
-    const sheet = document.createElement('style'); sheet.textContent = styles;
     const container = document.createElement('div');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
     container.style.cssText = 'height:100%;width:100%;min-height:0;position:relative';
@@ -188,7 +187,7 @@ export function ImageSlot(props) {
       alert.style.whiteSpace = 'pre-wrap'; alert.textContent = error.stack || error.message;
       queueMicrotask(() => container.replaceChildren(alert));
     } });
-    shadow.append(sheet, container); mounted.current = { root, portal, container };
+    adoptReaStyles(shadow, styles); shadow.append(container); mounted.current = { root, portal, container };
     props.scrollportRef(container);
     return () => { root.unmount(); disposePortal(); mounted.current = null; props.scrollportRef(null); };
   }, []);

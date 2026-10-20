@@ -17,7 +17,7 @@ async function fixture(t, source = original) {
   const root = await mkdtemp(join(tmpdir(), 'rea-extraction-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   for (const directory of ['scripts', 'src/client/rea', 'vendor/build-inputs/rea']) await mkdir(join(root, directory), { recursive: true });
-  for (const file of ['extract-rea.mjs', 'rea-index.mjs', 'dependencies.mjs']) await cp(new URL('scripts/' + file, project), join(root, 'scripts', file));
+  for (const file of ['extract-rea.mjs', 'rea-index.mjs', 'dependencies.mjs', 'lazy-grammars.json']) await cp(new URL('scripts/' + file, project), join(root, 'scripts', file));
   await cp(new URL('package.json', project), join(root, 'package.json'));
   await symlink(new URL('node_modules', project).pathname, join(root, 'node_modules'), 'dir');
   const record = { source: 'webview/assets/fixture.js', vendor: 'vendor/build-inputs/rea/original.js', sha256: sha256(source) };

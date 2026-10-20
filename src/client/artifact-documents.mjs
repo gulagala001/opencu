@@ -50,7 +50,7 @@ export function createArtifactDocumentsHost(desktop) {
                 }
                 reported = false;
               } catch (error) { if (!stopped && !reported) { reported = true; if (onError) onError(error.message); else console.error('OpenCU workbook persistence', error); } }
-              if (!stopped) timer = setTimeout(poll, 500);
+              if (!stopped) timer = setTimeout(poll, document.hidden ? 3000 : 500);
             };
             timer = setTimeout(poll, 500);
             return { status: 'ok', value: { record: initial.value, subscription: {

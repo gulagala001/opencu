@@ -7,7 +7,10 @@ const require = dependencyRequire();
 const { parse } = require('@babel/parser');
 const traverse = require('@babel/traverse').default;
 
-/** Keep host-bound modules bundled; only original data-only grammar closures are served lazily. */
+// Self-contained original modules with no bundle state: they only need the browser and the rolldown runtime.
+const STANDALONE = new Set(['docx-preview-8513c2dacad2.js', 'wasm-7a831618ae1c.js']);
+
+/** Keep host-bound modules bundled; original data-only grammars/themes and STANDALONE modules are served lazily. */
 export async function prepareLazyGrammars(root) {
   const files = JSON.parse(await readFile(new URL('./lazy-grammars.json', import.meta.url), 'utf8'));
   const lazy = new Set(JSON.parse(await readFile(resolve(root, 'src/client/rea/lazy-modules.json'), 'utf8')));
@@ -23,6 +26,11 @@ export async function prepareLazyGrammars(root) {
     const source = await readFile(resolve(root, record.vendor), 'utf8');
     if (createHash('sha256').update(source).digest('hex') !== record.sha256) throw new Error(`REA grammar changed: ${file}`);
     if (file === 'rolldown-runtime-2d059c5e81f4.js') { checked.set(file, []); return []; }
+    if (STANDALONE.has(file)) {
+      const imports = [...source.matchAll(/\bimport\s*(?:\(|[^;]*?from\s*)[`"']([^`"']+)[`"']/g)].map(match => match[1]);
+      if (source.includes('import.meta') || imports.some(value => value !== './rolldown-runtime-2d059c5e81f4.js')) throw new Error(`Standalone module gained dependencies: ${file}`);
+      checked.set(file, ['standalone']); return ['standalone'];
+    }
     const ast = parse(source, { sourceType: 'module' }), dependencies = [], exports = [];
     for (const node of ast.program.body) {
       if (node.type === 'ImportDeclaration') {
@@ -34,7 +42,7 @@ export async function prepareLazyGrammars(root) {
         throw new Error(`Unexpected grammar declaration: ${file}:${node.type}`);
       }
     }
-    const grammar = source.includes('Object.freeze(JSON.parse(') && source.includes('scopeName');
+    const grammar = source.includes('Object.freeze(JSON.parse(') && (source.includes('scopeName') || source.includes('tokenColors'));
     if (!grammar && ast.program.body.some(node => !['ImportDeclaration', 'ExportNamedDeclaration'].includes(node.type)
       && !(node.type === 'ExpressionStatement' && node.expression.type === 'CallExpression' && node.expression.callee.type === 'Identifier'))) {
       throw new Error(`Not a pure grammar wrapper: ${file}`);
@@ -51,7 +59,7 @@ export async function prepareLazyGrammars(root) {
   for (const file of files) {
     if (!lazy.has(file)) throw new Error(`Grammar is no longer dynamically loaded: ${file}`);
     const exports = await inspect(file);
-    if (exports.length !== 1 || exports[0] !== 'default') throw new Error(`Grammar default export changed: ${file}`);
+    if (exports[0] !== 'standalone' && (exports.length !== 1 || exports[0] !== 'default')) throw new Error(`Grammar default export changed: ${file}`);
   }
   return new Set(files);
 }

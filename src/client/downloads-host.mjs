@@ -3,7 +3,7 @@ import * as Shared from './rea/app-shared-2f2228189a8d.js';
 /** REA download commands operate on the current DSH window's owned desktop leases. */
 export function createDownloadsHost({ desktop, client, settings, downloadUrl }) {
   if (typeof desktop?.downloads !== 'function') return { service: undefined, attach: async () => {}, dispose: async () => {} };
-  let owner, timer, pending, disposed = false, configuring = Promise.resolve(), lastError, historyRevision;
+  let owner, timer, pending, disposed = false, configuring = Promise.resolve(), lastError, historyRevision, transferring = false;
   const report = error => {
     if (!disposed && lastError !== error.message) { lastError = error.message; Shared.WFt().danger(error.message); }
   };
@@ -26,6 +26,7 @@ export function createDownloadsHost({ desktop, client, settings, downloadUrl }) 
     pending ??= (async () => {
       const lease = await control();
       const live = await desktop.downloads(lease.lease, 'list', {});
+      transferring = live.some(download => download.status === 'in_progress');
       for (const download of live) {
         const signature = JSON.stringify(download);
         if (signatures.get(download.id) === signature) continue;
@@ -41,7 +42,8 @@ export function createDownloadsHost({ desktop, client, settings, downloadUrl }) 
   }
   async function poll() {
     try { await sync(); lastError = undefined; } catch (error) { report(error); }
-    if (!disposed) timer = setTimeout(poll, 1000);
+    // Live progress needs a fast cadence; idle or hidden windows only pick up new downloads.
+    if (!disposed) timer = setTimeout(poll, document.hidden ? 5000 : transferring ? 1000 : 2500);
   }
   function retained(promise) {
     promise[Symbol.dispose] = () => { promise.catch(error => console.error('OpenCU download command', error)); };

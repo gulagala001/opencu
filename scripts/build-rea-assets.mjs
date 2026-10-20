@@ -37,9 +37,12 @@ async function collect(file, expected) {
   const asset = assets.get(sha256) ?? file;
   assets.set(sha256, asset);
   entries.set(file, { file, sha256, source: item.source, ...(asset === file ? {} : { asset }) });
+  // Manifest records already keep their own original copy; cache only unrecorded resources.
   const cached = resolve(vendor, file);
-  try { await access(cached); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; await writeFile(cached, item.bytes); }
+  if (!item.expected) {
+    try { await access(cached); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; await writeFile(cached, item.bytes); }
+  }
   if (asset === file) await writeFile(resolve(output, file), item.bytes);
   if (!/\.m?js$/.test(file)) return;
   const source = item.bytes.toString('utf8');

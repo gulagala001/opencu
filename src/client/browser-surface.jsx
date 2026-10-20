@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { initializeRea, ReaRoot, ReaProviders } from './rea-root.jsx';
 import { p as HiddenBrowserUseWebviewHost, b as initializeHiddenHost } from './rea/hidden-browser-use-webview-host-bdd4db5a6c73.js';
-import { createReaPortal, guestPortalStyles } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal, guestPortalStyles } from './portal-host.mjs';
 import { installReaServices } from './rea-services.mjs';
 import { createCoreClient } from './core-client.mjs';
 import { createReaBrowserHost } from './rea-browser-host.mjs';
@@ -97,7 +97,7 @@ async function mount() {
   const container = document.getElementById('root');
   container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron'; container.dataset.theme = init.theme;
   container.style.cssText = 'height:100%;width:100%;min-height:0;position:relative';
-  const sheet = document.createElement('style'); sheet.textContent = styles + '\n' + guestPortalStyles; document.head.append(sheet);
+  adoptReaStyles(document, styles, guestPortalStyles);
   const { portal, dispose: disposePortal } = createReaPortal(styles, container);
   const client = createCoreClient(); client.start();
   const settings = {

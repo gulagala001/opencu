@@ -14,7 +14,7 @@ async function fixture() {
     'react-host': { createElement }, 'react': { default: { createElement } },
     'react-dom/client': { createRoot: () => { throw new Error('Unexpected REA root'); } },
     './rea-root.jsx': { ReaRoot: () => {} }, './rea-styles.css': { default: '' },
-    './portal-host.mjs': { createReaPortal: () => { throw new Error('Unexpected portal'); } },
+    './portal-host.mjs': { adoptReaStyles: () => { throw new Error('Unexpected styles'); }, createReaPortal: () => { throw new Error('Unexpected portal'); } },
     './native-browser-slot.jsx': { NativeBrowserSlot },
   };
   const module = new vm.SourceTextModule(source, { context });

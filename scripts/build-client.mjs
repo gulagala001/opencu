@@ -12,7 +12,7 @@ const { build } = require('esbuild');
 const { parse } = require('acorn');
 const lazyModules = new Set(JSON.parse(await readFile(resolve(root, 'src/client/rea/lazy-modules.json'), 'utf8')));
 const resources = new Set(JSON.parse(await readFile(resolve(root, 'lib/rea-assets/manifest.json'), 'utf8')).map(record => record.file));
-const decoderCounts = { 'app-initial-c468e3fd7f91.js': 5, 'wasm-7a831618ae1c.js': 1 };
+const decoderCounts = { 'app-initial-c468e3fd7f91.js': 5 };
 const decoderTransforms = new Map();
 const preloadTransforms = new Map();
 let preloadTransformBytes = 0;
@@ -65,7 +65,8 @@ const pageRuntime = await build({
   minify: true, keepNames: true,
   nodePaths: [resolve(root, '.local/frontend-deps/node_modules')],
 });
-await writeFile(resolve(root, 'src/client/page-annotations-source.mjs'), `export default ${JSON.stringify(pageRuntime.outputFiles[0].text)};\n`);
+// Served on first annotation install instead of riding in every client bundle.
+await writeFile(resolve(root, 'lib/page-annotations.js'), pageRuntime.outputFiles[0].text);
 // REA establishes layer order in its HTML before any dependency CSS loads.
 const htmlRecord = originals.get('index.html');
 const html = await readFile(resolve(root, htmlRecord.vendor), 'utf8');
@@ -99,7 +100,7 @@ const cursorTokens = ['--blue-300', '--app-color-accent-blue'].map(name => {
 });
 await writeFile(resolve(root, 'src/client/cursor-styles.css'), `[data-rea-root]{${cursorTokens.join(';')}}\n`);
 const clientOptions = {
-  absWorkingDir: root, entryPoints: ['src/client/index.jsx'], outfile: 'lib/client.js', bundle: true, format: 'cjs', banner: { js: 'window.__ModuleLoader__.load({id:"opencu",factory:(require)=>{var module={exports:{}};var exports=module.exports;' }, footer: { js: 'return module.exports;}});' }, platform: 'browser', target: 'es2022', jsx: 'automatic', minifySyntax: true, minifyIdentifiers: true, minifyWhitespace: true, keepNames: true,
+  absWorkingDir: root, entryPoints: ['src/client/index.jsx'], outfile: 'lib/client.js', bundle: true, format: 'cjs', banner: { js: 'window.__ModuleLoader__.load({id:"opencu",factory:(require)=>{var module={exports:{}};var exports=module.exports;' }, footer: { js: 'return module.exports;}});' }, platform: 'browser', target: 'es2022', jsx: 'automatic', charset: 'utf8', minifySyntax: true, minifyIdentifiers: true, minifyWhitespace: true, keepNames: true,
   nodePaths: [resolve(root, '.local/frontend-deps/node_modules')], external: ['react-host'], loader: { '.css': 'text', '.svg': 'dataurl', '.png': 'dataurl' },
   define: { 'process.env.NODE_ENV': '"production"', 'import.meta.url': 'document.baseURI', 'import.meta.resolve': 'undefined' },
   plugins: [{ name: 'dsh-host-react', setup(build) {
@@ -134,18 +135,17 @@ const clientOptions = {
     build.onResolve({ filter: /^\.\// }, args => {
       if (args.kind !== 'dynamic-import') return;
       const file = basename(args.path);
-      if (build.initialOptions.format === 'cjs' && lazyGrammars.has(file)) return { path: `/api/opencu/rea-assets/${file}`, external: true };
+      // Every OpenCU page is served from the DSH origin, so data-only modules load from the same route.
+      if (lazyGrammars.has(file)) return { path: `/api/opencu/rea-assets/${file}`, external: true };
       if (!lazyModules.has(file)) return { path: args.path, external: true };
     });
   } }],
-  logLevel: 'info', metafile: true,
+  logLevel: 'info',
 };
 const result = await build({ ...clientOptions, write: false });
 const clientBundle = result.outputFiles[0].text;
 await writeFile(resolve(root, 'lib/client.js'), clientBundle);
-const factory = clientBundle.slice(clientOptions.banner.js.length).trimEnd();
-if (!factory.endsWith(clientOptions.footer.js)) throw new Error('Unexpected OpenCU client wrapper');
-await writeFile(resolve(root, 'lib/client.factory.mjs'), `export function createOpenCU(require) {\nvar module={exports:{}};var exports=module.exports;\n${factory.slice(0, -clientOptions.footer.js.length)}\nreturn module.exports;\n}\n`);
+if (!clientBundle.startsWith(clientOptions.banner.js) || !clientBundle.trimEnd().endsWith(clientOptions.footer.js)) throw new Error('Unexpected OpenCU client wrapper');
 await build({ ...clientOptions, entryPoints: ['src/client/browser-surface.jsx'], outfile: 'lib/browser-surface.js', format: 'iife', banner: {}, footer: {} });
 await writeFile(resolve(root, 'lib/browser-surface.html'), '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script src="browser-surface.js"></script></body></html>\n');
 await build({ ...clientOptions, entryPoints: ['src/client/presentation.jsx'], outfile: 'lib/presentation.js', format: 'iife', banner: {}, footer: {} });
@@ -153,10 +153,4 @@ await build({ ...clientOptions, entryPoints: ['src/client/page-cursor.mjs'], out
 await writeFile(resolve(root, 'extension/page-cursor.js'), await readFile(resolve(root, 'lib/page-cursor.js')));
 await writeFile(resolve(root, 'lib/cursor.html'), '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\'; style-src \'unsafe-inline\'; img-src data: blob:;"></head><body style="margin:0;background:transparent"><script src="page-cursor.js"></script></body></html>\n');
 await writeFile(resolve(root, 'lib/presentation.html'), '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; connect-src data: blob:; media-src blob:; worker-src data: blob:"></head><body><div id="root"></div><script src="presentation.js"></script></body></html>\n');
-// Reused dependency stores must not expose the builder's private checkout path.
-const publicPath = path => path.replace(/^.*?\/node_modules\//, 'node_modules/');
-const publicMetadata = value => Array.isArray(value) ? value.map(publicMetadata)
-  : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [publicPath(key), publicMetadata(item)]))
-  : typeof value === 'string' ? publicPath(value) : value;
-await writeFile(resolve(root, 'src/client/build-meta.json'), JSON.stringify(publicMetadata({ inputs: Object.keys(result.metafile.inputs), outputs: result.metafile.outputs }), null, 2));
 console.log('OpenCU client bundle built; product UI acceptance is separate');

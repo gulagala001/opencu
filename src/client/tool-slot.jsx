@@ -7,7 +7,7 @@ import { PermissionNotice, initializePermissionNotice } from './permission-notic
 import { xa as ToolContent, Ia } from './rea/mcp-tool-item-content-f32f64d93b42.js';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import styles from './rea-styles.css';
-import { createReaPortal, createReaRenderFallback } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal, createReaRenderFallback } from './portal-host.mjs';
 
 function ToolRoute({ sessionId, item, files }) {
   const route = React.useMemo(() => ({ routeKind: 'local-thread', routeTemplate: '/ca/:conversationId',
@@ -55,11 +55,10 @@ export function ToolSlot(props) {
   HostReact.useLayoutEffect(() => {
     Ia(); initializeDeliveryCards(); initializePermissionNotice();
     const shadow = host.current.attachShadow({ mode: 'open' });
-    const sheet = document.createElement('style'); sheet.textContent = styles;
     const container = document.createElement('div');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
     const { dispose: disposePortal, portal } = createReaPortal(styles, container, 70);
-    shadow.append(sheet, container);
+    adoptReaStyles(shadow, styles); shadow.append(container);
     const fallback = createReaRenderFallback(container, 'OpenCU REA tool result');
     const root = createRoot(container, { onUncaughtError: fallback.onUncaughtError });
     mounted.current = { root, portal };

@@ -1,13 +1,14 @@
 node_modules
-dist/
+/dist/
+/lib/
 .env
 .env.*
 !.env.example
 *.log
 *.tgz
 .DS_Store
-data/
-work/
+/data/
+/work/
 .codegraph/
 AGENTS.md
 PLAN.md
@@ -16,7 +17,6 @@ PLAN.md
 # Local research and release preparation
 codegraph.json
 REFERENCE.md
-COMPONENT-ALLOCATION.md
 vendor/rea/
 docs/release-visuals.md
 docs/visuals.md

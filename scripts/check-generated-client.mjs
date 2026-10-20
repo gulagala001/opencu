@@ -1,18 +1,21 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+// Build output is not committed. Rebuild from the same checkout and require identical bytes,
+// so a release package can always be reproduced from its tagged source.
 const root = fileURLToPath(new URL('../', import.meta.url));
-const tracked = file => execFileSync('git', ['show', `HEAD:${file}`], { cwd: root, maxBuffer: 64 * 1024 * 1024 });
+const files = ['lib/client.js', 'lib/browser-surface.js', 'lib/presentation.js', 'lib/page-annotations.js', 'lib/page-cursor.js', 'lib/rea-assets/manifest.json'];
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
-const runtime = [];
-for (const file of ['lib/client.js', 'lib/client.factory.mjs', 'lib/browser-surface.js', 'lib/presentation.js']) {
-  const bytes = await readFile(new URL('../' + file, import.meta.url));
-  assert.equal(sha256(bytes), sha256(tracked(file)), `Rebuilt production bytes differ from committed file: ${file}`);
-  runtime.push({ file, sha256: sha256(bytes), bytes: bytes.length });
-}
-const normalize = records => records.map(({ source, ...record }) => record);
-const file = 'lib/rea-assets/manifest.json';
-assert.deepEqual(normalize(JSON.parse(await readFile(new URL('../' + file, import.meta.url), 'utf8'))), normalize(JSON.parse(tracked(file))), 'Rebuilt REA resource identities differ from the commit');
-console.log(JSON.stringify({ runtime, reaManifest: 'resource identities match; source provenance locations are environment-dependent' }, null, 2));
+const snapshot = async () => Object.fromEntries(await Promise.all(files.map(async file => [file, sha256(await readFile(new URL('../' + file, import.meta.url)))])));
+const normalize = text => JSON.stringify(JSON.parse(text).map(({ source, ...record }) => record));
+const manifest = async () => normalize(await readFile(new URL('../lib/rea-assets/manifest.json', import.meta.url), 'utf8'));
+const before = await snapshot(), identities = await manifest();
+const rebuilt = spawnSync(process.execPath, ['scripts/build-client.mjs'], { cwd: root, stdio: 'inherit' });
+assert.equal(rebuilt.status, 0, 'Client rebuild failed');
+const after = await snapshot();
+for (const file of files) if (file !== 'lib/rea-assets/manifest.json') assert.equal(after[file], before[file], `Rebuilt production bytes differ: ${file}`);
+// Source provenance paths depend on the machine; resource identities must not.
+assert.equal(await manifest(), identities, 'Rebuilt REA resource identities differ');
+console.log(JSON.stringify(after, null, 2));

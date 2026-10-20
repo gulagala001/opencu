@@ -33,8 +33,10 @@ export async function verifyWebPackage(archive, directory = root) {
   assert.equal(metadata.version, sourceMetadata.version);
   assert.equal(metadata.exports?.['./client'], './lib/client.js', 'Unexpected production client export');
   assert.equal(metadata.exports['./client'], sourceMetadata.exports?.['./client']);
+  // The ES factory is derived by the bundling host at build time and never shipped.
+  assert(!names.includes('package/lib/client.factory.mjs'), 'Build-time client factory must not be packed');
   const summaries = [];
-  for (const file of ['lib/client.js', 'lib/client.factory.mjs']) {
+  for (const file of ['lib/client.js']) {
     const packed = read(file), built = await readFile(resolve(directory, file));
     assert.equal(sha256(packed), sha256(built), `Packed frontend differs from rebuilt file: ${file}`);
     const source = packed.toString('utf8');

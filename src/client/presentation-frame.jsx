@@ -3,6 +3,8 @@ import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import { PresentationCompletion } from './presentation-completion.jsx';
 import { Bw as PresentationFrame, Lw as NativeVideo, Vw as writeVideoFrame, zw as closeVideoStream } from './rea/local-conversation-thread-6508b6dc26ad.js';
 
+const MAX_DECODE_RETRIES = 4;
+
 /** The existing REA close asset and monitor control style, bound to this exact frame. */
 export function MonitorCloseButton({ frame, close, above }) {
   Shared.n5(); Shared.gMi();
@@ -30,7 +32,7 @@ function MonitorFrameContent({ frame, index, count, focus, report, positioned = 
   const failure = reportedFailure?.imageDataURL === frame.imageDataURL && reportedFailure?.timestamp === frame.timestamp ? reportedFailure : null;
   const native = frame.kind === 'native-video';
   const invalidated = frame.cacheInvalidated || !!frame.error && !frame.stale || !frame.imageDataURL;
-  const content = React.useRef(null);
+  const content = React.useRef(null), attempts = React.useRef(0);
   const signal = (type, extra = {}) => report({ type, targetId: frame.presentationID, sessionId: frame.threadID,
     visibilityKey: frame.visibilityKey, mediaGeneration: frame.mediaGeneration, ...extra });
   const fail = (code, message) => { setFailure({ code, message, at: Date.now(), imageDataURL: frame.imageDataURL, timestamp: frame.timestamp }); signal('error', { code, message }); };
@@ -69,11 +71,18 @@ function MonitorFrameContent({ frame, index, count, focus, report, positioned = 
     for (const value of pendingFrames.current.values()) value.close(); pendingFrames.current.clear();
     for (const stream of videoStreams.current.values()) closeVideoStream(stream); videoStreams.current.clear();
   }, []);
+  // Decode failures retry with backoff a few times, then wait for an explicit retry.
+  React.useEffect(() => { if (!failure) attempts.current = 0; }, [failure]);
   React.useEffect(() => {
-    if (!failure || invalidated || failure.code === 'PREVIEW_VIDEO_FAILED') return;
-    const timer = setTimeout(() => setRetry(value => value + 1), 1500);
+    if (!failure || invalidated || failure.code === 'PREVIEW_VIDEO_FAILED' || attempts.current >= MAX_DECODE_RETRIES) return;
+    const timer = setTimeout(() => { attempts.current++; setRetry(value => value + 1); }, 1500 * 2 ** attempts.current);
     return () => clearTimeout(timer);
   }, [failure, invalidated, retry]);
+  const retryNow = event => {
+    event.stopPropagation();
+    attempts.current = 0;
+    if (invalidated) signal('retry'); else setRetry(value => value + 1);
+  };
   // Decode candidates independently. A retry must never replace or unmount the
   // already displayed image until the new candidate has loaded successfully.
   React.useEffect(() => {
@@ -121,6 +130,7 @@ function MonitorFrameContent({ frame, index, count, focus, report, positioned = 
         ? { id: 'opencu.monitor.targetUnavailable', defaultMessage: 'The application window is no longer available. Select it again.' }
         : { id: 'opencu.monitor.unavailable', defaultMessage: 'Preview is temporarily unavailable. The task can continue.' });
   const unavailable = invalidated || failure?.code === 'PREVIEW_IMAGE_DECODE_FAILED' && !displayedImage;
+  const canRetry = invalidated ? !!frame.error : !!failure && attempts.current >= MAX_DECODE_RETRIES;
   const lastSuccessfulAt = frame.stale ? frame.lastSuccessfulAt : failure && lastImage.current?.lastSuccessfulAt;
   const status = lastSuccessfulAt ? intl.formatMessage({ id: 'opencu.monitor.lastFrame',
     defaultMessage: 'Showing the last available frame ({time}). Preview updates are temporarily unavailable.' },
@@ -130,8 +140,11 @@ function MonitorFrameContent({ frame, index, count, focus, report, positioned = 
     nativeLayout={null} shouldUseReducedMotion={reducedMotion || transferring} isEntering={entering && !transferring} isReady={ready || !!frame.error || !!failure}
     onEntranceComplete={() => setEntering(false)} onClick={() => focus(frame.presentationID)}>
     <div ref={content} style={{ position: 'relative', width: '100%', height: positioned ? '100%' : undefined }}>
-    {unavailable ? <p role="status" className="m-0 flex min-h-20 items-center justify-center bg-surface-elevated-secondary p-3 text-center text-xs text-token-text-secondary"
-      style={{ margin: 0, minHeight: 80, maxHeight: 208, overflow: 'hidden', overflowWrap: 'anywhere', padding: 12, fontSize: 12, lineHeight: '18px', color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-surface-elevated-secondary)' }}>{errorMessage}</p> : native && !videoFallback
+    {unavailable ? <div role="status" className="m-0 flex min-h-20 flex-col items-center justify-center gap-2 bg-surface-elevated-secondary p-3 text-center text-xs text-token-text-secondary"
+      style={{ margin: 0, minHeight: 80, maxHeight: 208, overflow: 'hidden', overflowWrap: 'anywhere', padding: 12, fontSize: 12, lineHeight: '18px', color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-surface-elevated-secondary)' }}>
+      <span>{errorMessage}</span>
+      {canRetry && <Shared.r5 color="secondary" size="toolbar" onClick={retryNow}>{intl.formatMessage({ id: 'opencu.monitor.retry', defaultMessage: intl.locale.startsWith('zh') ? '重试' : 'Retry' })}</Shared.r5>}
+    </div> : native && !videoFallback
       ? <NativeVideo presentationID={frame.presentationID} maxDisplaySize={displaySize ? Math.max(displaySize.width, displaySize.height) : Math.max(frame.width, frame.height) * Math.min(300 / frame.width, 210 / frame.height, 1)} pendingFrames={pendingFrames} videoStreams={videoStreams}
           shouldUseReducedMotion={reducedMotion || positioned} onError={failedVideo} onLoadedData={loaded} />
       : displayedImage && <img className="block h-auto max-h-full w-full object-contain select-none" onLoad={loaded} onError={failedImage}

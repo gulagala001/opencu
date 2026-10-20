@@ -6,7 +6,7 @@ import { Aml as RequestCard } from './rea/app-initial-c468e3fd7f91.js';
 import { E as AppApprovalCard } from './rea/computer-use-app-approval-request-card-82a4252ecef7.js';
 import { initializePermissionNotice } from './permission-notice.jsx';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
-import { createReaPortal, createReaRenderFallback } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal, createReaRenderFallback } from './portal-host.mjs';
 import styles from './rea-styles.css';
 function Approval({matched,portal}) {
  const sessionId=matched.sessionId;
@@ -18,9 +18,9 @@ export function AppApprovalSlot({sessionId,matched}) {
  HostReact.useLayoutEffect(()=>{
   if(!matched||matched.sessionId!==sessionId)return;
   initializePermissionNotice();
-  const shadow=host.current.shadowRoot??host.current.attachShadow({mode:'open'}),container=document.createElement('div'),sheet=document.createElement('style');
-  sheet.textContent=styles;container.dataset.reaRoot='';container.dataset.codexWindowType='electron';
-  shadow.append(sheet,container);
+  const shadow=host.current.shadowRoot??host.current.attachShadow({mode:'open'}),container=document.createElement('div');
+  container.dataset.reaRoot='';container.dataset.codexWindowType='electron';
+  adoptReaStyles(shadow,styles);shadow.append(container);
   const {portal,dispose}=createReaPortal(styles,container,70);
   const fallback=createReaRenderFallback(container,'OpenCU REA app approval');
   const root=createRoot(container,{onUncaughtError:fallback.onUncaughtError});

@@ -17,6 +17,7 @@ export function createPresentationClient({ client, transport, desktop, dock, not
     publishedSignature = signature;
     snapshot = next;
     for (const listener of listeners) listener();
+    schedulePoll();
   };
   const painted = () => new Promise(resolve => {
     let animation;
@@ -65,10 +66,32 @@ export function createPresentationClient({ client, transport, desktop, dock, not
       .finally(() => { pending = undefined; });
     return pending;
   }
-  async function poll() {
-    try { await refresh(); } catch (error) { if (!disposed) publish({ ...snapshot, error: error.message }); }
-    if (!disposed) timer = setTimeout(poll, snapshot.frames.some(frame => frame.placement === 'home' && frame.kind === 'native-video') ? 100 : 750);
+  // Frames need polling only while a task is monitored here. Otherwise the core
+  // event stream (same activity revision as the host) wakes the next refresh.
+  const pollDelay = () => {
+    if (!snapshot.activeTaskIds.length && !snapshot.frames.length) return null;
+    if (document.hidden) return 3000;
+    return snapshot.frames.some(frame => frame.placement === 'home' && frame.kind === 'native-video') ? 100 : 750;
+  };
+  let polling = false, coreRevision;
+  function schedulePoll() {
+    if (disposed || polling || timer !== undefined) return;
+    const delay = pollDelay();
+    if (delay !== null) timer = setTimeout(poll, delay);
   }
+  async function poll() {
+    clearTimeout(timer); timer = undefined; polling = true;
+    try { await refresh(); } catch (error) { if (!disposed) publish({ ...snapshot, error: error.message }); }
+    finally { polling = false; }
+    schedulePoll();
+  }
+  const wake = () => { if (disposed || polling) return; clearTimeout(timer); timer = undefined; void poll(); };
+  const offCore = client.subscribe?.(() => {
+    const revision = client.getSnapshot?.().revision;
+    if (revision !== coreRevision) { coreRevision = revision; wake(); }
+  });
+  const visibility = () => { if (!document.hidden) wake(); };
+  document.addEventListener('visibilitychange', visibility);
   function run(operation, sessionId, args = {}) {
     generation++;
     changing = changing.then(async () => {
@@ -92,6 +115,11 @@ export function createPresentationClient({ client, transport, desktop, dock, not
       hideTask: id => run('hideTask', id),
       hideForAllActiveTasks: () => run('hideAll'),
       showTask: id => run('showTask', id),
+      expand: (id, expanded) => run('expand', id, { expanded }),
+      retry(frame) {
+        void client.request('presentation/event', { rendererId: transport.rendererId, type: 'retry',
+          sessionId: frame.threadID, targetId: frame.presentationID }, aborter.signal).catch(error => { if (!disposed) notify(frame.threadID, error.message); });
+      },
       async hideTarget(frame) {
         try {
           const result = await client.request('presentation/event', { rendererId: transport.rendererId, type: 'hide-target',
@@ -139,6 +167,9 @@ export function createPresentationClient({ client, transport, desktop, dock, not
         catch (error) { notify(sessionId, error.message); }
       },
     },
-    async dispose() { disposed = true; generation++; aborter.abort(); clearTimeout(timer); listeners.clear(); await Promise.allSettled([pending, changing]); },
+    async dispose() {
+      disposed = true; generation++; aborter.abort(); clearTimeout(timer); offCore?.(); document.removeEventListener('visibilitychange', visibility);
+      listeners.clear(); await Promise.allSettled([pending, changing]);
+    },
   };
 }
