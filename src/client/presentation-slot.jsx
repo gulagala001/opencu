@@ -43,6 +43,9 @@ function Monitor({ sessionId, state, docked, service, report, overview }) {
       <MonitorStack frames={frames} transferring={!!handoff} focus={service.focus} report={report} close={service.hideTarget} onEmpty={() => { if (!frames.length) setExiting(false); }} />
     </div>
   </> : <Menu open={open} onOpenChange={setOpen} align="end" contentRole="dialog"
+    // SummaryPanel.Content owns the island surface. Menu only positions it and
+    // handles dismissal; its default menu chrome would draw a second shell.
+    contentStyle={{ background: 'transparent', padding: 0, boxShadow: 'none', backdropFilter: 'none' }}
     triggerButton={<SummaryPanel.HeaderButton label={label} pressed={open} />}>
     <SummaryPanel.PopoverContent><SummaryPanel.Content>{overview && <OverviewContent sessionId={sessionId} overview={overview} close={() => setOpen(false)}/>} {active && controls}</SummaryPanel.Content></SummaryPanel.PopoverContent>
   </Menu>;

@@ -74,6 +74,17 @@ export function createFilesHost({ client, desktop, sidebar, openSession }) {
       signal.throwIfAborted();
       return operate('saveCopy', { path, hostId: 'local' }, signal);
     }),
+    async previewSource(source, sessionId) {
+      const abort = new AbortController(); calls.add(abort);
+      try {
+        if (disposed) throw new Error('The file host has been disposed');
+        const { path } = await client.request('sources/resolve', {
+          kind: source.kind, attachment: source.kind === 'image' ? source.attachment : source.file,
+        }, abort.signal);
+        if (disposed) throw new Error('The file host has been disposed');
+        await show(path, sessionId, abort.signal);
+      } finally { calls.delete(abort); }
+    },
     async previewImage(ref, sessionId) {
       const abort = new AbortController(); calls.add(abort);
       try {

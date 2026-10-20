@@ -61,7 +61,12 @@ export function OverviewContent({ sessionId, overview, variant = 'summary', pane
   const deliveries = (saved?.files ?? []).map(file => ({ id: `delivery:${file.attachmentId}:${file.name}`, label: file.name, file }));
   const outputs = [...new Map([...(overview.outputs ?? []), ...deliveries].map(item => [item.path || item.id, item])).values()];
   const sources = [...(overview.sources ?? []), ...(saved?.pages ?? []).map(page => ({ ...page, id: `page:${page.url}`, label: page.title }))];
-  const openResource = row => { run(() => row.kind === 'image' ? services.files.previewImage(row.attachment, sessionId) : row.file ? services.files.preview(row.file, sessionId) : overview.openResource(row)); close(); };
+  const openResource = row => run(async () => {
+    if (row.kind === 'image' || row.kind === 'file') await services.files.previewSource(row, sessionId);
+    else if (row.file) await services.files.preview(row.file, sessionId);
+    else await overview.openResource(row);
+    close();
+  });
   const section = (key, title, children, action) => <Panel.Section key={key} sectionKey={`omd-${key}`} mode="heading" title={title} after={action && <Panel.SectionActions>{action}</Panel.SectionActions>} persistExpansion={false}>{children}</Panel.Section>;
   const more = kind => <Panel.ItemActionButton label="查看全部" onClick={() => navigate(kind)}><span style={{ transform: 'rotate(-90deg)' }}><Panel.ItemChevron/></span></Panel.ItemActionButton>;
   const detail = overview.detail;
