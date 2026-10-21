@@ -77,3 +77,13 @@ test('a reused target identity after approval is rejected before input dispatch'
   assert.equal(result.error.code, 'TARGET_IDENTITY_CHANGED');
   assert.deepEqual(f.calls, []);
 });
+
+test('a stale caller identity cannot use the current application’s cached approval', async t => {
+  const f = await fixture(t);
+  await f.select(0);
+  const result = await f.request('act', {targetId: 'native:A', targetIdentity: {pid: 'retired'},
+    action: 'type', text: 'never'}, 'setup').then(value => ({value}), error => ({error}));
+  assert.equal(result.error?.code, 'TARGET_IDENTITY_CHANGED');
+  assert.deepEqual(f.calls, []);
+  assert.deepEqual((await f.request('appApprovals/pending', {conversationId: 'setup'})).requests, []);
+});
