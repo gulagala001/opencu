@@ -96,6 +96,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
   };
   const release = async ({ dismissDialogs = true } = {}) => {
     generation++;
+    capture.cancel?.();
     const failures = [];
     cursor?.({ ...position, visible: false });
     // The host owns the authoritative held-input journal and the synchronous dialog
@@ -139,7 +140,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     async preview() {
       live();
       await assertNoDialog();
-      const image = await capture();
+      const image = await capture({ offThread: true });
       return { dataUrl: image.toDataURL(), ...image.getSize(), active: (await evaluate('pageState')).focused };
     },
     async observe(options = {}) {
