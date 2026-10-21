@@ -1,3 +1,5 @@
+import { restorePresentationImages } from '../presentation-images.mjs';
+
 const sameFields = (left, right, omitted = []) => left === right || !!left && !!right
   && Object.keys(left).filter(key => !omitted.includes(key)).length === Object.keys(right).filter(key => !omitted.includes(key)).length
   && Object.keys(left).every(key => omitted.includes(key) || Object.hasOwn(right,key) && Object.is(left[key],right[key]));
@@ -28,7 +30,7 @@ export function createPresentationUpdateQueue(render, {requestFrame = requestAni
     getState: () => state,
     update(payload) {
       if (disposed) return;
-      state = {...state,...payload, ...(Array.isArray(payload.frames) ? {frames:reusePresentationFrames(state.frames,payload.frames)} : {})};
+      state = {...state,...payload, ...(Array.isArray(payload.frames) ? {frames:reusePresentationFrames(state.frames,restorePresentationImages(state.frames,payload.frames))} : {})};
       if (Object.keys(payload).every(key => key === 'motion')) {
         if (rendered && samePresentationMotion(rendered.motion,state.motion)) { cancel(); return; }
         animation ??= requestFrame(flush);
