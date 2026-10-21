@@ -1,12 +1,20 @@
 import { createGuestDriver } from './guest-driver.mjs';
 import { inputReleased } from '../protocol.mjs';
+import { restorePresentationImages } from '../presentation-images.mjs';
 
 export function createBrowserTransport(client, desktop) {
   const guests = new Map(), executing = new Set();
   let openTab, closeTab, sessions = () => [];
   let rendererId, connectionId, aborter, loop, closing = false, connectionEpoch = 0, pendingPublish = Promise.resolve(), pendingSessions = Promise.resolve();
+  let presentationFrames = [], presentationGeneration = 0, presentationSessions;
+  const resetPresentationImages = () => { presentationGeneration++; presentationFrames = []; };
+  function syncPresentationSessions() {
+    const ids = sessions(), key = JSON.stringify([...ids].sort());
+    if (key !== presentationSessions) { presentationSessions = key; resetPresentationImages(); }
+    return ids;
+  }
   const request = (method, args = {}, signal = aborter?.signal) => client.request(`browser/${method}`, { ...args, rendererId, connectionId }, signal);
-  const quiesce = () => { closing = true; connectionEpoch++; aborter?.abort(); };
+  const quiesce = () => { closing = true; connectionEpoch++; resetPresentationImages(); aborter?.abort(); };
   async function releaseGuests(options) {
     const results = await Promise.allSettled([...guests.values()].map(guest => guest.driver.release(options)));
     const failures = results.flatMap(result => result.status === 'rejected' ? [result.reason]
@@ -27,17 +35,28 @@ export function createBrowserTransport(client, desktop) {
   };
   async function execute(command) {
     const connection = rendererId, occurrence = connectionId, epoch = connectionEpoch;
+    let presentationAttempt;
     const deliver = args => epoch === connectionEpoch && !aborter.signal.aborted
       ? client.request('browser/result', { ...args, rendererId: connection, connectionId: occurrence }, aborter.signal) : undefined;
     try {
       let result;
       if (command.method === 'presentation') {
         if (!desktop?.presentation) throw new Error('This DSH window does not provide monitoring windows');
-        const payload = command.params.operation === 'update'
-          ? { ...command.params.payload, frames: command.params.payload.frames.filter(frame => sessions().includes(frame.threadID)) }
-          : command.params.payload;
+        const active = syncPresentationSessions();
+        let payload = command.params.payload, baseline;
+        if (command.params.operation === 'update') {
+          presentationAttempt = ++presentationGeneration;
+          const { presentationImageBaseline, ...value } = payload;
+          baseline = presentationImageBaseline;
+          payload = { ...value, frames: restorePresentationImages(presentationFrames, value.frames.filter(frame => active.includes(frame.threadID))) };
+        } else if (['hide', 'close'].includes(command.params.operation)) resetPresentationImages();
         result = await desktop.presentation(command.params.operation, { ...payload, locale: document.documentElement.lang,
           theme: getComputedStyle(document.documentElement).colorScheme === 'dark' ? 'dark' : 'light' });
+        if (presentationAttempt === presentationGeneration && epoch === connectionEpoch) {
+          const acknowledged = typeof baseline === 'string' && payload.frames.length === command.params.payload.frames.length;
+          presentationFrames = acknowledged ? payload.frames : [];
+          if (acknowledged) result = { ...result, presentationImageBaseline: baseline };
+        }
       } else if (command.method === 'openTab') {
         if (!openTab) throw new Error('The sidebar tab owner is unavailable');
         const ids = await openTab(command.params);
@@ -81,6 +100,7 @@ export function createBrowserTransport(client, desktop) {
       }
       await deliver({ id: command.id, result });
     } catch (error) {
+      if (presentationAttempt === presentationGeneration) resetPresentationImages();
       await deliver({ id: command.id, error: { code: error.code, message: error.message, details: error.details } });
     }
   }
@@ -115,7 +135,7 @@ export function createBrowserTransport(client, desktop) {
     setTabOwner(callback, close) { openTab = callback; closeTab = close; },
     setSessionOwner(callback) { sessions = callback; },
     async updateSessions() {
-      const sessionIds = [...sessions()];
+      const sessionIds = [...syncPresentationSessions()];
       const work = Promise.all([pendingSessions.catch(() => undefined), desktop?.presentation?.('sessions', { sessionIds })])
         .then(() => rendererId && !aborter?.signal.aborted ? request('sessions', { sessionIds }) : undefined);
       pendingSessions = work;
@@ -130,9 +150,10 @@ export function createBrowserTransport(client, desktop) {
         while (!aborter.signal.aborted) {
           try {
             if (reconnect) {
+              resetPresentationImages(); syncPresentationSessions();
               if (needsRelease) { await releaseGuests({dismissDialogs: false}); needsRelease = false; }
               await desktop?.presentation?.('sessions', { sessionIds: sessions() });
-              const connected = await request('connect', { presentation: !!desktop?.presentation, sessionIds: sessions() });
+              const connected = await request('connect', { presentation: !!desktop?.presentation, presentationImages: 1, sessionIds: sessions() });
               connectionId = connected.connectionId;
               await publish(); reconnect = false;
               const work = pendingSessions.catch(() => undefined).then(() => request('sessions', { sessionIds: sessions() }));
@@ -149,6 +170,7 @@ export function createBrowserTransport(client, desktop) {
             }
           } catch (error) {
             connectionEpoch++;
+            resetPresentationImages();
             reconnect = true; needsRelease = true;
             try { await releaseGuests({dismissDialogs: false}); needsRelease = false; }
             catch (releaseError) { console.error('OpenCU sidebar input release', releaseError); }
