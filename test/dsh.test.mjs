@@ -28,7 +28,7 @@ test('adapter loads in a real isolated DSH profile and projects a real screensho
   let runtime, plugin, peer;
   const pluginPath = process.env.OPENCU_DSH_PLUGIN || fileURLToPath(new URL('../src/dsh/index.mjs', import.meta.url));
   const openCU = await import(pathToFileURL(pluginPath).href);
-  const config = { dataDir: join(home, 'opencu'), nativeEnabled: false, extensionEnabled: false, headless: true, registerTools: true };
+  const config = { dataDir: join(home, 'opencu'), nativeEnabled: false, extensionEnabled: false, managedHeadless: true, headless: true, registerTools: true };
   try {
     runtime = await runProfile({ profile: 'opencu-smoke',
       environment: createLaunchEnvironmentSnapshot([{ source: 'process', values: { DSH_HOME: home } }]), args: [], patchFiles: [],

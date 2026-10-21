@@ -6,6 +6,12 @@ import { createBrowserHost } from '../src/dsh/browser-host.mjs';
 
 async function fixture(t) {
   const host = createBrowserHost(), rendererId = randomUUID();
+  const handle = host.handle; let connectionId;
+  host.handle = async (method, args, signal) => {
+    const result = await handle(method, {connectionId, ...args}, signal);
+    if (method === 'browser/connect') connectionId = result.connectionId;
+    return result;
+  };
   t.after(() => host.close());
   const target = { id: 'dsh:fixture-tab', identity: { rendererId, guestId: 'fixture-guest' },
     backend: 'browser', provider: 'dsh', kind: 'tab', url: 'https://example.test/' };
@@ -14,6 +20,17 @@ async function fixture(t) {
   return { host, rendererId, target };
 }
 const settle = promise => promise.then(value => ({ value }), error => ({ error }));
+
+test('late messages and release receipts cannot replace the current connection', async t => {
+  const {host,rendererId,target} = await fixture(t);
+  const old = await host.handle('browser/connect',{rendererId});
+  const current = await host.handle('browser/connect',{rendererId});
+  await assert.rejects(host.handle('browser/publish',{rendererId,connectionId:old.connectionId,targets:[target]}),{code:'BROWSER_HOST_DISCONNECTED'});
+  await assert.rejects(host.handle('browser/sessions',{rendererId,connectionId:old.connectionId,sessionIds:['retired']}),{code:'BROWSER_HOST_DISCONNECTED'});
+  assert.deepEqual(await host.handle('browser/disconnect',{rendererId,connectionId:old.connectionId,released:true}),{ok:true,ignored:true});
+  await host.handle('browser/publish',{rendererId,connectionId:current.connectionId,targets:[target]});
+  assert.equal((await host.backend.listTargets()).length,1);
+});
 
 test('a replaced long poll cannot deliver retired commands as a live connection', async t => {
   const { host, rendererId, target } = await fixture(t);
@@ -42,6 +59,15 @@ test('cancelling an old action after reconnect cannot time out and disconnect th
   assert.equal(host.listBrowsers().length, 1, 'no request is queued on the retired client');
 
   await host.handle('browser/publish', { rendererId, targets: [target] });
+  assert.equal((await settle(host.backend.act(target, {action: 'type', text: 'stale binding'}))).error?.code, 'RECOVERY_REQUIRED');
+  const selection = settle(host.backend.select(target));
+  const [release] = (await host.handle('browser/poll', {rendererId})).commands;
+  assert.equal(release.method, 'release');
+  await host.handle('browser/result', {rendererId, id: release.id, result: {released: true}});
+  const [selected] = (await host.handle('browser/poll', {rendererId})).commands;
+  assert.equal(selected.method, 'select');
+  await host.handle('browser/result', {rendererId, id: selected.id, result: target});
+  assert.equal((await selection).value.id, target.id);
   const currentAction = settle(host.backend.act(target, { action: 'type', text: 'new operation' }));
   const commands = (await host.handle('browser/poll', { rendererId })).commands;
   assert.equal(commands.length, 1);
@@ -60,10 +86,10 @@ test('cancelling after a disconnect rejects the action rather than escaping the 
     import { randomUUID } from 'node:crypto';
     import { createBrowserHost } from ${JSON.stringify(module)};
     const host = createBrowserHost(), rendererId = randomUUID(), signal = new AbortController();
-    await host.handle('browser/connect', { rendererId });
+    const {connectionId} = await host.handle('browser/connect', { rendererId });
     const target = { id: 'dsh:tab', identity: { rendererId, guestId: 'guest' } };
     const action = host.backend.act(target, { action: 'keyDown', key: 'Shift', signal: signal.signal }).catch(error => error);
-    const disconnect = host.handle('browser/disconnect', { rendererId });
+    const disconnect = host.handle('browser/disconnect', { rendererId, connectionId });
     signal.abort(Error('cancel'));
     await disconnect;
     const error = await action;

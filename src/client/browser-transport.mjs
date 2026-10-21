@@ -1,11 +1,19 @@
 import { createGuestDriver } from './guest-driver.mjs';
+import { inputReleased } from '../protocol.mjs';
 
 export function createBrowserTransport(client, desktop) {
   const guests = new Map(), executing = new Set();
   let openTab, closeTab, sessions = () => [];
-  let rendererId, aborter, loop, closing = false, connectionEpoch = 0, pendingPublish = Promise.resolve(), pendingSessions = Promise.resolve();
-  const request = (method, args = {}, signal = aborter?.signal) => client.request(`browser/${method}`, { ...args, rendererId }, signal);
+  let rendererId, connectionId, aborter, loop, closing = false, connectionEpoch = 0, pendingPublish = Promise.resolve(), pendingSessions = Promise.resolve();
+  const request = (method, args = {}, signal = aborter?.signal) => client.request(`browser/${method}`, { ...args, rendererId, connectionId }, signal);
   const quiesce = () => { closing = true; connectionEpoch++; aborter?.abort(); };
+  async function releaseGuests(options) {
+    const results = await Promise.allSettled([...guests.values()].map(guest => guest.driver.release(options)));
+    const failures = results.flatMap(result => result.status === 'rejected' ? [result.reason]
+      : inputReleased(result.value) ? [] : [Object.assign(new Error('Sidebar guest input release was not acknowledged'), {details: result.value})]);
+    if (failures.length) throw new AggregateError(failures, 'OpenCU sidebar cleanup failed');
+    return {released: true};
+  }
   const publish = () => {
     if (closing) return Promise.resolve();
     const targets = [...guests.values()].flatMap(guest => {
@@ -18,9 +26,9 @@ export function createBrowserTransport(client, desktop) {
     return work;
   };
   async function execute(command) {
-    const connection = rendererId, epoch = connectionEpoch;
+    const connection = rendererId, occurrence = connectionId, epoch = connectionEpoch;
     const deliver = args => epoch === connectionEpoch && !aborter.signal.aborted
-      ? client.request('browser/result', { ...args, rendererId: connection }, aborter.signal) : undefined;
+      ? client.request('browser/result', { ...args, rendererId: connection, connectionId: occurrence }, aborter.signal) : undefined;
     try {
       let result;
       if (command.method === 'presentation') {
@@ -41,8 +49,11 @@ export function createBrowserTransport(client, desktop) {
         const target = command.params.target;
         const values = target ? [guests.get(target.identity?.guestId)].filter(Boolean) : [...guests.values()];
         if (target && !values.length) throw new Error('The cancelled sidebar guest is no longer available');
-        const releases = await Promise.all(values.map(guest => guest.driver.release({ dismissDialogs: command.params.dismissDialogs !== false })));
-        result = { released: releases.every(value => value.released === true) };
+        const releases = await Promise.allSettled(values.map(guest => guest.driver.release({ dismissDialogs: command.params.dismissDialogs !== false })));
+        const failures = releases.flatMap(value => value.status === 'rejected'
+          ? [{message: value.reason.message, code: value.reason.code, details: value.reason.details}]
+          : inputReleased(value.value) ? [] : [value.value]);
+        result = {released: failures.length === 0, failures};
       } else {
         const guest = guests.get(command.params.target?.identity?.guestId);
         if (!guest?.ready) throw Object.assign(new Error('The original sidebar guest is no longer available'), { code: 'TARGET_IDENTITY_CHANGED' });
@@ -87,7 +98,12 @@ export function createBrowserTransport(client, desktop) {
       guests.set(guestId, guest);
       return { get target() { return target; },
         update(value) { target = { ...target, url: value.url, title: value.title, isDetached: value.isDetached === true }; guest.target = target; guest.ready = true; void publish(); },
-        async dispose() { guest.ready = false; guests.delete(guestId); await publish(); },
+        async dispose() {
+          guest.ready = false;
+          const result = await guest.driver.release();
+          if (!inputReleased(result)) throw new Error('Sidebar guest input release was not acknowledged');
+          guests.delete(guestId); await publish();
+        },
       };
     },
     get rendererId() { return rendererId; },
@@ -110,12 +126,15 @@ export function createBrowserTransport(client, desktop) {
       closing = false; aborter = new AbortController();
       rendererId ??= crypto.randomUUID();
       loop = (async () => {
-        let reconnect = true;
+        let reconnect = true, needsRelease = false;
         while (!aborter.signal.aborted) {
           try {
             if (reconnect) {
+              if (needsRelease) { await releaseGuests({dismissDialogs: false}); needsRelease = false; }
               await desktop?.presentation?.('sessions', { sessionIds: sessions() });
-              await request('connect', { presentation: !!desktop?.presentation, sessionIds: sessions() }); await publish(); reconnect = false;
+              const connected = await request('connect', { presentation: !!desktop?.presentation, sessionIds: sessions() });
+              connectionId = connected.connectionId;
+              await publish(); reconnect = false;
               const work = pendingSessions.catch(() => undefined).then(() => request('sessions', { sessionIds: sessions() }));
               pendingSessions = work; void work.catch(error => console.error('OpenCU reconnected sessions', error));
             }
@@ -130,10 +149,13 @@ export function createBrowserTransport(client, desktop) {
             }
           } catch (error) {
             connectionEpoch++;
-            await Promise.allSettled([...guests.values()].map(guest => guest.driver.release({ dismissDialogs: false })).concat(desktop?.presentation?.('cursor', { visible: false })));
+            reconnect = true; needsRelease = true;
+            try { await releaseGuests({dismissDialogs: false}); needsRelease = false; }
+            catch (releaseError) { console.error('OpenCU sidebar input release', releaseError); }
+            try { await desktop?.presentation?.('cursor', { visible: false }); }
+            catch (cursorError) { console.error('OpenCU cursor cleanup', cursorError); }
             if (aborter.signal.aborted) break;
             console.error('OpenCU sidebar transport; reconnecting the same guests', error);
-            reconnect = true;
             await new Promise(resolve => {
               const done = () => { clearTimeout(timer); aborter.signal.removeEventListener('abort', done); resolve(); };
               const timer = setTimeout(done, 1000);
@@ -158,21 +180,23 @@ export function createBrowserTransport(client, desktop) {
       return async () => {
         for (const event of events) element.removeEventListener(event, update);
         guest.ready = false;
-        try { await guest.driver.release(); }
-        finally { guests.delete(guestId); await publish(); }
+        const result = await guest.driver.release();
+        if (!inputReleased(result)) throw new Error('Sidebar guest input release was not acknowledged');
+        guests.delete(guestId); await publish();
       };
     },
     async dispose() {
       quiesce();
-      const releases = await Promise.allSettled([...guests.values()].map(guest => guest.driver.release()));
+      const releases = await Promise.allSettled([releaseGuests()]);
       const cleanup = await Promise.allSettled([
         loop, pendingPublish, pendingSessions, ...executing,
-        rendererId ? client.request('browser/disconnect', { rendererId }, AbortSignal.timeout(5000)) : undefined,
+        rendererId && releases[0].status === 'fulfilled'
+          ? client.request('browser/disconnect', { rendererId, connectionId, released: true }, AbortSignal.timeout(5000)) : undefined,
         desktop?.presentation?.('close', {}),
       ]);
-      guests.clear(); executing.clear(); loop = undefined;
       const failures = [...releases, ...cleanup].filter(result => result.status === 'rejected' && result.reason?.name !== 'AbortError').map(result => result.reason);
       if (failures.length) throw new AggregateError(failures, 'OpenCU sidebar cleanup failed');
+      guests.clear(); executing.clear(); loop = undefined;
     },
   };
 }

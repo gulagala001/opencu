@@ -227,7 +227,7 @@ export function BrowserConnectionControls() {
     mounted.current = true;
     return () => { mounted.current = false; pairing.current?.abort(); };
   }, []);
-  const text = (key, fallback) => intl.formatMessage({ id: `opencu.capabilities.${key}`, defaultMessage: fallback });
+  const text = (key, fallback, values) => intl.formatMessage({ id: `opencu.capabilities.${key}`, defaultMessage: fallback }, values);
   const action = (id, label, callback) => <Button color="secondary" size="toolbar" disabled={pending != null || !state && id !== 'refresh'} loading={pending === id} onClick={() => run(id, callback)}>{label}</Button>;
   const connect = async browser => {
     const controller = new AbortController(); pairing.current = controller;
@@ -267,16 +267,16 @@ export function BrowserConnectionControls() {
     if (!event.isTrusted) return;
     await run('recoverClosed', async () => {
       const offer = await services.capabilities.prepareRecovery();
-      const names = offer.targets.map(target => `${target.title || '旧浏览器'}\n${target.id}`).join('\n\n');
-      if (!window.confirm(`请先完全退出下列旧浏览器或配置文件，确认其已关闭后再继续。此操作只清除旧控制引用，不会自动恢复输入。\n\n${names}\n\n我已完全退出这些旧浏览器，确认清除。`)) return;
+      const names = offer.targets.map(target => `${target.title || text('previousBrowserTarget', 'Previous browser target')}\n${target.id}`).join('\n\n');
+      if (!window.confirm(text('confirmClosedTargets', 'Close the original sidebar tab or window, or fully exit the original extension browser profile before continuing. This clears only the listed control references and does not resume input.\n\n{targets}\n\nI confirm these original targets are closed.', {targets: names}))) return;
       await services.capabilities.confirmRecovery(offer.nonce);
     });
   };
   const connected = state?.connections.length > 0;
   return <>
-    <Group><Row variant="stacked" label={text('recoverClosed', '恢复旧浏览器连接')}
-      description={text('recoverClosedHelp', '仅在旧连接阻塞控制时使用。先完全退出旧浏览器，再确认清除其旧控制引用。')}
-      control={<Button color="secondary" size="toolbar" disabled={pending != null} loading={pending === 'recoverClosed'} onClick={recoverClosed}>{text('reviewRecovery', '检查并恢复')}</Button>} /></Group>
+    <Group><Row variant="stacked" label={text('recoverClosed', 'Recover closed browser targets')}
+      description={text('recoverClosedHelp', 'Use only when an old connection blocks control. Close the original sidebar target or extension browser profile, then review its control references.')}
+      control={<Button color="secondary" size="toolbar" disabled={pending != null} loading={pending === 'recoverClosed'} onClick={recoverClosed}>{text('reviewRecovery', 'Review recovery')}</Button>} /></Group>
     {error && <Group><Row label={<span role="alert">{error}</span>} control={action('refresh', text('retry', 'Retry'), refresh)} /></Group>}
     {connected ? <Section><Section.Content><Group>
       {state.connections.map(connection => <Row key={connection.instanceId} variant="stacked" label={connection.label}

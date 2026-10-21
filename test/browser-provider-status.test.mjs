@@ -15,11 +15,11 @@ test('DSH provider status changes without changing legacy configured booleans',a
  assert.equal(info().backends.dsh,true);assert.equal(info().backends.browser,false);
  assert.equal(info().browserProviders.dsh.status,'renderer_unavailable');
  assert.match(info().browserProviders.dsh.nextStep,/extension or CDP/);
- const {rendererId}=await host.handle('browser/connect',{});
+ const {rendererId,connectionId}=await host.handle('browser/connect',{});
  assert.equal(info().browserProviders.dsh.status,'no_tabs');assert.equal(info().browserProviders.dsh.connectedRenderers,1);
- await host.handle('browser/publish',{rendererId,targets:[{id:'synthetic',identity:{rendererId,guestId:'guest'}}]});
+ await host.handle('browser/publish',{rendererId,connectionId,targets:[{id:'synthetic',identity:{rendererId,guestId:'guest'}}]});
  assert.equal(info().browserProviders.dsh.status,'ready');assert.equal(info().browserProviders.dsh.targetCount,1);
- await host.handle('browser/disconnect',{rendererId});
+ await host.handle('browser/disconnect',{rendererId,connectionId});
  assert.equal(info().browserProviders.dsh.status,'renderer_unavailable');assert.equal(info().backends.dsh,true);
  assert.equal((await runtime.close()).ok,true);host.close();
 });
@@ -45,7 +45,7 @@ test('real plugin targets and state expose live provider diagnostics and explici
  try {
   const targets=await runtime.request('targets');assert.equal(targets.ok,true);assert.equal(targets.browserProviders.dsh.code,'DSH_RENDERER_UNAVAILABLE');assert.deepEqual(targets.targets,[]);
   const state=await runtime.request('state');assert.equal(state.ok,true);assert.equal(state.config.managedHeadless,false);assert.equal(state.service.backends.dsh,true);assert.equal(state.service.browserProviders.dsh.status,'renderer_unavailable');
-  const {rendererId}=await host.handle('browser/connect',{});assert.equal((await runtime.request('targets')).browserProviders.dsh.status,'no_tabs');
-  await host.handle('browser/disconnect',{rendererId});
+  const {rendererId,connectionId}=await host.handle('browser/connect',{});assert.equal((await runtime.request('targets')).browserProviders.dsh.status,'no_tabs');
+  await host.handle('browser/disconnect',{rendererId,connectionId});
  } finally { await runtime.close();host.close(); }
 });
