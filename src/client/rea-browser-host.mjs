@@ -4,6 +4,7 @@ import { jl } from './rea/tab-content-6a1dfa5c5ac1.js';
 import { createAnnotationHost } from './annotation-host.mjs';
 import { reaIntl } from './rea-locale.mjs';
 import { createExtensionsHost } from './extensions-host.mjs';
+import { createCaptureCompositor } from './capture-compositor.mjs';
 import { siteToolsPolicyKey, siteToolsAllowed } from '../site-tools-policy.mjs';
 
 // Only errors from an attempted page load can leave the guest ready on its real
@@ -582,20 +583,29 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
         console.error('OpenCU browser guest', error);
         emit('browser-sidebar-command-error', { ...ids, error: { message: error.message } });
       });
-      let capturing, composedCapture;
-      record.capture = () => {
+      let capturing, composedCapture, captureCancellation;
+      const compositor = createCaptureCompositor();
+      record.cleanup.unshift(() => { record.capture.cancel(); compositor.dispose(); composedCapture = undefined; });
+      record.capture = ({ offThread = false } = {}) => {
         if (capturing) return capturing;
+        const cancellation = new AbortController(); captureCancellation = cancellation;
         Initial.AW.setTabCaptureActive(ids.conversationId, ids.browserTabId, true);
         capturing = (async () => {
           // Hidden owner windows can suspend animation frames without suspending IPC.
-          await new Promise(resolve => {
+          await new Promise((resolve, reject) => {
             let frame;
-            const finish = () => { clearTimeout(timer); cancelAnimationFrame(frame); resolve(); };
+            const finish = () => {
+              clearTimeout(timer); cancelAnimationFrame(frame); cancellation.signal.removeEventListener('abort', finish);
+              cancellation.signal.aborted ? reject(cancellation.signal.reason) : resolve();
+            };
             const timer = setTimeout(finish, 250);
+            cancellation.signal.addEventListener('abort', finish, { once: true });
             frame = requestAnimationFrame(() => { frame = requestAnimationFrame(finish); });
           });
           const page = await element.executeJavaScript('({ scheme: getComputedStyle(document.documentElement).colorScheme, prefersDark: matchMedia("(prefers-color-scheme: dark)").matches })');
+          cancellation.signal.throwIfAborted();
           const image = await desktop.automation(lease.lease, 'capture', {});
+          cancellation.signal.throwIfAborted();
           const { width, height } = image;
           const canvas = document.createElement('canvas');
           const schemes = page.scheme.split(/\s+/u);
@@ -606,21 +616,32 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
             const background = getComputedStyle(canvas).color;
             if (composedCapture?.source === image.dataUrl && composedCapture.width === width
               && composedCapture.height === height && composedCapture.background === background) return composedCapture.result;
-            const frame = new Image(); frame.src = image.dataUrl; await frame.decode();
-            canvas.width = width; canvas.height = height;
-            const context = canvas.getContext('2d', { alpha: false });
-            context.fillStyle = background; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(frame, 0, 0);
-            const dataUrl = canvas.toDataURL('image/png');
+            let dataUrl;
+            if (offThread) {
+              dataUrl = await compositor.compose({ source: image.dataUrl, width, height, background });
+            } else {
+              const frame = new Image(); frame.src = image.dataUrl; await frame.decode();
+              cancellation.signal.throwIfAborted();
+              canvas.width = width; canvas.height = height;
+              const context = canvas.getContext('2d', { alpha: false });
+              context.fillStyle = background; context.fillRect(0, 0, width, height); context.drawImage(frame, 0, 0);
+              dataUrl = canvas.toDataURL('image/png');
+            }
+            cancellation.signal.throwIfAborted();
             const result = { toDataURL: () => dataUrl, getSize: () => ({ width, height }) };
             // Retain one successful image per guest; all capture metadata stays on the current request.
             composedCapture = { source: image.dataUrl, width, height, background, result };
             return result;
           } finally { canvas.remove(); }
         })().finally(() => {
-          capturing = undefined;
+          capturing = undefined; captureCancellation = undefined;
           Initial.AW.setTabCaptureActive(ids.conversationId, ids.browserTabId, false);
         });
         return capturing;
+      };
+      record.capture.cancel = () => {
+        captureCancellation?.abort(Object.assign(new Error('Browser frame capture was cancelled'), { code: 'CONTROL_STOPPED' }));
+        compositor.cancel();
       };
       record.annotations = createAnnotationHost({ element, capture: record.capture, ids, target: () => transport.targetFor(ids.conversationId, ids.browserTabId), state: () => record.state,
         changed: patch => { record.state = { ...record.state, ...patch }; update(record); }, deliver: deliverAnnotations,
