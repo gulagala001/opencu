@@ -5,12 +5,14 @@ export function createPresentationClient({ client, transport, desktop, dock, not
   const aborter = new AbortController();
   let disposed = false, timer, pending, generation = 0, changing = Promise.resolve();
   const homes = new Map();
+  const imageProjection = typeof desktop?.presentation === 'function' ? { imagePlacement: 'home' } : {};
   let handoff = null, imagesCurrent = false;
   let publishedSignature;
   const publish = value => {
     const next = { ...value, handoff };
     const signature = JSON.stringify(next, function (key, item) {
       if (key === 'revision' || key === 'imageDataURL' && this.imageRevision) return undefined;
+      if (this.imageDeferred && (key === 'imageRevision' || key === 'timestamp')) return undefined;
       return item;
     });
     if (signature === publishedSignature) return;
@@ -45,12 +47,20 @@ export function createPresentationClient({ client, transport, desktop, dock, not
     if (mounted && !homes.has(id)) throw new Error('The monitoring dock was unmounted during the handoff');
     throw new Error(mounted ? 'The monitoring dock frames did not become ready' : 'The monitoring dock did not mount');
   }
-  async function refresh() {
+  async function refresh(imageSessions = []) {
     if (disposed || !transport.rendererId) return;
+    if (pending) {
+      await pending;
+      // A handoff must fetch its own image projection after a metadata poll. A
+      // coalesced poll cannot supply pixels it never requested.
+      if (imageSessions.length) return refresh(imageSessions);
+      return;
+    }
     const expected = generation;
     const knownImages = imagesCurrent ? Object.fromEntries(snapshot.frames.filter(frame => frame.imageDataURL && frame.imageRevision)
       .map(frame => [frame.presentationID, frame.imageRevision])) : {};
-    pending ??= client.request('presentation/state', { rendererId: transport.rendererId, compactImages: true, knownImages }, aborter.signal)
+    pending = client.request('presentation/state', { rendererId: transport.rendererId, compactImages: true, knownImages,
+      ...imageProjection, ...(imageSessions.length ? { imageSessions } : {}) }, aborter.signal)
       .then(result => {
         if (disposed || expected !== generation) return;
         const frames = result.state.frames.map(frame => {
@@ -69,23 +79,29 @@ export function createPresentationClient({ client, transport, desktop, dock, not
   // Frames need polling only while a task is monitored here. Otherwise the core
   // event stream (same activity revision as the host) wakes the next refresh.
   const pollDelay = () => {
-    if (!snapshot.activeTaskIds.length && !snapshot.frames.length) return null;
+    if (!snapshot.frames.length && snapshot.activeTaskIds.every(id => snapshot.taskVisibilities[id] === 'hidden')) return null;
     if (document.hidden) return 3000;
     return snapshot.frames.some(frame => frame.placement === 'home' && frame.kind === 'native-video') ? 100 : 750;
   };
-  let polling = false, coreRevision;
+  let polling = false, wakeRequested = false, coreRevision;
   function schedulePoll() {
-    if (disposed || polling || timer !== undefined) return;
+    if (disposed || polling) return;
     const delay = pollDelay();
-    if (delay !== null) timer = setTimeout(poll, delay);
+    if (delay === null) { clearTimeout(timer); timer = undefined; }
+    else if (timer === undefined) timer = setTimeout(poll, delay);
   }
   async function poll() {
     clearTimeout(timer); timer = undefined; polling = true;
     try { await refresh(); } catch (error) { if (!disposed) publish({ ...snapshot, error: error.message }); }
     finally { polling = false; }
-    schedulePoll();
+    if (wakeRequested) { wakeRequested = false; wake(); }
+    else schedulePoll();
   }
-  const wake = () => { if (disposed || polling) return; clearTimeout(timer); timer = undefined; void poll(); };
+  const wake = () => {
+    if (disposed) return;
+    if (polling) { wakeRequested = true; return; }
+    clearTimeout(timer); timer = undefined; void poll();
+  };
   const offCore = client.subscribe?.(() => {
     const revision = client.getSnapshot?.().revision;
     if (revision !== coreRevision) { coreRevision = revision; wake(); }
@@ -97,7 +113,7 @@ export function createPresentationClient({ client, transport, desktop, dock, not
     changing = changing.then(async () => {
       if (disposed) return null;
       try {
-        const result = await client.request(`presentation/${operation}`, { rendererId: transport.rendererId, sessionId, ...args }, aborter.signal);
+        const result = await client.request(`presentation/${operation}`, { rendererId: transport.rendererId, sessionId, ...args, ...imageProjection }, aborter.signal);
         generation++;
         if (!disposed) publish(result.state);
         return result.state;
@@ -133,7 +149,11 @@ export function createPresentationClient({ client, transport, desktop, dock, not
         generation++;
         changing = changing.then(async () => {
           if (disposed || snapshot.placements[id] === placement) return;
+          const expected = generation;
+          if (desktop?.presentation && snapshot.frames.some(frame => frame.threadID === id && frame.imageDeferred)) await refresh([id]);
+          if (disposed || expected !== generation) return;
           const frames = snapshot.frames.filter(frame => frame.threadID === id);
+          if (frames.some(frame => frame.imageDeferred)) throw new Error('The monitoring handoff images are unavailable');
           if (!desktop?.presentation || !frames.length) {
             if (placement === 'home') await dock(id);
             const result = await client.request('presentation/placement', { rendererId: transport.rendererId, sessionId: id, placement }, aborter.signal);
