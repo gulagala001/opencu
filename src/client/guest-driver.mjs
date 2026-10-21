@@ -145,7 +145,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     async observe(options = {}) {
       live();
       await assertNoDialog();
-      const observation = await evaluate('observe');
+      const observation = await evaluate('observe', { format: options.format ?? 'both' });
       if (options.format !== 'ax') {
         const image = await capture();
         const dataUrl = image.toDataURL(), size = image.getSize();

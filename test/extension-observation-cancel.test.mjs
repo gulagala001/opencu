@@ -77,6 +77,18 @@ async function fixture(t) {
   return { worker, identity, hooks, events, seed, queue, message, result };
 }
 
+test('MV3 screenshot format captures pixels without reading AX and keeps fresh observation identity', async t => {
+  const f = await fixture(t);
+  const ax = await f.worker.observe(f.identity, {format: 'ax', screenshot: false});
+  f.events.length = 0;
+  const shot = await f.worker.observe(f.identity, {format: 'screenshot'});
+  assert.notEqual(shot.observationId, ax.observationId);
+  assert.equal(shot.ax, undefined);
+  assert.equal(shot.screenshot.width, 100);
+  assert.equal(f.events.some(([method]) => method === 'Accessibility.getFullAXTree'), false);
+  assert.equal(f.events.filter(([method]) => method === 'Page.captureScreenshot').length, 1);
+});
+
 for (const stage of ['verify', 'identity', 'ax', 'screenshot']) {
   test(`MV3 releases held key and mouse while ${stage} read is pending`, async t => {
     const f = await fixture(t), entered = deferred(), gate = deferred(), cursorGate = deferred(); let stalled = false, cursorStalled = false;
