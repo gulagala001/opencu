@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 from types import SimpleNamespace
 import threading
+import time
 import uuid
 
 root_dir = Path(__file__).resolve().parents[2]
@@ -26,6 +27,12 @@ class Node:
     def __init__(self, pid, parent=None):
         self.pid, self.parent, self.hit, self.defunct = pid, parent, None, False
         self.name = 'Synthetic control'
+        self.children, self.visited_children = [], 0
+
+    def __iter__(self):
+        for child in self.children:
+            self.visited_children += 1
+            yield child
 
     def getApplication(self):
         return self
@@ -51,6 +58,31 @@ class Node:
     def getRoleName(self):
         return 'button'
 
+    def getRole(self):
+        return 1
+
+    def queryText(self):
+        raise NotImplementedError
+
+    def queryAction(self):
+        raise NotImplementedError
+
+
+class MovingNode(Node):
+    """Belongs to the window at validation, then changes during the action."""
+    def __init__(self, window, after=None):
+        super().__init__(99)
+        self.window, self.after, self.parent_reads = window, after or self, 0
+
+    @property
+    def parent(self):
+        self.parent_reads += 1
+        return self.window if self.parent_reads == 1 else self.after
+
+    @parent.setter
+    def parent(self, _value):
+        pass
+
 
 def rejected(call, code):
     try:
@@ -64,15 +96,15 @@ def rejected(call, code):
 for name in ('helper.py', 'wayland.py'):
     window, other_window = Node(21), Node(21)
     target = dict(id='native:synthetic', pid=21, kind='app', bounds=dict(x=0, y=0, width=800, height=600))
-    # Execute the real element/point/act functions without initializing X11,
+    # Execute the real element/point/act/tree functions without initializing X11,
     # D-Bus or a desktop-sharing session. Their OS boundaries are synthetic.
     parsed = ast.parse((root_dir / 'native/linux' / name).read_text())
-    definitions = [node for node in parsed.body if isinstance(node, ast.FunctionDef) and node.name in ('element', 'point', 'act')]
+    definitions = [node for node in parsed.body if isinstance(node, ast.FunctionDef) and node.name in ('element', 'point', 'act', 'tree')]
     env = dict(elements={}, fail=fail, verify_window=accessibility.verify_window,
                accessibility_action=accessibility.perform, app_window=lambda _target: window,
-               windows={target['id']: window}, pyatspi=SimpleNamespace(STATE_DEFUNCT=0, DESKTOP_COORDS=0),
+               windows={target['id']: window}, pyatspi=SimpleNamespace(STATE_DEFUNCT=0, DESKTOP_COORDS=0, ROLE_PASSWORD_TEXT=2),
                check=lambda *_args: None, foreground=lambda *_args: None, input_lock=threading.RLock(),
-               state=dict(stream=dict(position=(0, 0), size=(800, 600)), devices=3), uuid=uuid, math=math)
+               state=dict(stream=dict(position=(0, 0), size=(800, 600)), devices=3), uuid=uuid, math=math, time=time)
     exec(compile(ast.Module(body=definitions, type_ignores=[]), name, 'exec'), env)
     element, point, act = (env[key] for key in ('element', 'point', 'act'))
     child = Node(99, window)
@@ -96,4 +128,34 @@ for name in ('helper.py', 'wayland.py'):
     if name == 'wayland.py':
         child.parent, child.defunct = window, True
         rejected(lambda: element(target, key), 'STALE_ELEMENT')
-    print(name + ': embedded control, foreign ID, moved element, coordinate hit, background action, cycle/defunct checks passed')
+
+    tree = env['tree']
+    window.children = [Node(99, window) for _ in range(100)]
+    observed = tree(target, dict(maxNodes=2))
+    assert len(observed['nodes']) == 2 and observed['truncated']
+    assert window.visited_children <= 2, 'Node cap must stop child enumeration'
+    assert key not in env['elements'], 'A new observation must invalidate old IDs'
+    window.visited_children = 0
+    observed = tree(target, dict(maxDepth=0))
+    assert len(observed['nodes']) == 1 and observed['truncated']
+    assert window.visited_children == 1, 'Depth cap must stop child enumeration'
+    window.children = window.children[:1]
+    assert not tree(target, dict(maxNodes=2))['truncated'], 'A complete tree at the node limit is not truncated'
+    moments = iter([0, 0, 6])
+    env['time'] = SimpleNamespace(monotonic=lambda: next(moments, 6))
+    observed = tree(target, dict(timeoutMs=5000))
+    assert len(observed['nodes']) == 1 and observed['truncated'], 'Deadline must stop enumeration'
+    env['time'] = time
+
+    rejected(lambda: accessibility.perform(window, MovingNode(window),
+             dict(type='scroll', deltaY=100), lambda: None, fail), 'TARGET_IDENTITY_CHANGED')
+    calls = []
+    scrolling = Node(21, other_window)
+    scrolling.queryAction = lambda: SimpleNamespace(nActions=1, getName=lambda _index: 'scroll down', doAction=lambda _index: calls.append(True) or True)
+    rejected(lambda: accessibility.perform(window, MovingNode(window, scrolling),
+             dict(type='scroll', deltaY=100), lambda: None, fail), 'TARGET_IDENTITY_CHANGED')
+    assert not calls, 'A scroll ancestor moved outside the window must not receive input'
+    scrolling.parent = window
+    assert accessibility.perform(window, scrolling, dict(type='scroll', deltaY=100), lambda: None, fail)['performed']
+    assert calls == [True], 'A scroll action in the selected window must work'
+    print(name + ': ownership, bounded tree enumeration/deadline and scroll ancestry checks passed')
