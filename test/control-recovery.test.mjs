@@ -63,6 +63,30 @@ test('selection failure cannot leave the previous held input active', async t =>
   assert.equal(result.state.mode, 'faulted');
 });
 
+for (const method of ['selectTarget','resume','focus']) for (const stopped of [false,true])
+test(`stop cancels ${method} verification${stopped ? ' during recovery' : ''}`, async t => {
+  const {target, state, backend, controller} = await controllerFixture(t);
+  checked(await controller.act({action:'keyDown',key:'Shift'}));
+  if (stopped) checked(await controller.stop());
+  let entered, finish;
+  const waiting = new Promise(resolve => { entered = resolve; });
+  const gate = new Promise(resolve => { finish = resolve; });
+  const original = backend.verify;
+  backend.verify = async () => { entered(); await gate; return {valid:true,target}; };
+  const operation = controller[method](method === 'selectTarget' ? target.id : {targetId:target.id});
+  await waiting;
+  try {
+    const ending = controller.stop();
+    let timer;
+    try {
+      await Promise.race([ending,new Promise((_,reject) => { timer=setTimeout(()=>reject(Error('stop waited for a read-only verification')),1000); })]);
+    } finally { clearTimeout(timer); }
+    checked(await ending);
+    assert.equal((await operation).error.code,'CONTROL_STOPPED');
+    assert.equal(state.held,false);
+  } finally { backend.verify=original;finish();await operation; }
+});
+
 test('release failure remains primary when its state cannot be saved', async t => {
   const {dataDir, state, controller} = await controllerFixture(t);
   checked(await controller.act({action: 'keyDown', key: 'Shift'}));

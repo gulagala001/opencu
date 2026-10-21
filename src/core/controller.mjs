@@ -94,20 +94,26 @@ export async function createController({dataDir, browser, native} = {}) {
     finally { if (interrupt) signal.removeEventListener('abort', interrupt); }
   }
   async function verify(target, backend, cold = false, operationEpoch = epoch, signal) {
-    const result = await readOperation(() => backend.verify(json(target), {cold, signal}), signal);
     checkOperation(operationEpoch);
-    if (result?.valid !== true) {
-      target.verified = false;
-      fail('TARGET_IDENTITY_CHANGED', result?.reason ?? 'Target occurrence could not be verified', {targetId: target.id});
-    }
-    const current = assertTarget(result.target ?? target, target.backend);
-    if (current.id !== target.id || !sameIdentity(current.identity, target.identity)) {
-      target.verified = false;
-      fail('TARGET_IDENTITY_CHANGED', 'Backend returned a different target occurrence', {targetId: target.id});
-    }
-    if (cold) checkExpected(current, {url: target.url, title: target.title});
-    Object.assign(target, current);
-    return target;
+    const recovery = signal === undefined && aborter.signal.aborted ? new AbortController() : null;
+    if (recovery) recoveryOperations.add(recovery);
+    signal ??= recovery?.signal ?? aborter.signal;
+    try {
+      const result = await readOperation(() => backend.verify(json(target), {cold, signal}), signal);
+      checkOperation(operationEpoch);
+      if (result?.valid !== true) {
+        target.verified = false;
+        fail('TARGET_IDENTITY_CHANGED', result?.reason ?? 'Target occurrence could not be verified', {targetId: target.id});
+      }
+      const current = assertTarget(result.target ?? target, target.backend);
+      if (current.id !== target.id || !sameIdentity(current.identity, target.identity)) {
+        target.verified = false;
+        fail('TARGET_IDENTITY_CHANGED', 'Backend returned a different target occurrence', {targetId: target.id});
+      }
+      if (cold) checkExpected(current, {url: target.url, title: target.title});
+      Object.assign(target, current);
+      return target;
+    } finally { if (recovery) recoveryOperations.delete(recovery); }
   }
   async function releaseAll({ dismissDialogs = false } = {}) {
     const failures = [];
