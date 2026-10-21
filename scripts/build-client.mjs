@@ -5,7 +5,7 @@ import { optimizeBase64 } from './base64-transform.mjs';
 import { createHash } from 'node:crypto';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = dependencyRequire();
 const { build } = require('esbuild');
@@ -107,6 +107,12 @@ const clientOptions = {
     build.onLoad({ filter: /\/src\/client\/rea\/.*\.js$/ }, async args => {
       let contents = await readFile(args.path, 'utf8');
       const file = basename(args.path);
+      // This generated helper has no host consumers. Its unused back-edge to
+      // the component adapters would run ES chunks before their helpers exist.
+      if (file === 'rolldown-runtime-2d059c5e81f4.js' && build.initialOptions.format === 'esm') {
+        contents = contents.replace('import * as Host from "../host-boundaries.mjs";\n', '');
+        if (/\bHost\b/.test(contents)) throw new Error('REA runtime acquired host dependencies');
+      }
       if (Object.hasOwn(decoderCounts, file)) {
         const key = createHash('sha256').update(contents).digest('hex');
         if (decoderTransforms.get(file)?.key !== key) decoderTransforms.set(file, { key, contents: optimizeBase64(contents, decoderCounts[file]) });
@@ -129,8 +135,9 @@ const clientOptions = {
       if (basename(args.path) === 'walnut-reader-a850015a2722.js') contents = contents.replaceAll('import.meta.url', 'new URL("/api/opencu/rea-assets/walnut-reader-a850015a2722.js", document.baseURI).href');
       return { contents, loader: 'js' };
     });
-    build.onResolve({ filter: /^react-host$/ }, () => build.initialOptions.format === 'cjs'
-      ? { path: 'react', external: true } : { path: require.resolve('react') });
+    build.onResolve({ filter: /^react-host$/ }, () => build.initialOptions.format === 'esm'
+      ? { path: resolve(root, 'src/client/host-react.mjs') } : build.initialOptions.format === 'cjs'
+        ? { path: 'react', external: true } : { path: require.resolve('react') });
     build.onResolve({ filter: /^(react|react-dom|react-compiler-runtime)(\/|$)/ }, args => ({ path: require.resolve(args.path) }));
     build.onResolve({ filter: /^\.\// }, args => {
       if (args.kind !== 'dynamic-import') return;
@@ -142,7 +149,27 @@ const clientOptions = {
   } }],
   logLevel: 'info',
 };
-const result = await build({ ...clientOptions, write: false });
+// ES chunks preserve the original dynamic component boundaries and share the
+// same state, services and renderer. The small CJS entry keeps DSH's public ABI.
+for (const file of await readdir(resolve(root, 'lib/rea-assets'))) {
+  if (/^opencu-(?:client|chunk)-[A-Z0-9]{8}\.js$/.test(file)) await rm(resolve(root, 'lib/rea-assets', file));
+}
+const runtime = await build({ ...clientOptions, entryPoints: ['src/client/runtime-entry.mjs'], outfile: undefined,
+  outdir: 'lib/rea-assets', entryNames: 'opencu-client-[hash]', chunkNames: 'opencu-chunk-[hash]',
+  format: 'esm', splitting: true, external: [], banner: {}, footer: {}, metafile: true, logLevel: 'warning' });
+const resourcesPath = resolve(root, 'lib/rea-assets/manifest.json');
+const resourcesManifest = JSON.parse(await readFile(resourcesPath, 'utf8')).filter(record => record.source !== 'opencu-client-build');
+let runtimeFile;
+for (const [file, output] of Object.entries(runtime.metafile.outputs)) {
+  const bytes = await readFile(resolve(root, file));
+  resourcesManifest.push({ file: basename(file), sha256: createHash('sha256').update(bytes).digest('hex'), source: 'opencu-client-build' });
+  if (output.entryPoint === 'src/client/runtime-entry.mjs') runtimeFile = basename(file);
+}
+if (!runtimeFile) throw new Error('Missing OpenCU client runtime entry');
+await writeFile(resourcesPath, JSON.stringify(resourcesManifest, null, 2) + '\n');
+const result = await build({ ...clientOptions, entryPoints: ['src/client/client-entry.mjs'], write: false,
+  external: [...clientOptions.external, '/api/opencu/rea-assets/*'],
+  define: { ...clientOptions.define, __OPENCU_RUNTIME_URL__: JSON.stringify(`/api/opencu/rea-assets/${runtimeFile}`) } });
 const clientBundle = result.outputFiles[0].text;
 await writeFile(resolve(root, 'lib/client.js'), clientBundle);
 if (!clientBundle.startsWith(clientOptions.banner.js) || !clientBundle.trimEnd().endsWith(clientOptions.footer.js)) throw new Error('Unexpected OpenCU client wrapper');

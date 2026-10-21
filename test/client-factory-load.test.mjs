@@ -68,6 +68,25 @@ for (const kind of ['classic-module-loader', 'esm-createOpenCU']) await test(kin
   browser.self = browser;
   const context = vm.createContext(browser);
   vm.runInContext('Error.stackTraceLimit = 200', context);
+  const resources = new Map(JSON.parse(await readFile(resolve(checkout, 'lib/rea-assets/manifest.json'), 'utf8')).map(row => [row.file, row]));
+  const chunks = new Map();
+  const readChunk = (specifier, parent = document.baseURI) => {
+    const url = new URL(specifier, parent), file = url.pathname.slice('/api/opencu/rea-assets/'.length);
+    assert.equal(url.origin, new URL(document.baseURI).origin);
+    assert(url.pathname.startsWith('/api/opencu/rea-assets/') && resources.has(file), 'Unknown client resource: ' + url);
+    if (!chunks.has(url.href)) chunks.set(url.href, (async () => {
+      const source = await readFile(resolve(checkout, 'lib/rea-assets', file), 'utf8');
+      assert.equal(createHash('sha256').update(source).digest('hex'), resources.get(file).sha256);
+      return new vm.SourceTextModule(source, { context, identifier: url.href, importModuleDynamically: loadChunk });
+    })());
+    return chunks.get(url.href);
+  };
+  const loadChunk = async (specifier, parent) => {
+    const module = await readChunk(specifier, parent?.identifier?.startsWith('https:') ? parent.identifier : document.baseURI);
+    if (module.status === 'unlinked') await module.link((child, source) => readChunk(child, source.identifier));
+    if (module.status === 'linked') await module.evaluate();
+    return module;
+  };
   const originalGlobals = new Set(Object.getOwnPropertyNames(browser));
   const result = { kind, stage: 'registration', requests, domCalls, networkCalls, applyReached: false, slotRegistrations: [] };
   try {
@@ -76,7 +95,7 @@ for (const kind of ['classic-module-loader', 'esm-createOpenCU']) await test(kin
       const target = { mode: 'queue', pendingQueue: [], load(registration) { this.pendingQueue.push(registration); } };
       browser.__ModuleLoader__ = target;
       const source = await readFile(resolve(checkout, 'lib/client.js'), 'utf8');
-      new vm.Script(source, { filename: resolve(checkout, 'lib/client.js') }).runInContext(context, { timeout: 20000 });
+      new vm.Script(source, { filename: resolve(checkout, 'lib/client.js'), importModuleDynamically: loadChunk }).runInContext(context, { timeout: 20000 });
       result.registrations = target.pendingQueue.map(({ id }) => id);
       const loader = new ClientModuleSystem({
         manifest: { release: { version: '0.2.1-rc.2', commit: '687f282e8625c6b8d11ff58211a90524be2e4317' }, modules: [], plugins: [] },
@@ -95,7 +114,7 @@ for (const kind of ['classic-module-loader', 'esm-createOpenCU']) await test(kin
       const client = (await readFile(resolve(checkout, 'lib/client.js'), 'utf8')).trimEnd();
       assert(client.startsWith(head) && client.endsWith(tail), 'Unexpected OpenCU client wrapper');
       const source = `export function createOpenCU(require) {\nvar module={exports:{}};var exports=module.exports;\n${client.slice(head.length, -tail.length)}\nreturn module.exports;\n}\n`;
-      const module = new vm.SourceTextModule(source, { context, identifier: resolve(checkout, 'lib/client.factory.mjs') });
+      const module = new vm.SourceTextModule(source, { context, identifier: resolve(checkout, 'lib/client.factory.mjs'), importModuleDynamically: loadChunk });
       await module.link(specifier => { throw new Error('Unexpected factory import: ' + specifier); });
       await module.evaluate({ timeout: 20000 });
       result.stage = 'factory-materialization';

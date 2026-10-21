@@ -41,9 +41,9 @@ import { OverviewSlot } from './session-overview.jsx';
 import { createPresentationLayout } from './presentation-layout.mjs';
 import { guestPortalStyles } from './portal-host.mjs';
 
-export const name = 'opencu/client';
+import { inject } from './client-contract.mjs';
+export { name, inject } from './client-contract.mjs';
 export { OverviewSlot };
-export const inject = ['connection', 'slots', 'sidebarRight', 'sidebarRightTabs', 'locale', 'conversation', 'sessions', 'inputTriggers', 'configForms', 'uiWorkspace', 'uiSession'];
 
 const clients = globalThis[Symbol.for('opencu.shared-client.v1')] ??= new WeakMap();
 
