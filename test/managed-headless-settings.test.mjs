@@ -77,14 +77,14 @@ test('capability writer preserves existing flags, rejects invalid values, and su
 });
 
 test('settings owner routing saves and reads the opt-in from the active namespace', async () => {
-  const stores = { opencu: {}, 'trisoul-x': {} };
+  const stores = { opencu: {}, 'oh-my-dsh': {} };
   let active = 'opencu';
   const forms = { describe: () => ({ getSnapshot: () => ({ view: { namespaces: [{ ns: active }] } }), subscribe: () => () => {} }),
     get: name => ({ getSnapshot: () => stores[name], set: async (key, value) => { stores[name][key] = value; return true; }, subscribe: () => () => {} }) };
-  const form = sharedConfigForm(forms, ['opencu', 'trisoul-x']);
+  const form = sharedConfigForm(forms, ['opencu', 'oh-my-dsh']);
   await configureCapability(form, 'managedHeadless', true);
   assert.equal(form.getSnapshot().managedHeadless, true);
-  active = 'trisoul-x'; assert.equal(form.getSnapshot().managedHeadless, undefined);
+  active = 'oh-my-dsh'; assert.equal(form.getSnapshot().managedHeadless, undefined);
   await configureCapability(form, 'managedHeadless', false);
   assert.equal(form.getSnapshot().managedHeadless, false); assert.equal(stores.opencu.managedHeadless, true);
 });
