@@ -206,7 +206,7 @@ export async function createController({dataDir, browser, native} = {}) {
       if (!request.browserId || browsers.filter(item => item.id === request.browserId).length !== 1) fail('AMBIGUOUS_TARGET', 'Choose one connected browser ID');
       let target;
       try {
-        target = assertTarget(await backend.newTab(request.browserId, request.url, {signal: aborter.signal}), 'browser');
+        target = assertTarget(await backend.newTab(request.browserId, request.url, {signal: aborter.signal, sessionId: request.sessionId}), 'browser');
         checkOperation(operationEpoch);
         if (target.browserId !== request.browserId) fail('TARGET_IDENTITY_CHANGED', 'Created tab belongs to another browser');
         const current = assertTarget(await backend.select(json(target), {signal: aborter.signal}), 'browser');

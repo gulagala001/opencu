@@ -22,14 +22,19 @@ export function createBrowserTransport(client, desktop) {
     if (failures.length) throw new AggregateError(failures, 'OpenCU sidebar cleanup failed');
     return {released: true};
   }
+  const retired = new Map();
   const publish = () => {
     if (closing) return Promise.resolve();
-    const targets = [...guests.values()].flatMap(guest => {
-      if (!guest.ready || !guest.element.isConnected) return [];
-      try { return [guest.driver.metadata()]; }
-      catch { return []; /* A detached Electron guest must not poison other live targets. */ }
+    const work = pendingPublish.then(async () => {
+      const targets = [...guests.values()].flatMap(guest => {
+        if (!guest.ready || !guest.element.isConnected) return [];
+        try { return [guest.driver.metadata()]; }
+        catch { return []; /* A detached Electron guest must not poison other live targets. */ }
+      });
+      const retiredTargets = [...retired.values()];
+      await request('publish', { targets, retiredTargets });
+      for (const target of retiredTargets) if (retired.get(target.id) === target) retired.delete(target.id);
     });
-    const work = pendingPublish.then(() => request('publish', { targets }));
     pendingPublish = work.catch(error => { if (!aborter?.signal.aborted) console.error('OpenCU guest inventory', error); });
     return work;
   };
@@ -116,13 +121,24 @@ export function createBrowserTransport(client, desktop) {
         observe: options => request('observe', options), act: action => request('act', action),
       } };
       guests.set(guestId, guest);
+      let suspended = false, disposal;
       return { get target() { return target; },
-        update(value) { target = { ...target, url: value.url, title: value.title, isDetached: value.isDetached === true }; guest.target = target; guest.ready = true; void publish(); },
-        async dispose() {
-          guest.ready = false;
-          const result = await guest.driver.release();
-          if (!inputReleased(result)) throw new Error('Sidebar guest input release was not acknowledged');
-          guests.delete(guestId); await publish();
+        update(value) { if (suspended) return; target = { ...target, url: value.url, title: value.title, isDetached: value.isDetached === true }; guest.target = target; guest.ready = true; void publish(); },
+        suspend() { suspended = true; guest.ready = false; void publish(); },
+        dispose({ closed = false } = {}) {
+          if (disposal) return disposal;
+          suspended = true; guest.ready = false;
+          disposal = (async () => {
+            // closed is an internal receipt from native surface.close, never a
+            // missing-inventory guess. A destroyed page cannot handle release.
+            if (!closed) {
+              const result = await guest.driver.release();
+              if (!inputReleased(result)) throw new Error('Sidebar guest input release was not acknowledged');
+            }
+            retired.set(target.id, target);
+            guests.delete(guestId); await publish();
+          })().catch(error => { disposal = undefined; throw error; });
+          return disposal;
         },
       };
     },
@@ -204,6 +220,7 @@ export function createBrowserTransport(client, desktop) {
         guest.ready = false;
         const result = await guest.driver.release();
         if (!inputReleased(result)) throw new Error('Sidebar guest input release was not acknowledged');
+        retired.set(guest.target.id, guest.driver.metadata());
         guests.delete(guestId); await publish();
       };
     },
@@ -213,7 +230,7 @@ export function createBrowserTransport(client, desktop) {
       const cleanup = await Promise.allSettled([
         loop, pendingPublish, pendingSessions, ...executing,
         rendererId && releases[0].status === 'fulfilled'
-          ? client.request('browser/disconnect', { rendererId, connectionId, released: true }, AbortSignal.timeout(5000)) : undefined,
+          ? client.request('browser/disconnect', { rendererId, connectionId, released: true, retiredTargets: [...retired.values()] }, AbortSignal.timeout(5000)) : undefined,
         desktop?.presentation?.('close', {}),
       ]);
       const failures = [...releases, ...cleanup].filter(result => result.status === 'rejected' && result.reason?.name !== 'AbortError').map(result => result.reason);

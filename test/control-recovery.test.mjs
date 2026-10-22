@@ -155,6 +155,34 @@ test('nested release failures stay failures in the sidebar bridge', async t => {
   assert.equal(result.value.released, false);
 });
 
+test('an acknowledged closed guest is retired through the composite and cannot become a cold release debt', async t => {
+  const {host,rendererId,target,reply}=await hostFixture(t);
+  await reply(host.backend.act(target,{action:'keyDown',key:'Shift'}),{accepted:true});
+  await host.handle('browser/publish',{rendererId,targets:[],retiredTargets:[target]});
+  const composite=createCompositeBrowserBackend({dsh:host.backend});
+  const released=(await reply(composite.release({targets:[{...target,provider:'dsh',cold:true}]}),{released:true})).value;
+  assert.equal(released.released,true);assert.deepEqual(released.retiredTargetIds,[target.id]);
+  await host.handle('browser/publish',{rendererId,targets:[target]});
+  assert.deepEqual(await host.backend.listTargets(),[],'a queued stale snapshot cannot revive the retired occurrence');
+});
+
+test('sidebar new tabs use controller recovery and stop before allocating another guest', async t => {
+  const {host,rendererId,target,reply}=await hostFixture(t);
+  target.browserId=`dsh:${rendererId}`;
+  const dataDir=await mkdtemp(new URL('sidebar-open-',scratch).pathname);
+  const runtime=createPluginRuntime({dataDir,browserEnabled:false,nativeEnabled:false,extensionEnabled:false,dshBrowser:host.backend});
+  const commands=[];
+  const respond=command=>{commands.push(command);return command.method==='openTab'?{target}:command.method==='release'?{released:true}:target;};
+  try {
+    checked((await reply(runtime.request('openTarget',{browserId:`dsh:${rendererId}`,sessionId:'owner',url:'about:blank'}),respond)).value);
+    assert.equal(commands.filter(command=>command.method==='openTab').length,1);
+    assert.equal(commands.find(command=>command.method==='openTab').params.sessionId,'owner');
+    checked((await reply(runtime.request('stop'),respond)).value);
+    assert.equal((await runtime.request('openTarget',{browserId:`dsh:${rendererId}`,url:'about:blank'})).error.code,'CONTROL_STOPPED');
+    assert.equal(commands.filter(command=>command.method==='openTab').length,1);
+  } finally {await reply(runtime.close(),respond);await rm(dataDir,{recursive:true,force:true});}
+});
+
 test('a replacement renderer cannot release a guest it no longer owns', async t => {
   const {host, target, connect, reply} = await hostFixture(t);
   await reply(host.backend.act(target, {action: 'mouseDown'}), {accepted: true});

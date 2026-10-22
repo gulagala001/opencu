@@ -33,17 +33,21 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
   }
   async function close(record) {
     if (record.closing) return record.closing;
+    record.remote.suspend();
     record.closing = (async () => {
-      const errors = [];
       let ready = false;
       try { await record.ready; ready = true; } catch { /* Failed creation is reported by its caller; native resources still need release. */ }
-      if (ready) try { await invoke(record, 'dispose'); } catch (error) { errors.push(error); }
-      try { await desktop.surface('close', record.ids); } catch (error) { errors.push(error); }
-      try { await record.remote.dispose(); } catch (error) { errors.push(error); }
+      if (!record.nativeClosed) {
+        // A page failure cannot block native cleanup. Closing the native surface
+        // releases its leases and destroys the guest, even if page JS is broken.
+        if (ready && !record.error) try { await invoke(record, 'dispose'); } catch { /* Native close below is the authoritative cleanup. */ }
+        await desktop.surface('close', record.ids);
+        record.nativeClosed = true;
+      }
+      await record.remote.dispose({ closed: true });
       record.unbind(); records.delete(record.key);
       Initial.AW.removeTab(record.ids.sessionId, record.ids.tabId);
-      if (errors.length) throw new AggregateError(errors, 'Browser surface cleanup failed');
-    })();
+    })().catch(error => { record.closing = undefined; throw error; });
     return record.closing;
   }
   function retain({ sessionId, tabId, initialUrl, initialNavigation, signal }) {
@@ -70,8 +74,8 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
     });
     record.ready.catch(error => {
       record.error ??= error;
+      record.remote.suspend();
       report(record, record.error);
-      void record.remote.dispose().catch(error => report(record, error));
     });
     return record;
   }
@@ -86,12 +90,19 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
     const record = retain({ sessionId, tabId: tab.id, initialUrl: args.url, initialNavigation: args.initialNavigation, signal: sidebar.tabDomain.occurrence(sessionId, tab).signal });
     try { await record.ready; }
     catch (error) {
+      let cleanupFailed = false;
       try { await close(record); }
-      catch (cleanupError) { throw new AggregateError([error, cleanupError], 'The new browser tab failed and cleanup reported an error'); }
+      catch (cleanupError) {
+        cleanupFailed = true;
+        throw Object.assign(new Error(`${error.message}; browser cleanup also failed: ${cleanupError.message}`, { cause: error }),
+          { code: error.code, details: { ...error.details, cleanup: { code: cleanupError.code, message: cleanupError.message } } });
+      }
       finally {
-        const selected = sidebar.active()?.id === tab.id;
-        sidebar.closeIn(sessionId, tab.id);
-        if (selected && active && sidebar.mounted.getSnapshot() === sessionId) sidebar.focus(active.id);
+        if (!cleanupFailed) {
+          const selected = sidebar.active()?.id === tab.id;
+          sidebar.closeIn(sessionId, tab.id);
+          if (selected && active && sidebar.mounted.getSnapshot() === sessionId) sidebar.focus(active.id);
+        }
       }
       throw error;
     }
@@ -182,14 +193,16 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
       ).catch(error => report(record, error));
     } else if (event.type === 'fault') {
       record.error ??= new Error(event.error);
-      report(record, record.error); void record.remote.dispose().catch(error => report(record, error));
+      record.remote.suspend(); report(record, record.error);
     } else if (event.type === 'placement') {
+      if (record.closing || record.error || record.nativeClosed) return;
       record.detached = event.detached;
       record.remote.update({ ...record.remote.target, isDetached: event.detached });
       if (record.initialized) void invoke(record, 'visibility', { visible: event.detached || record.visible === true }).catch(error => report(record, error));
       const previous = Initial.AW.getSnapshot(record.ids.sessionId, record.ids.tabId);
       if (previous) Initial.AW.setSnapshot(record.ids.sessionId, record.ids.tabId, { ...previous, isDetached: event.detached });
     } else if (event.type === 'page') {
+      if (record.closing || record.error || record.nativeClosed) return;
       const value = event.event;
       if (value.type === 'snapshot') {
         record.navigationError = value.snapshot.navigationError ?? null;

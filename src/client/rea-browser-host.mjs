@@ -505,7 +505,6 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       element.setAttribute('name', lease.lease);
       element.setAttribute('partition', lease.partition);
       element.setAttribute('allowpopups', '');
-      element.setAttribute('src', `about:blank#${lease.lease}`);
       const ids = { conversationId: args.conversationId, browserTabId: args.browserTabId };
       const record = { ids, lease, host, element, state: { ...jl, ...annotationState.get(key) }, cleanup: [], navigationGeneration: 0 };
       let detachDownloads;
@@ -771,6 +770,9 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       }));
       // Electron needs the approved element attached before dom-ready; Owl can
       // complete native hidden-view registration before its DOM host is painted.
+      // Start navigation only after readiness listeners and the transport exist;
+      // downloads/settings IPC above can otherwise outlive the first dom-ready.
+      element.setAttribute('src', `about:blank#${lease.lease}`);
       host.markRegistered();
       return true;
     },
