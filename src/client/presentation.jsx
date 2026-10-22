@@ -64,8 +64,13 @@ const updates = createPresentationUpdateQueue(state => {
 window.opencuPresentationHost.subscribe(payload => {
   if (payload.locale) document.documentElement.lang = payload.locale;
   if (payload.theme === 'dark' || payload.theme === 'light') mount.dataset.theme = payload.theme;
-  updates.update(payload);
+  try { updates.update(payload); }
+  catch (error) {
+    if (error.code === 'PRESENTATION_IMAGE_BASELINE_MISSING') report({ type: 'images-required' });
+    else reportError(error);
+  }
 });
+report({ type: 'images-ready' });
 window.addEventListener('pagehide',() => updates.dispose());
 const closeFront = () => {
   const state = updates.getState();
