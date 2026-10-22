@@ -340,13 +340,15 @@ export async function createController({dataDir, browser, native} = {}) {
         const rejectedSecondary = request.action === 'performSecondaryAction' && error.details?.inputDispatched === false
           && ['INVALID_ARGUMENT','UNSUPPORTED_ACTION','ELEMENT_DISABLED','STALE_ELEMENT'].includes(error.code);
         const rejectedClick = ['click','doubleClick','double_click','rightClick','right_click'].includes(request.action) && error.details?.inputDispatched === false
-          && ['INVALID_ARGUMENT','INPUT_ALREADY_HELD','RELEASE_REQUIRED','UNSUPPORTED_ACTION','STALE_ELEMENT','STALE_OBSERVATION'].includes(error.code);
+          && ['INVALID_ARGUMENT','INPUT_ALREADY_HELD','RELEASE_REQUIRED','UNSUPPORTED_ACTION','STALE_ELEMENT','STALE_OBSERVATION','FOREGROUND_REQUIRED','TARGET_NOT_ACTIVE'].includes(error.code);
         const rejectedPress = ['press','pressKey','press_key','keypress','key'].includes(request.action) && error.details?.inputDispatched === false
-          && ['INVALID_ARGUMENT','INVALID_ACTION','UNKNOWN_KEY','UNSUPPORTED_KEY','INPUT_ALREADY_HELD','RELEASE_REQUIRED','UNSUPPORTED_ACTION','STALE_ELEMENT','STALE_OBSERVATION'].includes(error.code);
+          && ['INVALID_ARGUMENT','INVALID_ACTION','UNKNOWN_KEY','UNSUPPORTED_KEY','INPUT_ALREADY_HELD','RELEASE_REQUIRED','UNSUPPORTED_ACTION','STALE_ELEMENT','STALE_OBSERVATION','FOREGROUND_REQUIRED','TARGET_NOT_ACTIVE'].includes(error.code);
         const staleTextInput = ['fill','setValue','set_value','type','typeText','type_text'].includes(request.action) && error.details?.inputDispatched === false
-          && ['STALE_ELEMENT','STALE_OBSERVATION'].includes(error.code);
+          && ['STALE_ELEMENT','STALE_OBSERVATION','FOREGROUND_REQUIRED','TARGET_NOT_ACTIVE','UNSUPPORTED_ACTION'].includes(error.code);
+        const rejectedPointer = ['scroll','drag','move','mouseDown','mouseUp','hitTest','cursor'].includes(request.action) && error.details?.inputDispatched === false
+          && ['INVALID_ARGUMENT','INPUT_ALREADY_HELD','RELEASE_REQUIRED','UNSUPPORTED_ACTION','STALE_ELEMENT','STALE_OBSERVATION','FOREGROUND_REQUIRED','TARGET_NOT_ACTIVE'].includes(error.code);
         const recoverableDialog = ['JS_DIALOG_OPEN', 'STALE_DIALOG'].includes(error.code);
-        if (operationEpoch === epoch && !unresolvedLocator && !rejectedEditing && !rejectedSecondary && !rejectedClick && !rejectedPress && !staleTextInput && !recoverableDialog) {
+        if (operationEpoch === epoch && !unresolvedLocator && !rejectedEditing && !rejectedSecondary && !rejectedClick && !rejectedPress && !staleTextInput && !rejectedPointer && !recoverableDialog) {
           block('faulted');
           await releaseAll();
         }

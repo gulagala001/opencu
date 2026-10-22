@@ -9,6 +9,12 @@ import {installMacHelper} from './macos-install.mjs';
 import {checkMacHelperIdentity} from './macos-identity.mjs';
 import {MACOS_AX_EXTENSIONS, checkSignal} from '../protocol.mjs';
 
+/** Hyprland implements no RemoteDesktop portal, so its own compositor IPC backend replaces it. */
+export function linuxHelper(env = process.env) {
+  if (!(env.XDG_SESSION_TYPE === 'wayland' || env.WAYLAND_DISPLAY)) return 'helper.py';
+  return /hyprland/i.test(env.XDG_CURRENT_DESKTOP ?? '') || Boolean(env.HYPRLAND_INSTANCE_SIGNATURE) ? 'hyprland.py' : 'wayland.py';
+}
+
 /** Plain backend contract; the controller owns public ok/error envelopes. */
 export async function createNativeBackend({dataDir, helperPath, compileHelper = false, onCursor} = {}) {
   if (typeof dataDir !== 'string' || !dataDir) throw new NativeBackendError('INVALID_DATA_DIR', 'Native backend requires a private dataDir.');
@@ -60,7 +66,7 @@ export async function createNativeBackend({dataDir, helperPath, compileHelper = 
   const transportOptions = { onEvent: cursorEvent, onExit: hideCursor };
   try {
     if (process.platform === 'linux') {
-      const helper = process.env.XDG_SESSION_TYPE === 'wayland' || process.env.WAYLAND_DISPLAY ? 'wayland.py' : 'helper.py';
+      const helper = linuxHelper();
       transport = createHelperTransport(helperPath || '/usr/bin/python3', [fileURLToPath(new URL(`../../native/linux/${helper}`, import.meta.url)), '--data-dir', directory], transportOptions);
     } else if (process.platform === 'win32') {
       const script = fileURLToPath(new URL('../../native/windows/helper.ps1', import.meta.url));
