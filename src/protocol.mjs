@@ -107,6 +107,22 @@ export function checkSignal(signal) {
   if (signal?.aborted) fail('CONTROL_STOPPED', 'Control has been stopped');
 }
 
+// Only abandon read-only waits. Input, selection side effects and release must
+// still settle before their caller can report an outcome.
+export async function readOperation(work, signal) {
+  checkSignal(signal);
+  let interrupt;
+  const interrupted = signal && new Promise((_, reject) => {
+    interrupt = () => reject(new OpenCUError('CONTROL_STOPPED', 'Read interrupted by cancellation or shutdown'));
+    signal.addEventListener('abort', interrupt, {once: true});
+    if (signal.aborted) interrupt();
+  });
+  try {
+    const pending = Promise.resolve().then(() => { checkSignal(signal); return work(); });
+    return await (interrupted ? Promise.race([pending, interrupted]) : pending);
+  } finally { if (interrupt) signal.removeEventListener('abort', interrupt); }
+}
+
 export function finite(value, name) {
   if (typeof value !== 'number' || !Number.isFinite(value)) fail('INVALID_ARGUMENT', `${name} must be a finite number`);
   return value;

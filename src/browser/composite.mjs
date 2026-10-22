@@ -139,16 +139,29 @@ export function createCompositeBrowserBackend({browser, extension, dsh, releaseU
       if (!targets.length && inventoryErrors.length) fail('BROWSER_INVENTORY_FAILED', 'Browser providers could not list targets', inventoryErrors);
       return targets;
     },
-    async select(reference) {
+    async select(reference, {signal} = {}) {
       alive();
-      const matches = (await composite.listTargets()).filter(target => referenceMatches(target, reference) && (!reference?.provider || target.provider === reference.provider));
+      const id = reference?.targetId ?? reference?.id;
+      if (browser && reference?.provider === 'browser' && typeof id === 'string' && reference.identity && typeof reference.identity === 'object' && Object.keys(reference.identity).length) {
+        // The provider and occurrence are already explicit. Let that provider
+        // verify the live reference without discovering every provider again.
+        checkSignal(signal);
+        const selected = wrap(await browser.select(unwrap(reference, 'browser'), {signal}), 'browser');
+        alive(); checkSignal(signal);
+        if (!referenceMatches(selected, reference)) fail('TARGET_NOT_FOUND', 'Reference does not match the live browser target');
+        if (!sameIdentity(selected.identity, reference.identity)) fail('TARGET_IDENTITY_CHANGED', 'Selection changed occurrence');
+        checkExpected(selected, reference.expected);
+        return selected;
+      }
+      const matches = (await composite.listTargets({signal})).filter(target => referenceMatches(target, reference) && (!reference?.provider || target.provider === reference.provider));
+      checkSignal(signal);
       if (matches.length !== 1) fail(matches.length ? 'AMBIGUOUS_TARGET' : 'TARGET_NOT_FOUND', 'Reference must match one browser target');
       const target = matches[0], {provider, backend} = providerFor(target);
       checkExpected(target, reference?.expected);
       if (reference?.identity && !sameIdentity(reference.identity, target.identity)) fail('TARGET_IDENTITY_CHANGED', 'Selection changed document occurrence');
       if (stale.has(target.id)) fail('TARGET_IDENTITY_CHANGED', 'Navigation invalidated this document occurrence; select the new document');
       if (provider === 'extension') held.set(target.id, target);
-      const selected = wrap({...target, ...await backend.select(unwrap(target, provider))}, provider);
+      const selected = wrap({...target, ...await backend.select(unwrap(target, provider), {signal})}, provider);
       if (selected.id !== target.id || !sameIdentity(selected.identity, target.identity)) fail('TARGET_IDENTITY_CHANGED', 'Selection changed occurrence');
       return selected;
     },

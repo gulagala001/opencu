@@ -1,7 +1,7 @@
 import {randomUUID, createHash} from 'node:crypto';
 import {mkdir, readFile} from 'node:fs/promises';
 import {join, resolve} from 'node:path';
-import {checkExpected, checkSignal, errorJSON, fail, referenceMatches, sameIdentity} from '../protocol.mjs';
+import {checkExpected, checkSignal, errorJSON, fail, readOperation, referenceMatches, sameIdentity} from '../protocol.mjs';
 import {createDeliveryStore} from './deliveries.mjs';
 import {observePage} from './observation.mjs';
 import {actOnPage, releasePage, normalizeBrowserAction} from './actions.mjs';
@@ -277,9 +277,9 @@ export async function createBrowserBackend(options = {}) {
       throw error;
     } finally { if (!record) await session.detach().catch(() => {}); }
   }
-  async function descriptor(record) {
+  async function descriptor(record, targetInfo) {
     if (record.page.isClosed()) fail('TARGET_CLOSED', 'Browser tab is closed');
-    const {targetInfo} = await record.session.send('Target.getTargetInfo');
+    targetInfo ??= (await record.session.send('Target.getTargetInfo')).targetInfo;
     return {
       id: record.id, backend: 'browser', kind: 'tab', browserId,
       title: targetInfo.title, url: targetInfo.url, identity: record.identity,
@@ -349,8 +349,23 @@ export async function createBrowserBackend(options = {}) {
       for (const record of records.values()) if (!record.page.isClosed()) targets.push(await descriptor(record));
       return targets;
     },
-    async select(reference) {
-      const targets = await this.listTargets();
+    async select(reference, {signal} = {}) {
+      const id = reference?.targetId ?? reference?.id;
+      if (typeof id === 'string' && reference.identity && typeof reference.identity === 'object' && Object.keys(reference.identity).length) {
+        // An exact occurrence needs live verification, not another inventory of
+        // unrelated tabs. Keep generic references on the discovery path below.
+        const record = await readOperation(() => recordFor({...reference, id}), signal);
+        const {targetInfo} = await readOperation(() => record.session.send('Target.getTargetInfo'), signal);
+        checkSignal(signal);
+        if (targetInfo.targetId !== record.identity.targetId) fail('TARGET_IDENTITY_CHANGED', 'Browser target occurrence changed');
+        const target = await descriptor(record, targetInfo);
+        checkSignal(signal);
+        if (!referenceMatches(target, reference)) fail('TARGET_NOT_FOUND', 'Reference does not match the live browser tab');
+        checkExpected(target, reference.expected);
+        return target;
+      }
+      const targets = await readOperation(() => this.listTargets({signal}), signal);
+      checkSignal(signal);
       const matches = targets.filter(target => referenceMatches(target, reference));
       if (matches.length !== 1) fail(matches.length ? 'AMBIGUOUS_TARGET' : 'TARGET_NOT_FOUND', 'Reference must match one browser tab');
       checkExpected(matches[0], reference?.expected);
