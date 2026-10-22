@@ -230,6 +230,183 @@ def resolve(reference):
     return t
 
 
+ISOLATION = 'opencu'
+isolated, displaced = {}, None
+indicator, indicator_lock = None, threading.Lock()
+indicator_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hyprland_indicator.py')
+
+
+def workspace_of(window):
+    workspace = window.get('workspace') or {}
+    identifier = workspace.get('id')
+    name = workspace.get('name') or str(identifier)
+    return dict(id=identifier, name=name)
+
+
+def active_workspace():
+    value = hypr_json('activeworkspace')
+    if not isinstance(value, dict):
+        return None
+    return dict(id=value.get('id'), name=value.get('name') or str(value.get('id')))
+
+
+def window_for(address):
+    for window in windows():
+        if window['address'] == address:
+            return window
+    return None
+
+
+def companions(window):
+    """Windows that share the target's workspace and would shrink it."""
+    workspace = (window.get('workspace') or {}).get('id')
+    return [other for other in windows()
+            if other['address'] != window['address'] and not other.get('hidden')
+            and (other.get('workspace') or {}).get('id') == workspace]
+
+
+def workspace_argument(workspace):
+    """Name the workspace the way the current dispatcher dialect expects."""
+    return '"%s"' % workspace if isinstance(workspace, str) else str(workspace)
+
+
+def move_window(address, workspace):
+    if dialect() == 'lua':
+        dispatch('hl.dsp.window.move({ window = "address:%s", workspace = %s, silent = true })'
+                 % (address, workspace_argument(workspace)))
+    else:
+        dispatch('movetoworkspacesilent', '%s,address:%s' % (workspace, address))
+
+
+def focus_workspace(workspace):
+    if dialect() == 'lua':
+        dispatch('hl.dsp.focus({ workspace = %s })' % workspace_argument(workspace))
+    else:
+        dispatch('workspace', str(workspace))
+
+
+def origin_argument(origin):
+    return 'name:' + origin['name'] if origin['id'] is not None and origin['id'] < 0 else origin['name']
+
+
+def isolate(t):
+    """Give the target a workspace of its own so nothing can squeeze it.
+
+    A tiled desktop shares one workspace per monitor: every window opened beside
+    the target takes part of its area, and a capture of a sliver is useless. The
+    target therefore moves to its own workspace, which also keeps the user's own
+    layout untouched. A target that already has its workspace to itself would
+    gain nothing from moving, so it stays where it is.
+    """
+    global displaced
+    address = t['windowId']
+    if address in isolated:
+        return False
+    window = window_for(address)
+    if window is None:
+        return False
+    origin = workspace_of(window)
+    if origin['name'] == ISOLATION or not companions(window):
+        return False
+    isolated[address] = origin
+    if displaced is None:
+        displaced = active_workspace()
+    move_window(address, 'name:' + ISOLATION)
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        landed = window_for(address)
+        if landed is not None and workspace_of(landed)['name'] == ISOLATION:
+            break
+        time.sleep(.02)
+    focus_workspace('name:' + ISOLATION)
+    focus_window(address)
+    start_indicator()
+    notify('%s 已移到专用工作区 %s' % (t['name'], ISOLATION))
+    return True
+
+
+def restore_isolation():
+    """Put every window this helper moved back where the user had it."""
+    global displaced
+    origin, displaced = displaced, None
+    for address, previous in list(isolated.items()):
+        isolated.pop(address, None)
+        window = window_for(address)
+        if window is None or workspace_of(window)['name'] != ISOLATION:
+            continue  # Gone, or the user already moved it somewhere on purpose.
+        move_window(address, origin_argument(previous))
+    if origin is not None and (active_workspace() or {}).get('name') == ISOLATION:
+        focus_workspace(origin_argument(origin))
+
+
+def ensure_foreground(t):
+    """Put the target in front before anything reads or writes the screen.
+
+    Hyprland resolves a focus request asynchronously and follows the window to
+    its workspace, so this also switches workspace when the target lives on one
+    the user is not looking at. Without that step grim would capture whatever
+    happens to be on screen and uinput would type into the wrong window.
+    """
+    address = t['windowId']
+    if active_address() == address:
+        return False
+    focus_window(address)
+    deadline = time.monotonic() + 2
+    while active_address() != address and time.monotonic() < deadline:
+        time.sleep(.02)
+    if active_address() != address:
+        rejected('TARGET_NOT_ACTIVE', 'The selected window must be foreground: focus it, then repeat this action')
+    return True
+
+
+def notify(message, color='rgb(ffaa00)'):
+    """Tell the user why the desktop just moved under them."""
+    try:
+        execute(['hyprctl', 'notify', '-1', '3000', color, message], timeout=5)
+    except Exception:
+        pass  # A compositor without inline notifications must not break control.
+
+
+def start_indicator():
+    """Show the control bar while the helper is driving the desktop.
+
+    The bar is a layer-shell surface that ignores input, so it never becomes a
+    target and never swallows a click. It exits on its own once the heartbeat
+    file goes stale, which also covers a helper that dies without cleaning up.
+    """
+    global indicator
+    heartbeat = os.path.join(directory, 'indicator.heartbeat')
+    with indicator_lock:
+        if indicator is not None and indicator.poll() is None:
+            try:
+                os.utime(heartbeat, None)
+                return
+            except OSError:
+                pass
+        if not os.path.exists(indicator_script):
+            return
+        try:
+            with open(heartbeat, 'w') as stream:
+                stream.write(str(time.time()))
+            indicator = subprocess.Popen([sys.executable, indicator_script, '--heartbeat', heartbeat],
+                                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                         stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            indicator = None
+
+
+def stop_indicator():
+    global indicator
+    with indicator_lock:
+        process, indicator = indicator, None
+    if process is None or process.poll() is not None:
+        return
+    try:
+        process.terminate()
+    except OSError:
+        pass
+
+
 def foreground(t):
     if active_address() != t['windowId']:
         rejected('TARGET_NOT_ACTIVE', 'The selected window must be foreground: focus it, then repeat this action')
@@ -503,8 +680,10 @@ def capture(t, preview=False):
     if not grim:
         fail('CAPTURE_UNAVAILABLE', 'Install grim to capture windows on Hyprland')
     # Hyprland offers no per-window capture protocol, so the frame comes from the
-    # screen: only the foreground window is guaranteed to be free of overlap.
-    foreground(t)
+    # screen: the window has to be the visible one, on the visible workspace.
+    t = resolve(t)
+    ensure_foreground(t)
+    start_indicator()
     region = clip(t['bounds'])
     value = execute(['grim', '-g', '%d,%d %dx%d' % (region['x'], region['y'], region['width'], region['height']), '-'], text=False)
     if value.returncode:
@@ -672,6 +851,9 @@ def move(at, t, expected):
 
 
 def act(t, action, expected):
+    t = resolve(t)
+    ensure_foreground(t)
+    start_indicator()
     check(t, expected, False)
     kind, mode = action['type'], action.get('inputMode', 'background')
     if mode not in ('background', 'foreground'):
@@ -829,6 +1011,8 @@ def perform(method, args, expected):
         return inventory()
     if method in ('release', 'close'):
         result = release()
+        restore_isolation()
+        stop_indicator()
         if method == 'close':
             if not result['released']:
                 fail('RELEASE_FAILED', 'Held input could not be released')
@@ -846,9 +1030,15 @@ def perform(method, args, expected):
             return dict(valid=False, reason=str(error))
     t = resolve(args['reference'] if method in ('select', 'focus') else args['target'])
     if method == 'select':
+        if isolate(t):
+            t = resolve(t)
+        start_indicator()
         return t
     if method == 'focus':
+        isolate(t)
+        t = resolve(t)
         focus(t)
+        start_indicator()
         return t
     if method == 'preview':
         return capture(t, True)
@@ -927,6 +1117,8 @@ try:
             break
         reply(request)
 finally:
+    restore_isolation()
+    stop_indicator()
     if not release()['released']:
         sys.exit(2)
     # Process exit releases the uinput handles; no worker keeps shutdown open.
