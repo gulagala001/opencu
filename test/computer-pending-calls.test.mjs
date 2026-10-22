@@ -4,9 +4,10 @@ import {mkdir, mkdtemp, rm} from 'node:fs/promises';
 import {resolve, join} from 'node:path';
 import {createPluginRuntime} from '../src/dsh/runtime.mjs';
 import {createComputerSession} from '../src/dsh/computer.mjs';
+import {createComputerRepl} from '../src/dsh/computer-repl.mjs';
 
 // Real worker, runtime and controller; only the browser's input boundary is synthetic.
-async function fixture(t) {
+async function fixture(t, createSession = createComputerSession) {
   const parent = resolve('.local'); await mkdir(parent, {recursive: true});
   const dataDir = await mkdtemp(join(parent, 'pending-calls-'));
   const target = {id: 'tab:pending', backend: 'browser', kind: 'tab',
@@ -27,7 +28,7 @@ async function fixture(t) {
           args.signal.addEventListener('abort', abort, {once: true});
         })]);
       } finally { args.signal.removeEventListener('abort', abort); }
-      events.push(['complete', args.text]); return {inputDispatched: true, effectVerified: false};
+      events.push(['complete', args.text]); return hooks.result ?? {inputDispatched: true, effectVerified: false};
     },
     release: async () => {
       events.push(['release']);
@@ -35,12 +36,87 @@ async function fixture(t) {
     }, close: async () => {},
   };
   const runtime = createPluginRuntime({dataDir, browser: backend, nativeEnabled: false, extensionEnabled: false});
-  const computer = createComputerSession((endpoint, args) => runtime.request(endpoint, args,
+  const computer = createSession((endpoint, args) => runtime.request(endpoint, args,
     {sessionKey: 'synthetic-pending', signal: endpoint === 'stop' ? undefined : computer.signal}));
   const run = (code, timeoutMs = 3000, signal) => computer.run({code, timeoutMs}, signal);
   t.after(async () => { hooks.releaseFails = false; gate.resolve(); await computer.close(); await runtime.close(); await rm(dataDir, {recursive: true, force: true}); });
   await run('var tab = await cua.getTab("tab:pending");');
-  return {run, runtime, entered, gate, events, hooks};
+  return {run, runtime, computer, entered, gate, events, hooks};
+}
+
+for (const [name, createSession] of [['worker', createComputerSession], ['REPL', createComputerRepl]]) {
+  test(`${name}: acknowledged manual input clears only the released key and button`, async t => {
+    const f = await fixture(t, createSession); f.gate.resolve();
+    await f.run('await tab.keyDown("Shift"); await tab.act({action: "mouseDown"}); await tab.keyUp("Shift");');
+    await f.computer.close();
+    assert.equal(f.events.filter(([kind]) => kind === 'release').length, 1,
+      'the unacknowledged mouse button still belongs to this idle session');
+  });
+
+  test(`${name}: failed explicit stop is retried when the idle session closes`, async t => {
+    const f = await fixture(t, createSession); f.hooks.releaseFails = true;
+    await assert.rejects(f.run('await cua.stop();'), {code: 'RELEASE_FAILED'});
+    f.hooks.releaseFails = false; await f.computer.close();
+    assert.equal((await f.runtime.request('state')).state.releasePending, false);
+    assert.equal(f.events.filter(([kind]) => kind === 'release').length, 2);
+  });
+
+  test(`${name}: idle close retries a transient action's failed release`, async t => {
+    const f = await fixture(t, createSession); f.hooks.releaseFails = true;
+    const action = f.run('await tab.pressKey("Shift+A");');
+    await f.entered.promise; f.gate.reject(new Error('Synthetic dispatched chord failure'));
+    await assert.rejects(action, {code: 'RELEASE_FAILED'});
+    assert.equal((await f.runtime.request('state')).state.releasePending, true);
+    f.hooks.releaseFails = false;
+    await f.computer.close();
+    assert.equal((await f.runtime.request('state')).state.releasePending, false);
+    assert.equal(f.events.filter(([kind]) => kind === 'release').length, 2);
+  });
+
+  test(`${name}: failed idle-close release remains retryable`, async t => {
+    const f = await fixture(t, createSession); f.hooks.releaseFails = true;
+    const action = f.run('await tab.pressKey("Shift+A");');
+    await f.entered.promise; f.gate.reject(new Error('Synthetic dispatched chord failure'));
+    await assert.rejects(action, {code: 'RELEASE_FAILED'});
+    await assert.rejects(f.computer.close(), {code: 'RELEASE_FAILED'});
+    assert.equal((await f.runtime.request('state')).state.releasePending, true);
+    f.hooks.releaseFails = false;
+    await f.computer.close();
+    assert.equal((await f.runtime.request('state')).state.releasePending, false);
+    assert.equal(f.events.filter(([kind]) => kind === 'release').length, 3);
+  });
+
+  test(`${name}: idle close releases a transient action paused by a dialog`, async t => {
+    const f = await fixture(t, createSession);
+    f.hooks.result = {pendingDialog: {id: 'synthetic-dialog', type: 'alert'}, inputDispatched: true};
+    f.gate.resolve(); await f.run('await tab.pressKey("Shift+A");');
+    await f.computer.close();
+    assert.equal(f.events.filter(([kind]) => kind === 'release').length, 1);
+    assert.equal((await f.runtime.request('state')).state.mode, 'stopped');
+  });
+
+  test(`${name}: acknowledged explicit stop clears a failed release obligation`, async t => {
+    const f = await fixture(t, createSession); f.hooks.releaseFails = true;
+    const action = f.run('await tab.pressKey("Shift+A");');
+    await f.entered.promise; f.gate.reject(new Error('Synthetic dispatched chord failure'));
+    await assert.rejects(action, {code: 'RELEASE_FAILED'});
+    f.hooks.releaseFails = false; await f.run('await cua.stop();');
+    const releases = f.events.filter(([kind]) => kind === 'release').length;
+    await f.computer.close();
+    assert.equal(f.events.filter(([kind]) => kind === 'release').length, releases,
+      'closing an acknowledged idle session must not issue another global stop');
+  });
+
+  test(`${name}: dialog handling and ordinary completion do not stop idle sessions`, async t => {
+    const f = await fixture(t, createSession);
+    f.hooks.result = {pendingDialog: {id: 'synthetic-dialog', type: 'alert'}, inputDispatched: true};
+    f.gate.resolve(); await f.run('await tab.pressKey("Shift+A");');
+    f.hooks.result = {handled: true, releasePending: false};
+    await f.run('await tab.act({action: "handleDialog"});');
+    f.hooks.result = undefined; await f.run('await tab.pressKey("Shift+A");');
+    await f.computer.close();
+    assert.equal(f.events.filter(([kind]) => kind === 'release').length, 0);
+  });
 }
 
 for (const failure of ['throw new Error("synthetic cell failure");', 'await Promise.reject(new Error("synthetic cell failure"));'])
