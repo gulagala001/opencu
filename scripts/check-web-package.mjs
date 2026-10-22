@@ -35,15 +35,29 @@ export async function verifyWebPackage(archive, directory = root) {
   assert.equal(metadata.exports['./client'], sourceMetadata.exports?.['./client']);
   // The ES factory is derived by the bundling host at build time and never shipped.
   assert(!names.includes('package/lib/client.factory.mjs'), 'Build-time client factory must not be packed');
+  const manifestFile = 'lib/rea-assets/manifest.json';
+  const manifest = JSON.parse(read(manifestFile));
+  const builtManifest = JSON.parse(await readFile(resolve(directory, manifestFile), 'utf8'));
+  const graph = records => records.filter(record => /^opencu-(?:client|chunk)-[A-Z0-9]{8}\.js$/.test(record.file))
+    .map(({ file, sha256 }) => ({ file, sha256 })).sort((a, b) => a.file.localeCompare(b.file));
+  const resources = graph(manifest), builtResources = graph(builtManifest);
+  assert.deepEqual(resources, builtResources, 'Packed frontend manifest differs from rebuilt graph');
+  assert.equal(new Set(resources.map(record => record.file)).size, resources.length, 'Duplicate frontend resource');
+  const entries = resources.filter(record => record.file.startsWith('opencu-client-'));
+  assert.equal(entries.length, 1, 'Expected one lazy client runtime entry');
+  const entrySource = read('lib/client.js').toString('utf8');
+  assert(entrySource.includes(`/api/opencu/rea-assets/${entries[0].file}`), 'Client loader must reference the packaged runtime entry');
   const summaries = [];
-  for (const file of ['lib/client.js']) {
+  const sources = [];
+  for (const file of ['lib/client.js', ...resources.map(record => 'lib/rea-assets/' + record.file)]) {
     const packed = read(file), built = await readFile(resolve(directory, file));
     assert.equal(sha256(packed), sha256(built), `Packed frontend differs from rebuilt file: ${file}`);
-    const source = packed.toString('utf8');
-    for (const marker of ['managedHeadless', 'browserUnavailableMessage', 'This web page has no desktop adapter for the embedded browser', 'Start a separate headless browser on the DSH server machine']) {
-      assert(source.includes(marker), `Packed frontend is missing web fix marker ${marker}: ${file}`);
-    }
+    if (file !== 'lib/client.js') assert.equal(sha256(packed), resources.find(record => file.endsWith('/' + record.file)).sha256, `Packed frontend hash differs from manifest: ${file}`);
+    sources.push(packed.toString('utf8'));
     summaries.push({ file, bytes: packed.length, sha256: sha256(packed) });
+  }
+  for (const marker of ['managedHeadless', 'browserUnavailableMessage', 'This web page has no desktop adapter for the embedded browser', 'Start a separate headless browser on the DSH server machine']) {
+    assert(sources.some(source => source.includes(marker)), `Packed frontend is missing web fix marker ${marker}`);
   }
   for (const file of ['src/runtime.mjs', 'src/dsh/runtime.mjs', 'src/dsh/browser-host.mjs', 'src/dsh/config.mjs', 'src/dsh/index.mjs']) {
     assert.equal(sha256(read(file)), sha256(await readFile(resolve(directory, file))), `Packed server differs from source: ${file}`);
