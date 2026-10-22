@@ -142,7 +142,9 @@ export function createBrowserHost() {
     },
     async release({ targets = [], dismissDialogs = true } = {}) {
       const failures = [];
-      const retiredTargetIds = targets.filter(target => sameIdentity(retired.get(target.id)?.identity, target.identity)).map(target => target.id);
+      const retiredTargetIds = targets.filter(target => sameIdentity(retired.get(target.id)?.identity, target.identity)
+        || target.cold && target.releaseAcknowledged === true && !bindings.has(target.id)
+          && !liveClients().some(client => client.targets.some(current => sameIdentity(current.identity, target.identity)))).map(target => target.id);
       for (const target of targets) if (target.cold && !retiredTargetIds.includes(target.id) && !bindings.has(target.id))
         bindings.set(target.id, {target: json(target), needsRelease: true});
       await Promise.all(liveClients().map(async client => {

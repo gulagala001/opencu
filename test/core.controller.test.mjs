@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, rm} from 'node:fs/promises';
+import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createController} from '../src/core/controller.mjs';
@@ -74,6 +74,13 @@ test('cold recovery rejects reused target IDs and changed URL/title, never resto
   const observation = ok(await controller.observe({targetId: 'app:1'}));
   assert.equal(observation.userActivity.sequence, 1);
   assert.equal(observation.observedUserActivitySequence, 1);
+  const act = backend.act;
+  backend.act = async (...args) => {
+    const saved = JSON.parse(await readFile(join(dataDir, 'controller.json'), 'utf8'));
+    assert.equal(saved.targets.find(target => target.id === 'app:1').releaseAcknowledged, false,
+      'a new dispatch invalidates the clean-shutdown receipt on disk first');
+    return act(...args);
+  };
   ok(await controller.act({targetId: 'app:1', action: 'click'}));
   ok(await controller.close());
   state.targets[0].identity.incarnation = 'reused-id';

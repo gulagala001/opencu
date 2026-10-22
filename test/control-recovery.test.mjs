@@ -183,6 +183,22 @@ test('sidebar new tabs use controller recovery and stop before allocating anothe
   } finally {await reply(runtime.close(),respond);await rm(dataDir,{recursive:true,force:true});}
 });
 
+test('clean shutdown does not turn closed sidebar history into unacknowledged input after restart',async t=>{
+  const {host,rendererId,target,reply}=await hostFixture(t);
+  const dataDir=await mkdtemp(new URL('clean-restart-',scratch).pathname);
+  const first=createPluginRuntime({dataDir,browserEnabled:false,nativeEnabled:false,extensionEnabled:false,dshBrowser:host.backend});
+  const respond=command=>command.method==='release'?{released:true}:target;
+  checked((await reply(first.request('select',{reference:target.id}),respond)).value);
+  await reply(first.close(),respond);
+  await host.handle('browser/disconnect',{rendererId});
+  const fresh=createBrowserHost();
+  const second=createPluginRuntime({dataDir,browserEnabled:false,nativeEnabled:false,extensionEnabled:false,dshBrowser:fresh.backend});
+  try {
+    const state=checked(await second.request('stop')).state;
+    assert.equal(state.releasePending,false);assert.deepEqual(state.targets,[]);
+  } finally {await second.close();fresh.close();await rm(dataDir,{recursive:true,force:true});}
+});
+
 test('a replacement renderer cannot release a guest it no longer owns', async t => {
   const {host, target, connect, reply} = await hostFixture(t);
   await reply(host.backend.act(target, {action: 'mouseDown'}), {accepted: true});
