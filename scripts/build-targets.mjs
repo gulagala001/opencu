@@ -41,7 +41,7 @@ for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ['rc1', 
   await installBuildInputs(sdk, files);
   run(sdk, [pnpm, 'install', '--frozen-lockfile', '--ignore-scripts']);
   const installed = await checkInstalledSdk(sdk, id, files);
-  for (const file of ['src', 'host', 'scripts', 'vendor', 'native/macos', 'native/windows', 'native/linux', 'native/bin', 'extension', 'cordis.patch.yml', 'README.md', 'README_EN.md', 'DEVELOPMENT.md', 'docs', 'THIRD_PARTY_NOTICES.md']) {
+  for (const file of ['src', 'host', 'scripts', 'vendor', 'native/macos', 'native/windows', 'native/linux', 'native/bin', 'extension', 'cordis.patch.yml', 'README.md', 'README_EN.md', 'CHANGELOG.md', 'DEVELOPMENT.md', 'docs', 'THIRD_PARTY_NOTICES.md']) {
     await cp(join(root, file), join(stage, file), { recursive: true });
   }
   await mkdir(join(stage, '.local'), { recursive: true });
