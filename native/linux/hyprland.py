@@ -234,6 +234,7 @@ def resolve(reference):
 ISOLATION = 'opencu'
 isolated, displaced = {}, None
 indicator, indicator_lock = None, threading.Lock()
+indicator_status, status_lock = dict(text='已连接，等待指令', at=0.0), threading.Lock()
 indicator_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hyprland_indicator.py')
 
 
@@ -368,6 +369,51 @@ def notify(message, color='rgb(ffaa00)'):
         pass  # A compositor without inline notifications must not break control.
 
 
+def status_file():
+    return os.path.join(directory, 'indicator.status')
+
+
+def report(text):
+    """Publish the step the helper is on for the bar the user watches.
+
+    A file rather than a pipe: the bar is its own process and may start,
+    restart or die without the helper noticing straight away.
+    """
+    stamp = time.time()
+    with status_lock:
+        indicator_status['text'], indicator_status['at'] = text, stamp
+    try:
+        # Written through a temp file so the bar never reads half a document.
+        temporary = status_file() + '.tmp'
+        with open(temporary, 'w') as stream:
+            json.dump(dict(text=text, at=stamp), stream, ensure_ascii=False)
+        os.replace(temporary, status_file())
+    except OSError:
+        pass
+
+
+def keep_alive():
+    """Hold the bar on screen for as long as this session is open.
+
+    The heartbeat used to be refreshed only when an action ran, so the bar
+    vanished after a few seconds of quiet and read as "control finished" while
+    the session was still live. Refreshing it from a thread keeps the bar tied
+    to the helper's lifetime instead: it goes away when control ends, not when
+    the model pauses to think.
+    """
+    heartbeat = os.path.join(directory, 'indicator.heartbeat')
+    while True:
+        time.sleep(2)
+        with indicator_lock:
+            live = indicator is not None and indicator.poll() is None
+        if not live:
+            continue
+        try:
+            os.utime(heartbeat, None)
+        except OSError:
+            pass
+
+
 def start_indicator():
     """Show the control bar while the helper is driving the desktop.
 
@@ -389,7 +435,9 @@ def start_indicator():
         try:
             with open(heartbeat, 'w') as stream:
                 stream.write(str(time.time()))
-            indicator = subprocess.Popen([sys.executable, indicator_script, '--heartbeat', heartbeat],
+            if not os.path.exists(status_file()):
+                report('已连接，等待指令')
+            indicator = subprocess.Popen([sys.executable, indicator_script, '--heartbeat', heartbeat, '--status', status_file()],
                                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                          stderr=subprocess.DEVNULL, start_new_session=True)
         except OSError:
@@ -707,11 +755,13 @@ def capture(t, preview=False):
     t = resolve(t)
     ensure_foreground(t)
     start_indicator()
+    report('截图 %s' % t['name'])
     region = clip(t['bounds'])
     value = execute(['grim', '-g', '%d,%d %dx%d' % (region['x'], region['y'], region['width'], region['height']), '-'], text=False)
     if value.returncode:
         fail('CAPTURE_FAILED', 'grim failed: ' + stderr(value).strip())
     data, (width, height) = value.stdout, png_size(value.stdout)
+    report('截图 %s · %d×%d' % (t['name'], width, height))
     if preview:
         return dict(dataUrl='data:image/png;base64,' + base64.b64encode(data).decode(), width=width, height=height, kind='native-frame', timestamp=int(time.time() * 1000))
     token = str(uuid.uuid4())
@@ -747,6 +797,7 @@ def app_window(t):
 
 
 def tree(t, options):
+    report('读取 %s 的无障碍树' % t['name'])
     prefix = t['id'] + ':'
     for key in list(elements):
         if key.startswith(prefix):
@@ -777,6 +828,7 @@ def tree(t, options):
             if child:
                 visit(child, depth + 1, key)
     visit(app_window(t), 0)
+    report('无障碍树 %s · %d 个节点' % (t['name'], len(nodes)))
     return dict(nodes=nodes, text='\n'.join(lines), truncated=time.monotonic() >= deadline or len(nodes) >= options.get('maxNodes', 1000))
 
 
@@ -872,6 +924,29 @@ def move(at, t, expected):
         emit(dict(event=dict(type='cursor', visible=True, targetId=t['id'], x=int(at[0]), y=int(at[1]), space='logical')))
 
 
+def describe(kind, t, action):
+    """One line naming what the model is doing, for the user watching the bar."""
+    name = t['name']
+    verbs = dict(click='点击', double_click='双击', right_click='右键点击', move='移动指针',
+                 mouse_down='按下', drag='拖拽', scroll='滚动', activate='激活')
+    if kind in verbs:
+        where = ''
+        for keys in (('x', 'y'), ('fromX', 'fromY')):
+            if action.get(keys[0]) is not None and action.get(keys[1]) is not None:
+                where = ' (%s,%s)' % (action[keys[0]], action[keys[1]])
+                break
+        return '%s %s%s' % (verbs[kind], name, where)
+    if kind == 'type_text':
+        body = str(action.get('text', ''))
+        preview = body if len(body) <= 30 else body[:30] + '…'
+        return '键入 %s → %s' % (json.dumps(preview, ensure_ascii=False), name)
+    if kind in ('press_key', 'key_down', 'key_up'):
+        return '按键 %s → %s' % (action.get('key', ''), name)
+    if kind in ('set_value', 'ax_press'):
+        return '无障碍操作 %s' % name
+    return '%s %s' % (kind, name)
+
+
 def act(t, action, expected):
     t = resolve(t)
     ensure_foreground(t)
@@ -880,6 +955,7 @@ def act(t, action, expected):
     kind, mode = action['type'], action.get('inputMode', 'background')
     if mode not in ('background', 'foreground'):
         fail('INVALID_ACTION', 'inputMode must be background or foreground')
+    report(describe(kind, t, action))
     reach = accessibility(t['pid'])
     if reach != 'application' and kind in ('set_value', 'ax_press'):
         rejected('UNSUPPORTED_ACTION',
@@ -1007,6 +1083,9 @@ def act(t, action, expected):
     else:
         fail('UNSUPPORTED_ACTION', kind)
     check(t, expected)
+    # Stamp the same line again: the bar then reads "just now" instead of
+    # counting from when a slow keystroke run started.
+    report(describe(kind, t, action))
     return dict(performed=True, type=kind)
 
 
@@ -1034,6 +1113,8 @@ def perform(method, args, expected):
     if method in ('release', 'close'):
         result = release()
         restore_isolation()
+        report('会话结束，桌面已交还')
+        notify('OpenCU 已结束操作，桌面已交还')
         stop_indicator()
         if method == 'close':
             if not result['released']:
@@ -1055,12 +1136,14 @@ def perform(method, args, expected):
         if isolate(t):
             t = resolve(t)
         start_indicator()
+        report('已选中 %s' % t['name'])
         return t
     if method == 'focus':
         isolate(t)
         t = resolve(t)
         focus(t)
         start_indicator()
+        report('聚焦 %s' % t['name'])
         return t
     if method == 'preview':
         return capture(t, True)
@@ -1133,6 +1216,7 @@ if os.path.exists(journal):
     if not release()['released']:
         fail('RELEASE_FAILED', 'Previous held input remains')
 threading.Thread(target=read_commands, daemon=True).start()
+threading.Thread(target=keep_alive, daemon=True).start()
 
 
 def interrupted(signum, frame):

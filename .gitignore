@@ -20,3 +20,6 @@ REFERENCE.md
 vendor/rea/
 docs/release-visuals.md
 docs/visuals.md
+
+__pycache__/
+*.pyc
