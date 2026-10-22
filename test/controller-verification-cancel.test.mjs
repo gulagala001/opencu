@@ -6,10 +6,11 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createController} from '../src/core/controller.mjs';
 import {createBrowserBackend} from '../src/browser/backend.mjs';
+import {createCompositeBrowserBackend} from '../src/browser/composite.mjs';
 // Production controller/backend/actions; only Playwright page/CDP endpoints simulated.
 // Endpoint logs prove cancellation/release ordering, not actual browser delivery.
 // Pending verification RPCs are always settled by fixture cleanup; no browser starts.
-async function setup(t){
+async function setup(t,composed=false,releaseTimeoutMs=20){
  const dir=await mkdtemp(join(tmpdir(),'opencu-verify-cancel-'));
  const events=[]; let foreground='A'; const hooks={};
  const pages=['A','B'].map(name=>{
@@ -30,8 +31,8 @@ async function setup(t){
   if(method==='Emulation.setFocusEmulationEnabled')events.push([page.name,'emulate',args.enabled]);
   return {};
  };return s;};
- const backend=await createBrowserBackend({dataDir:dir,context,instanceId:'fixture',releaseTimeoutMs:20,timeoutMs:20});
- const controller=await createController({dataDir:dir,browser:backend});
+ const backend=await createBrowserBackend({dataDir:dir,context,instanceId:'fixture',releaseTimeoutMs,timeoutMs:20});
+ const controller=await createController({dataDir:dir,browser:composed?createCompositeBrowserBackend({browser:backend}):backend});
  const [A,B]=await backend.listTargets();
  const ok=async promise=>{const r=await promise;assert.equal(r.ok,true,JSON.stringify(r));return r;};
  t.after(async()=>{await controller.close();await rm(dir,{recursive:true,force:true});});
@@ -40,6 +41,132 @@ async function setup(t){
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function settledWithin(promise,ms){return Promise.race([promise.then(()=>true,()=>true),sleep(ms).then(()=>false)]);}
+for (const method of ['listTargets', 'selectTarget', 'openTarget', 'focus']) for (const stage of ['listTargets', 'listBrowsers']) {
+ test(`stop releases held input during ${method} inventory ${stage}`, async t => {
+  const {controller:c,backend,A,B,events,ok}=await setup(t,false,250);
+  await ok(c.selectTarget({id:A.id})); await ok(c.act({action:'keyDown',key:'Shift'}));
+  const entered=deferred(),gate=deferred(),original=backend[stage];
+  backend[stage]=async()=>{entered.resolve();await gate.promise;return stage==='listTargets'?[A,B]:[{id:A.browserId,connected:true}];};
+  const args={listTargets:undefined,selectTarget:{id:B.id},openTarget:{browserId:A.browserId,url:'https://never.invalid/'},focus:{reference:{id:B.id,identity:B.identity}}};
+  const pending=c[method](args[method]);await entered.promise;
+  const queued=c.listTargets(),stopped=c.stop();
+  try {
+   assert.equal(await settledWithin(stopped,150),true,'inventory must not delay actual input release');
+   await ok(stopped);
+   assert.equal((await pending).error.code,'CONTROL_STOPPED');
+   assert.equal((await queued).error.code,'CONTROL_STOPPED','queued old inventory must not run in the new epoch');
+   assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
+   assert.equal((await c.getState()).state.activeTargetId,A.id);
+  } finally {backend[stage]=original;gate.resolve();await pending;await queued;await stopped;}
+  assert.equal((await c.getState()).state.activeTargetId,A.id,'late inventory cannot select or focus another target');
+  assert.equal(events.some(e=>e[1]==='focus'),false);
+  await ok(c.resume({targetId:A.id}));await ok(c.act({action:'type',text:'after-discovery-cancel'}));
+ });
+}
+
+test('close does not wait for discovery or its late rejection',async t=>{
+ const {controller:c,backend,A,events,ok}=await setup(t,false,250);
+ await ok(c.selectTarget({id:A.id}));await ok(c.act({action:'keyDown',key:'Control'}));
+ const entered=deferred(),gate=Promise.withResolvers();
+ backend.listTargets=async()=>{entered.resolve();await gate.promise;return [];};
+ const pending=c.listTargets();await entered.promise;const closed=c.close();
+ try {
+  assert.equal(await settledWithin(closed,150),true);await ok(closed);
+  assert.equal((await pending).error.code,'CONTROL_STOPPED');
+  assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Control']]);
+ } finally {gate.reject(Error('late inventory failure'));await pending;await closed;}
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal((await c.getState()).state.mode,'closed');
+});
+
+test('fresh stopped-state discovery can be cancelled again without changing control mode',async t=>{
+ const {controller:c,backend,ok}=await setup(t,false,250);await ok(c.stop());
+ const entered=deferred(),gate=deferred();backend.listTargets=async()=>{entered.resolve();await gate.promise;return [];};
+ const pending=c.listTargets();await entered.promise;const stopped=c.stop();
+ try {assert.equal(await settledWithin(stopped,150),true);await ok(stopped);assert.equal((await pending).error.code,'CONTROL_STOPPED');}
+ finally {gate.resolve();await pending;await stopped;}
+ assert.equal((await c.getState()).state.mode,'stopped');
+});
+
+test('a cancelled discovery reports real release failure and requires an explicit release retry',async t=>{
+ const {controller:c,backend,A,events,hooks,ok}=await setup(t,false,250);
+ await ok(c.selectTarget({id:A.id}));await ok(c.act({action:'keyDown',key:'Shift'}));
+ const entered=deferred(),gate=deferred(),original=backend.listTargets;
+ backend.listTargets=async()=>{entered.resolve();await gate.promise;return [A];};
+ const pending=c.listTargets();await entered.promise;
+ hooks.up=async()=>{throw Error('synthetic release rejection');};const stopped=c.stop();
+ try {
+  assert.equal(await settledWithin(stopped,150),true);
+  assert.equal((await stopped).error.code,'RELEASE_FAILED');
+  assert.equal((await c.getState()).state.releasePending,true);
+  assert.equal(events.some(e=>e[1]==='up'),false);
+ } finally {backend.listTargets=original;gate.resolve();hooks.up=undefined;await pending;await stopped;}
+ await ok(c.stop());assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
+});
+
+test('caller cancellation abandons only discovery and leaves held input for its owner',async t=>{
+ const {controller:c,backend,A,events,ok}=await setup(t,false,250);
+ await ok(c.selectTarget({id:A.id}));await ok(c.act({action:'keyDown',key:'Shift'}));
+ const entered=deferred(),gate=deferred(),original=backend.listTargets,aborter=new AbortController();
+ backend.listTargets=async()=>{entered.resolve();await gate.promise;return [A];};
+ const pending=c.listTargets({signal:aborter.signal});await entered.promise;aborter.abort();
+ try {
+  assert.equal(await settledWithin(pending,150),true);assert.equal((await pending).error.code,'CONTROL_STOPPED');
+  assert.equal((await c.getState()).state.mode,'active');assert.equal(events.some(e=>e[1]==='up'),false);
+  backend.listTargets=original;await ok(c.act({action:'keyUp',key:'Shift'}));
+ } finally {backend.listTargets=original;gate.resolve();await pending;}
+});
+
+test('inventory preserves partial provider errors and remains readable after stop',async t=>{
+ const {controller:c,backend,A,B,ok}=await setup(t,false,250);
+ backend.listTargets=async()=>{throw Object.assign(Error('inventory unavailable'),{code:'FIXTURE_INVENTORY'});};
+ let inventory=await ok(c.listTargets());assert.equal(inventory.errors[0].code,'FIXTURE_INVENTORY');
+ backend.listTargets=async()=>[A,B];backend.listBrowsers=async()=>{throw Object.assign(Error('browsers unavailable'),{code:'FIXTURE_BROWSERS'});};
+ inventory=await ok(c.listTargets());assert.equal(inventory.targets.length,2);assert.equal(inventory.errors[0].code,'FIXTURE_BROWSERS');
+ await ok(c.stop());inventory=await ok(c.listTargets());assert.equal(inventory.targets.length,2);
+ assert.equal((await c.getState()).state.mode,'stopped');
+});
+
+for (const [composed,stalledRead] of [[false,2],[true,2],[true,3]]) test(`selection inventory ${stalledRead} remains cancellable with composite=${composed}`,async t=>{
+ const {controller:c,backend,A,B,events,ok}=await setup(t,composed,250);
+ await ok(c.selectTarget({id:A.id}));await ok(c.act({action:'keyDown',key:'Shift'}));
+ const entered=deferred(),gate=deferred(),original=backend.listTargets;let reads=0;
+ backend.listTargets=async(...args)=>{if(++reads===stalledRead){entered.resolve();await gate.promise;return [A,B];}return original.apply(backend,args);};
+ const pending=c.selectTarget({id:B.id});await entered.promise;const stopped=c.stop();
+ try {
+  assert.equal(await settledWithin(stopped,150),true,'repeated inventory cannot retain the release lane');await ok(stopped);
+  assert.equal((await pending).error.code,'CONTROL_STOPPED');
+  assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
+ } finally {backend.listTargets=original;gate.resolve();await pending;await stopped;}
+ assert.equal((await c.getState()).state.activeTargetId,A.id);
+});
+
+for (const composed of [false,true]) test(`second stop cancels resume inventory with composite=${composed}`,async t=>{
+ const {controller:c,backend,A,ok}=await setup(t,composed,250);
+ await ok(c.selectTarget({id:A.id}));await ok(c.stop());
+ const entered=deferred(),gate=deferred(),original=backend.listTargets;
+ backend.listTargets=async()=>{entered.resolve();await gate.promise;return [A];};
+ const pending=c.resume({targetId:A.id});await entered.promise;const stopped=c.stop();
+ try {
+  assert.equal(await settledWithin(stopped,150),true);await ok(stopped);
+  assert.equal((await pending).error.code,'CONTROL_STOPPED');
+ } finally {backend.listTargets=original;gate.resolve();await pending;await stopped;}
+ assert.equal((await c.getState()).state.mode,'stopped');
+ await ok(c.resume({targetId:A.id}));
+});
+
+test('abandoned composite discovery cannot publish late errors or query another provider',async t=>{
+ const {backend,A}=await setup(t,false,250),entered=deferred(),gate=Promise.withResolvers(),aborter=new AbortController();let nextReads=0;
+ const composite=createCompositeBrowserBackend({browser:backend,dsh:{...backend,listTargets:async()=>{nextReads++;return [A];}}});
+ backend.listTargets=async()=>{entered.resolve();await gate.promise;return [];};
+ const old=composite.listTargets({signal:aborter.signal});await entered.promise;aborter.abort();
+ await assert.rejects(old,error=>error.code==='CONTROL_STOPPED');
+ backend.listTargets=async()=>{throw Object.assign(Error('current provider failure'),{code:'CURRENT_INVENTORY'});};
+ await composite.listTargets();const current=composite.getDiagnostics().inventoryErrors;
+ assert.equal(current[0].code,'CURRENT_INVENTORY');
+ gate.reject(Error('late old failure'));await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(composite.getDiagnostics().inventoryErrors,current);assert.equal(nextReads,1);
+});
 for (const stage of ['verification', 'observation']) for (const ending of ['stop', 'close']) {
  test(`${ending} releases held input while ${stage} in observe is stalled`, async t => {
   const {controller:c,backend,A,events,hooks,ok}=await setup(t);
