@@ -12,7 +12,7 @@
 
 扩展要求 `debugger` 权限用于真实鼠标/键盘与截图，`scripting`/HTTP(S) host permissions 用于 DOM 观察，`tabs`/`webNavigation` 用于目标与 document identity，`downloads` 用于下载事件，`storage` 用于授权/下载持久化，`alarms` 用于已授权 worker 恢复。无 externally_connectable、外部消息监听、远程代码或任意网页授权入口；仅已配对的本机身份自动恢复连接。
 
-选择标签不会激活它，AI 新建标签使用 `active:false`。输入通过目标 CDP 与焦点模拟派发，不占用全局键鼠；释放时撤销模拟并清理本扩展持有的输入。后台页面的游标动画可延后显示，不阻塞真实操作。动作回执声明 `effectVerified:false`，需要后续观察确认效果。详见[后台操作](<../README.md#后台操作>)。
+选择标签不会激活它，AI 新建标签使用 `active:false`。输入通过目标 CDP 与焦点模拟派发，不占用全局键鼠；释放时撤销模拟并清理本扩展持有的输入。后台页面的游标动画可延后显示，不阻塞真实操作。动作回执声明 `effectVerified:false`，需要后续观察确认效果。详见[后台操作](<../README.md#选择适合的浏览器路径>)。
 
 ## 桥 API（供主 agent 集成 Composite backend）
 
