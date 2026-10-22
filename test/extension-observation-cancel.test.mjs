@@ -27,8 +27,14 @@ async function fixture(t) {
   const bytes = Buffer.alloc(24); bytes.writeUInt32BE(0x89504e47, 0); bytes.writeUInt32BE(100, 16); bytes.writeUInt32BE(80, 20);
   const chrome = {
     storage: { local: storage, session: storage },
-    tabs: { get: async () => ({ id: 73, url: 'https://fixture.invalid/', status: 'complete', windowId: 1, active: false }), onRemoved: event() },
-    windows: { get: async () => ({ focused: false }) },
+    tabs: {
+      get: async id => { await hooks.get?.(id); return { id, url: 'https://fixture.invalid/', status: 'complete', windowId: 1, active: false }; },
+      query: async () => { await hooks.query?.(); return [{ id: 73, url: 'https://fixture.invalid/', status: 'complete' }]; },
+      update: async (id, value) => { events.push(['tabs.update', value]); await hooks.update?.(); return { id, windowId: 1 }; },
+      create: async value => { events.push(['tabs.create', value]); await hooks.create?.(); return { id: 74, windowId: 1 }; },
+      onRemoved: event(),
+    },
+    windows: { get: async () => ({ focused: false }), update: async () => { events.push(['windows.update']); } },
     scripting: { executeScript: async request => {
       if (!request.args) return [{ frameId: 0, documentId: 'chrome-doc', result: true }];
       const [method] = request.args; events.push(['content', method]); await hooks.content?.(method);
@@ -41,12 +47,12 @@ async function fixture(t) {
         if (method === 'Page.captureScreenshot') return { data: bytes.toString('base64') };
         return {};
       },
-      attach: async () => { events.push(['attach']); }, detach: async () => { events.push(['detach']); },
-      getTargets: async () => [], onEvent: event(), onDetach: event(),
+      attach: async () => { events.push(['attach']); await hooks.attach?.(); }, detach: async () => { events.push(['detach']); },
+      getTargets: async () => { await hooks.targets?.(); return []; }, onEvent: event(), onDetach: event(),
     },
     downloads: { onCreated: event(), onChanged: event(), onErased: event() },
     webNavigation: { onCommitted: event(), onDOMContentLoaded: event() },
-    alarms: { onAlarm: event() }, runtime: { onStartup: event(), onInstalled: event(), onMessage: event() },
+    alarms: { onAlarm: event() }, runtime: { onStartup: event(), onInstalled: event(), onMessage: event(), getURL: path => 'chrome-extension://fixture/' + path },
     action: { setBadgeText: async () => {} },
   };
   const fetch = async (url, request) => {
@@ -70,10 +76,11 @@ async function fixture(t) {
   const seed = (keys = ['Shift'], buttons = ['left']) => worker.attached.set(73, { keys: new Map(keys.map(key => [key, keySpec(key)])), buttons: new Set(buttons), x: 10, y: 20 });
   seed();
   const queue = (...items) => { if (polls.length) polls.shift()(items); else commands.push(items); };
-  const message = (id, method, params = {}) => ({ id, method, epoch: owner.epoch, deadline: Date.now() + 10000, params: { identity, ...params } });
+  const message = (id, method, params = {}) => ({ id, method, epoch: owner.epoch, deadline: Date.now() + 10000,
+    params: method === 'listTargets' ? params : { identity, ...params } });
   const result = id => { if (replies.has(id)) return Promise.resolve(replies.get(id)); const pending = deferred(); replyWaiters.set(id, pending); return pending.promise; };
   const loop = worker.loop(owner);
-  t.after(async () => { hooks.send = undefined; hooks.content = undefined; worker.setConnection(null); queue(); await loop; invalidateElements(73); });
+  t.after(async () => { for (const key of Object.keys(hooks)) delete hooks[key]; worker.setConnection(null); queue(); await loop; invalidateElements(73); });
   return { worker, identity, hooks, events, seed, queue, message, result };
 }
 
@@ -144,4 +151,99 @@ test('MV3 keeps failed input release retryable and waits for unknown input ackno
     assert.equal(f.events.filter(([method]) => method === 'Input.dispatchKeyEvent').filter(([, p]) => p.type === 'rawKeyDown').length, 1);
     assert.equal(f.events.filter(([method]) => method === 'Input.dispatchKeyEvent').filter(([, p]) => p.type === 'keyUp').length, 2);
   } finally { gate.resolve(); }
+});
+
+for (const stage of ['inventory-query', 'inventory-identity', 'selection', 'selection-targets', 'focus', 'focus-after-activation', 'action-attach', 'action-verify', 'action-focus-verify', 'new-tab-wait', 'new-tab-identity']) {
+  test(`MV3 cancellation releases input during ${stage} and rejects queued inventory`, async t => {
+    const f = await fixture(t), entered = deferred(), gate = deferred(); let calls = 0;
+    const stall = async () => { entered.resolve(); await gate.promise; };
+    let method, params = {};
+    if (stage.startsWith('inventory')) {
+      method = 'listTargets';
+      if (stage === 'inventory-query') f.hooks.query = stall;
+      else f.hooks.content = name => name === 'identity' && ++calls === 1 ? stall() : undefined;
+    } else if (stage === 'selection-targets') {
+      method = 'select'; params = { identity: { ...f.identity, tabId: 74 } }; f.hooks.targets = stall;
+    } else if (stage === 'focus-after-activation') {
+      method = 'focus'; f.hooks.get = () => ++calls === 3 ? stall() : undefined;
+    } else if (stage === 'new-tab-wait') {
+      method = 'newTab'; f.hooks.get = id => id === 74 && ++calls === 1 ? stall() : undefined;
+    } else {
+      method = stage === 'selection' ? 'select' : stage === 'focus' ? 'focus' : stage === 'new-tab-identity' ? 'newTab' : 'act';
+      params = method === 'act' ? { action: { type: 'key_down', key: 'Control' } } : {};
+      const at = stage === 'action-verify' ? 2 : stage === 'action-focus-verify' ? 3 : 1;
+      f.hooks.content = name => name === 'identity' && ++calls === at ? stall() : undefined;
+    }
+    f.queue(f.message('blocked', method, params), f.message('queued-inventory', 'listTargets'));
+    await entered.promise;
+    // A target-scoped release must also cancel an inventory of all tabs. It
+    // must invalidate inventory already queued before this cancellation.
+    f.queue(f.message('release', 'release'));
+    try {
+      assert.equal((await within(f.result('release'))).ok, true);
+      const blocked = await f.result('blocked');
+      assert.equal(blocked.error.code, 'CONTROL_STOPPED');
+      if (method === 'newTab') assert.equal(blocked.error.details.created, true);
+      assert.equal((await f.result('queued-inventory')).error.code, 'CONTROL_STOPPED');
+      assert.deepEqual(f.events.filter(([name]) => name.startsWith('Input.')).map(([name, value]) => [name, value.type]),
+        [['Input.dispatchMouseEvent', 'mouseReleased'], ['Input.dispatchKeyEvent', 'keyUp']]);
+      assert.equal(f.worker.attached.size, 0);
+      assert.equal(f.events.filter(([name]) => name === 'tabs.update' || name === 'windows.update' || name === 'attach').length,
+        stage === 'focus-after-activation' ? 1 : 0);
+      if (method === 'newTab') assert.equal(f.events.filter(([name]) => name === 'tabs.create').length, 1);
+      // A late read cannot enter the next preflight or publish a fresh binding.
+      const count = f.events.length; gate.resolve(); await tick();
+      assert.equal(f.events.length, count);
+      f.queue(f.message('fresh-inventory', 'listTargets'));
+      assert.equal((await within(f.result('fresh-inventory'))).ok, true);
+    } finally { gate.resolve(); await tick(); }
+  });
+}
+
+test('MV3 cancellation waits for debugger attachment acknowledgement before releasing', async t => {
+  const f = await fixture(t), entered = deferred(), gate = deferred();
+  // An existing held tab remains owned while attaching another tab.
+  f.hooks.attach = async () => { entered.resolve(); await gate.promise; };
+  f.queue(f.message('select', 'select', { identity: { ...f.identity, tabId: 74 } }));
+  await entered.promise; const before = f.worker.controlToken(74);
+  f.queue(f.message('release', 'release', { identity: undefined }));
+  try {
+    await within((async () => { while (f.worker.controlToken(74).epoch === before.epoch) await tick(); })());
+    assert.equal(f.events.filter(([name]) => name === 'detach').length, 0);
+    gate.resolve();
+    assert.equal((await within(f.result('release'))).ok, true);
+    assert.equal((await f.result('select')).error.code, 'CONTROL_STOPPED');
+    assert.equal(f.events.filter(([name]) => name === 'attach').length, 1);
+    assert.equal(f.worker.attached.size, 0);
+  } finally { gate.resolve(); await tick(); }
+});
+
+test('MV3 target cancellation preserves a different tab monitoring read', async t => {
+  const f = await fixture(t), entered = deferred(), gate = deferred(); let first = true;
+  f.worker.attached.set(74, { keys: new Map(), buttons: new Set(), x: 0, y: 0 });
+  f.hooks.send = async name => { if (name === 'Page.captureScreenshot' && first) { first = false; entered.resolve(); await gate.promise; } };
+  f.queue({ ...f.message('preview', 'preview', { identity: { ...f.identity, tabId: 74 } }), monitoring: true });
+  await entered.promise; f.queue(f.message('release', 'release'));
+  try {
+    assert.equal((await within(f.result('release'))).ok, true);
+    assert.equal(f.worker.attached.has(74), true);
+    gate.resolve(); assert.equal((await within(f.result('preview'))).ok, true);
+    await f.worker.releaseTab(74);
+  } finally { gate.resolve(); await tick(); }
+});
+
+test('MV3 settings cancellation awaits tab creation and does not continue focusing', async t => {
+  const f = await fixture(t), entered = deferred(), gate = deferred();
+  f.hooks.create = async () => { entered.resolve(); await gate.promise; };
+  f.queue(f.message('settings', 'openSettings', { identity: undefined, section: 'extensions' }));
+  await entered.promise; const before = f.worker.controlToken(73);
+  f.queue(f.message('release', 'release'));
+  try {
+    await within((async () => { while (f.worker.controlToken(73).tabEpoch === before.tabEpoch) await tick(); })());
+    assert.equal(f.events.filter(([name]) => name === 'detach').length, 0);
+    gate.resolve(); assert.equal((await within(f.result('release'))).ok, true);
+    assert.equal((await f.result('settings')).error.code, 'CONTROL_STOPPED');
+    assert.equal(f.events.filter(([name]) => name === 'tabs.create').length, 1);
+    assert.equal(f.events.filter(([name]) => name === 'windows.update').length, 0);
+  } finally { gate.resolve(); await tick(); }
 });

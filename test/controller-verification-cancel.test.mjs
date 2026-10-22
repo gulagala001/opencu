@@ -7,6 +7,36 @@ import {tmpdir} from 'node:os';
 import {createController} from '../src/core/controller.mjs';
 import {createBrowserBackend} from '../src/browser/backend.mjs';
 import {createCompositeBrowserBackend} from '../src/browser/composite.mjs';
+
+for (const stopped of [false, true]) test(`focus forwards a live cancellation signal ${stopped ? 'after stop' : 'while active'} without abandoning dispatch`, async t => {
+ const {controller:c,backend,A,ok}=await setup(t);
+ await ok(c.selectTarget({id:A.id}));
+ if(stopped)await ok(c.stop());
+ const entered=Promise.withResolvers(),gate=Promise.withResolvers();let received;
+ backend.focus=async(_target,{signal}={})=>{received=signal;entered.resolve();await gate.promise;return {focused:true};};
+ const pending=c.focus({targetId:A.id});await entered.promise;
+ const stopping=c.stop();
+ try{
+  assert(received instanceof AbortSignal,'the adapter must receive the operation signal');
+  assert.equal(received.aborted,true,'a subsequent stop must cancel even a focus started after stop');
+  assert.equal(await settledWithin(stopping,20),false,'unknown focus dispatch still owns the lane until acknowledged');
+ }finally{gate.resolve();await pending;await stopping;}
+ assert.equal((await pending).error.code,'CONTROL_STOPPED');await ok(stopping);
+});
+
+for (const method of ['focus','act']) test(`extension ${method} cancels its composite identity read before entering control`, async () => {
+ const identity={instanceId:'instance-01',browserInstanceId:'browser-01',epoch:'epoch-01',tabId:1,documentId:'doc-01'};
+ const target={id:'extension:instance-01/browser-01/epoch-01/1/doc-01',identity};
+ const entered=Promise.withResolvers(),gate=Promise.withResolvers(),aborter=new AbortController();let calls=0;
+ const extension={listTargets:async()=>[target],select:async()=>target,observe:async()=>({}),
+  verify:async()=>{entered.resolve();await gate.promise;return {valid:true,target};},
+  focus:async()=>{calls++;},act:async()=>{calls++;},release:async()=>({released:true}),close:async()=>{}};
+ const backend=createCompositeBrowserBackend({extension}),selected=(await backend.listTargets())[0];
+ const pending=method==='focus'?backend.focus(selected,{signal:aborter.signal}):backend.act(selected,{action:'keyDown',key:'Control',signal:aborter.signal});
+ const rejected=assert.rejects(pending,error=>error.code==='CONTROL_STOPPED');await entered.promise;aborter.abort();
+ try{assert.equal(await settledWithin(rejected,100),true,'pure verification cannot hold the release lane');await rejected;assert.equal(calls,0);}
+ finally{gate.resolve();await rejected;}
+});
 // Production controller/backend/actions; only Playwright page/CDP endpoints simulated.
 // Endpoint logs prove cancellation/release ordering, not actual browser delivery.
 // Pending verification RPCs are always settled by fixture cleanup; no browser starts.
