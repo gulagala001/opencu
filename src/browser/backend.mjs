@@ -277,9 +277,9 @@ export async function createBrowserBackend(options = {}) {
       throw error;
     } finally { if (!record) await session.detach().catch(() => {}); }
   }
-  async function descriptor(record) {
+  async function descriptor(record, targetInfo) {
     if (record.page.isClosed()) fail('TARGET_CLOSED', 'Browser tab is closed');
-    const {targetInfo} = await record.session.send('Target.getTargetInfo');
+    targetInfo ??= (await record.session.send('Target.getTargetInfo')).targetInfo;
     return {
       id: record.id, backend: 'browser', kind: 'tab', browserId,
       title: targetInfo.title, url: targetInfo.url, identity: record.identity,
@@ -303,7 +303,7 @@ export async function createBrowserBackend(options = {}) {
       if (targetInfo.targetId !== record.identity.targetId || !sameIdentity(record.identity, target.identity)) {
         return {valid: false, reason: 'Browser connection or target occurrence changed'};
       }
-      return {valid: true, target: await descriptor(record)};
+      return {valid: true, target: await descriptor(record, targetInfo)};
     } catch (error) { return {valid: false, reason: error.message}; }
   }
   function release({internal = false, dismissDialogs = true} = {}) {
@@ -347,11 +347,11 @@ export async function createBrowserBackend(options = {}) {
       await initialize();
       checkSignal(signal);
       await registerPages(context.pages());
-      const targets = [];
-      for (const record of records.values()) {
+      checkSignal(signal);
+      const targets = await Promise.all([...records.values()].filter(record => !record.page.isClosed()).map(record => {
         checkSignal(signal);
-        if (!record.page.isClosed()) targets.push(await descriptor(record));
-      }
+        return descriptor(record);
+      }));
       checkSignal(signal);
       return targets;
     },
