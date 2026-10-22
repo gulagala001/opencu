@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {mkdtemp, mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {createInterface} from 'node:readline';
+import {fileURLToPath} from 'node:url';
 import {createNativeBackend, linuxHelper} from '../src/native/backend.mjs';
 
 // Hyprland exposes no RemoteDesktop portal, so this backend runs only on a live
@@ -55,5 +58,38 @@ test('real Hyprland backend enumerates windows and captures the foreground one',
     }
   } finally {
     await backend.close();
+  }
+});
+
+test('the helper gives up its session when its peer disappears', {skip: !live}, async () => {
+  // A driver that crashes must not leave the controlled window parked in the
+  // isolation workspace: the helper has to notice the closed pipe, release held
+  // input and restore the desktop on its own.
+  const dataDir = await mkdtemp(join(tmpdir(), 'opencu-hyprland-exit-'));
+  const directory = join(dataDir, 'native');
+  await mkdir(directory, {recursive: true});
+  const helperPath = fileURLToPath(new URL('../native/linux/hyprland.py', import.meta.url));
+  const child = spawn('/usr/bin/python3', [helperPath, '--data-dir', directory], {stdio: ['pipe', 'pipe', 'pipe']});
+  const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({code, signal})));
+  try {
+    const greeting = await new Promise((resolve, reject) => {
+      const lines = createInterface({input: child.stdout});
+      const timer = setTimeout(() => reject(new Error('helper never answered hello')), 15000);
+      lines.once('line', line => { clearTimeout(timer); resolve(JSON.parse(line)); });
+      child.once('error', error => { clearTimeout(timer); reject(error); });
+      child.stdin.write(JSON.stringify({id: 1, method: 'hello', params: {}}) + '\n');
+    });
+    assert.equal(greeting.result.protocol, 1);
+    // Vanish the way a killed driver does: no close request, both pipes gone.
+    child.stdin.destroy();
+    child.stdout.destroy();
+    const outcome = await Promise.race([
+      exited,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('helper still holds the session after its peer disappeared')), 6000)),
+    ]);
+    assert.equal(outcome.signal, null);
+    assert.equal(outcome.code, 0);
+  } finally {
+    child.kill('SIGKILL');
   }
 });

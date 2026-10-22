@@ -16,6 +16,7 @@ import os
 import queue
 import re
 import shutil
+import signal
 import struct
 import subprocess
 import sys
@@ -403,6 +404,9 @@ def stop_indicator():
         return
     try:
         process.terminate()
+        process.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        process.kill()
     except OSError:
         pass
 
@@ -487,6 +491,26 @@ keys, buttons, elements, mappings = set(), set(), {}, {}
 input_lock, output_lock = threading.RLock(), threading.Lock()
 commands = queue.Queue()
 epoch, ended, closing = 0, False, False
+
+
+def emit(value):
+    """Write one protocol line, tolerating a peer that walked away.
+
+    The reader thread and `release()` both write from inside `input_lock`, so a
+    BrokenPipeError raised here would skip the queue shutdown and leave the main
+    loop waiting for a request that never comes. Point stdout at /dev/null once
+    the pipe is gone and let the caller notice `closing` instead.
+    """
+    global closing
+    try:
+        with output_lock:
+            print(json.dumps(value), flush=True)
+    except (BrokenPipeError, ValueError, OSError):
+        closing = True
+        try:
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        except OSError:
+            pass
 
 
 class Keymap:
@@ -662,8 +686,7 @@ def release():
                     input_event(kind, code, False)
                 except Exception as error:
                     failures.append(str(error))
-        with output_lock:
-            print(json.dumps(dict(event=dict(type='cursor', visible=False))), flush=True)
+        emit(dict(event=dict(type='cursor', visible=False)))
     return dict(released=not failures, failures=failures, heldKeys=list(keys), heldButtons=list(buttons))
 
 
@@ -846,8 +869,7 @@ def move(at, t, expected):
     with input_lock:
         check(t, expected)
         move_pointer(int(at[0]), int(at[1]))
-        with output_lock:
-            print(json.dumps(dict(event=dict(type='cursor', visible=True, targetId=t['id'], x=int(at[0]), y=int(at[1]), space='logical'))), flush=True)
+        emit(dict(event=dict(type='cursor', visible=True, targetId=t['id'], x=int(at[0]), y=int(at[1]), space='logical')))
 
 
 def act(t, action, expected):
@@ -1079,8 +1101,7 @@ def reply(request):
             if request['method'] == 'act':
                 details['release'] = release()
         value = dict(id=request['id'], ok=False, error=dict(code=getattr(error, 'code', 'NATIVE_FAILURE'), message=str(error), details=details))
-    with output_lock:
-        print(json.dumps(value), flush=True)
+    emit(value)
 
 
 def read_commands():
@@ -1098,8 +1119,10 @@ def read_commands():
     finally:
         ended = True
         epoch += 1
-        release()
-        commands.put(None)
+        try:
+            release()
+        finally:
+            commands.put(None)
 
 
 if os.path.exists(journal):
@@ -1110,10 +1133,29 @@ if os.path.exists(journal):
     if not release()['released']:
         fail('RELEASE_FAILED', 'Previous held input remains')
 threading.Thread(target=read_commands, daemon=True).start()
+
+
+def interrupted(signum, frame):
+    """Let a signal end the session the same way a closed pipe does.
+
+    The controlled window only returns to its own workspace through the cleanup
+    below, so being killed by a restart script must not skip it.
+    """
+    global closing
+    closing = True
+    commands.put(None)
+
+
+for handled in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+    signal.signal(handled, interrupted)
+
 try:
     while not closing:
-        request = commands.get()
-        if request is None:
+        try:
+            request = commands.get(timeout=0.5)
+        except queue.Empty:
+            continue
+        if request is None or ended:
             break
         reply(request)
 finally:
