@@ -356,6 +356,20 @@ export async function createBrowserBackend(options = {}) {
       return targets;
     },
     async select(reference, {signal} = {}) {
+      const id = reference?.targetId ?? reference?.id;
+      if (typeof id === 'string' && reference.identity && typeof reference.identity === 'object' && Object.keys(reference.identity).length) {
+        // An exact occurrence needs live verification, not another inventory of
+        // unrelated tabs. Keep generic references on the discovery path below.
+        const record = await readOperation(() => recordFor({...reference, id}), signal);
+        const {targetInfo} = await readOperation(() => record.session.send('Target.getTargetInfo'), signal);
+        checkSignal(signal);
+        if (targetInfo.targetId !== record.identity.targetId) fail('TARGET_IDENTITY_CHANGED', 'Browser target occurrence changed');
+        const target = await descriptor(record, targetInfo);
+        checkSignal(signal);
+        if (!referenceMatches(target, reference)) fail('TARGET_NOT_FOUND', 'Reference does not match the live browser tab');
+        checkExpected(target, reference.expected);
+        return target;
+      }
       const targets = await readOperation(() => this.listTargets({signal}), signal);
       checkSignal(signal);
       const matches = targets.filter(target => referenceMatches(target, reference));

@@ -127,30 +127,31 @@ test('inventory preserves partial provider errors and remains readable after sto
  assert.equal((await c.getState()).state.mode,'stopped');
 });
 
-for (const [composed,stalledRead] of [[false,2],[true,2],[true,3]]) test(`selection inventory ${stalledRead} remains cancellable with composite=${composed}`,async t=>{
- const {controller:c,backend,A,B,events,ok}=await setup(t,composed,250);
+for (const composed of [false,true]) test(`exact selection remains cancellable with composite=${composed}`,async t=>{
+ const {controller:c,backend,A,B,events,hooks,ok}=await setup(t,composed,250);
  await ok(c.selectTarget({id:A.id}));await ok(c.act({action:'keyDown',key:'Shift'}));
- const entered=deferred(),gate=deferred(),original=backend.listTargets;let reads=0;
- backend.listTargets=async(...args)=>{if(++reads===stalledRead){entered.resolve();await gate.promise;return [A,B];}return original.apply(backend,args);};
+ const entered=deferred(),gate=deferred(),original=backend.select;let selecting=false;
+ backend.select=async(...args)=>{selecting=true;return original.apply(backend,args);};
+ hooks.send=async(name,method)=>{if(selecting&&name==='B'&&method==='Target.getTargetInfo'){entered.resolve();await gate.promise;}};
  const pending=c.selectTarget({id:B.id});await entered.promise;const stopped=c.stop();
  try {
-  assert.equal(await settledWithin(stopped,150),true,'repeated inventory cannot retain the release lane');await ok(stopped);
+  assert.equal(await settledWithin(stopped,150),true,'targeted read cannot retain the release lane');await ok(stopped);
   assert.equal((await pending).error.code,'CONTROL_STOPPED');
   assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
- } finally {backend.listTargets=original;gate.resolve();await pending;await stopped;}
+ } finally {backend.select=original;hooks.send=undefined;gate.resolve();await pending;await stopped;}
  assert.equal((await c.getState()).state.activeTargetId,A.id);
 });
 
-for (const composed of [false,true]) test(`second stop cancels resume inventory with composite=${composed}`,async t=>{
- const {controller:c,backend,A,ok}=await setup(t,composed,250);
+for (const composed of [false,true]) test(`second stop cancels resume selection with composite=${composed}`,async t=>{
+ const {controller:c,backend,A,hooks,ok}=await setup(t,composed,250);
  await ok(c.selectTarget({id:A.id}));await ok(c.stop());
- const entered=deferred(),gate=deferred(),original=backend.listTargets;
- backend.listTargets=async()=>{entered.resolve();await gate.promise;return [A];};
+ const entered=deferred(),gate=deferred(),original=backend.select;let selecting=false;
+ backend.select=async(...args)=>{selecting=true;return original.apply(backend,args);};
+ hooks.send=async(_,method)=>{if(selecting&&method==='Target.getTargetInfo'){entered.resolve();await gate.promise;}};
  const pending=c.resume({targetId:A.id});await entered.promise;const stopped=c.stop();
  try {
-  assert.equal(await settledWithin(stopped,150),true);await ok(stopped);
-  assert.equal((await pending).error.code,'CONTROL_STOPPED');
- } finally {backend.listTargets=original;gate.resolve();await pending;await stopped;}
+  assert.equal(await settledWithin(stopped,150),true);await ok(stopped);assert.equal((await pending).error.code,'CONTROL_STOPPED');
+ } finally {backend.select=original;hooks.send=undefined;gate.resolve();await pending;await stopped;}
  assert.equal((await c.getState()).state.mode,'stopped');
  await ok(c.resume({targetId:A.id}));
 });
