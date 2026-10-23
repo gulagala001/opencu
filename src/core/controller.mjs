@@ -484,8 +484,8 @@ export async function createController({dataDir, browser, native} = {}) {
         return {targetId: target.id, result, state: snapshot()};
       } finally { if (recovery) recoveryOperations.delete(recovery); }
     })),
-    /** Hand the screen back while keeping the selection, so a model that stops to
-     *  ask the user something does not hold the monitor while it waits. */
+    // Hand the screen back while keeping the selection, so a model that stops to ask
+    // the user something does not hold the monitor while it waits for the answer.
     away: (request = {}) => response(() => serial(async () => {
       controlAllowed();
       if (!selected.size || !activeTargetId) return {away: false, state: snapshot()};
