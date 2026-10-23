@@ -9,6 +9,8 @@ import { build } from 'esbuild';
 import { Context } from '@deepseek-ai/cordis';
 import { createServer, request as httpRequest } from 'node:http';
 import { once } from 'node:events';
+import { gzipSync } from 'node:zlib';
+import { extensionFolderFixture } from './fixtures/extension-folder.mjs';
 import pin from './fixtures/dsh-connection.json' with { type: 'json' };
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -92,4 +94,46 @@ test('real HTTP disconnect aborts the registered production request and leaves l
   for (let tries = 0; tries < 100 && !request.signal.aborted; tries++) await new Promise(resolve => setTimeout(resolve, 5));
   assert(request.signal.aborted); record.fetch = original; held.resolve();
   assert.equal((await f.get()).status, 200);
+});
+
+for (const transport of [
+  { name: 'ordinary HTTP' },
+  { name: 'HEAD without length', omit: ['HEAD'] },
+  { name: 'chunked GET', omit: ['GET'] },
+  { name: 'HEAD and GET without length', omit: ['HEAD', 'GET'] },
+  { name: 'gzip HEAD', gzip: ['HEAD'] },
+  { name: 'gzip GET', gzip: ['GET'] },
+  { name: 'gzip HEAD and GET', gzip: ['HEAD', 'GET'] },
+  { name: 'desktop forwarding after gzip decoding', gzip: ['HEAD', 'GET'], desktop: true },
+]) test(`production settings download preserves exact ZIP bytes over ${transport.name}`, async t => {
+  const host = await fixture(t), expected = await readFile(new URL('../lib/extension.zip', import.meta.url));
+  const compressed = gzipSync(expected), record = host.ctx.connection.fetchRoutes.get('/api/opencu/extension.zip'), original = record.fetch;
+  // Simulate transport transformations after the real distribution handler.
+  // The official HTTP bridge and fetch decoding still run over a real socket.
+  record.fetch = async request => {
+    const upstream = await original(request), headers = new Headers(upstream.headers);
+    let body = upstream.body;
+    if (transport.gzip?.includes(request.method)) {
+      if (body) { await upstream.arrayBuffer(); body = compressed; }
+      headers.set('content-encoding', 'gzip'); headers.set('content-length', String(compressed.length));
+    }
+    if (transport.omit?.includes(request.method)) headers.delete('content-length');
+    return new Response(body, { status: upstream.status, headers });
+  };
+  let blob, clicked = 0;
+  const client = await extensionFolderFixture({ globals: { Blob,
+    document: { baseURI: transport.desktop ? 'dsh-app://app/' : host.base + '/', createElement: () => ({ click() { clicked++; } }) },
+    URL: class extends URL { static createObjectURL(value) { blob = value; return 'blob:synthetic-zip'; } static revokeObjectURL() {} }, setTimeout: () => 1,
+  }, downloadFetch: async (url, request) => {
+    assert.equal(url, 'api/opencu/extension.zip'); assert.equal(request.credentials, 'same-origin');
+    assert.equal(request.cache, 'no-store'); assert.equal(request.redirect, 'error');
+    const upstream = await fetch(new URL(url, host.base), { ...request, headers: { cookie: host.cookie } });
+    if (!transport.desktop) return upstream;
+    const headers = new Headers(upstream.headers);
+    for (const key of ['content-length', 'content-encoding', 'transfer-encoding']) headers.delete(key);
+    return new Response(upstream.body, { status: upstream.status, headers });
+  } }); t.after(() => client.unmount());
+  await client.download(); assert.equal(clicked, 1, client.text()); assert.match(client.text(), /download started/);
+  assert.equal(blob.type, 'application/zip'); assert(Buffer.from(await blob.arrayBuffer()).equals(expected));
+  assert.deepEqual(client.requests.filter(x => x.url).map(x => x.method), ['HEAD', 'GET']);
 });
