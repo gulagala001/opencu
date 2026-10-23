@@ -68,7 +68,7 @@ OpenCU 通过 DSH 原生工具调用操作真实浏览器和桌面应用。页�
 
 ## 支持范围
 
-macOS 使用 Accessibility 与定向输入；Windows 使用 UI Automation；Linux 使用 AT-SPI／X11、Hyprland IPC 或 Wayland portal；Hyprland 下被操作的目标若与他人共用工作区，会临时移到专用工作区 `opencu`，结束后移回；接管期间顶部常驻一条输入穿透的提示条，第二行显示模型当前操作；模型提问时会把视图切回聊天窗口，回合结束则把窗口与视图一并交还并收掉提示条（仍保留选中，下一回合直接继续），会话结束时提示条消失并给出结束提示。能力取决于后端、系统授权与目标应用。Web 服务控制的是服务所在机器，不能直接控制访问网页的另一台电脑。
+macOS 使用 Accessibility 与定向输入；Windows 使用 UI Automation；Linux 使用 AT-SPI／X11、Hyprland IPC 或 Wayland portal；Hyprland 下使用自创hyprland portal。能力取决于后端、系统授权与目标应用。Web 服务控制的是服务所在机器，不能直接控制访问网页的另一台电脑。
 
 多屏混合缩放、声音、账号云服务及完整 Playwright 等价能力不在当前范围。不同平台尚未完成全部实机验证；不要仅凭安装成功推断所有应用均可操作。
 
