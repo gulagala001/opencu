@@ -490,7 +490,10 @@ export async function createController({dataDir, browser, native} = {}) {
       controlAllowed();
       if (!selected.size || !activeTargetId) return {away: false, state: snapshot()};
       const {target, backend} = request.targetId ? targetFor(request.targetId, request.targetIdentity) : targetFor();
-      if (typeof backend.away !== 'function') fail('UNSUPPORTED_OPERATION', 'This backend cannot hand the screen back');
+      // Only the Hyprland helper ever takes the view away from the user. Elsewhere there is
+      // nothing to give back, so the hand-back is a no-op rather than an error the caller
+      // would report on every turn end.
+      if (typeof backend.away !== 'function') return {away: false, state: snapshot()};
       const relinquish = request.relinquish === true;
       return {targetId: target.id, relinquish, away: await backend.away(json(target), {relinquish}), state: snapshot()};
     })),

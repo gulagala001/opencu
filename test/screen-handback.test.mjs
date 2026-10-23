@@ -37,12 +37,15 @@ test('handing the screen back keeps the selection and the session active', async
   assert.equal(state.activeTargetId, target.id, 'the selection survives so work resumes without reselecting');
 });
 
-test('a backend without a hand-back says so instead of pretending', async t => {
+// X11, portal Wayland, macOS and Windows never move the user's view, so a turn end there has
+// nothing to give back. Reporting an error would make every such turn look like a failure.
+test('a backend without a hand-back is a quiet no-op', async t => {
   const controller = await controllerWith({}, t);
   assert.equal((await controller.selectTarget(target.id)).ok, true);
   const response = await controller.away();
-  assert.equal(response.ok, false);
-  assert.equal(response.error.code, 'UNSUPPORTED_OPERATION');
+  assert.equal(response.ok, true);
+  assert.equal(response.away, false);
+  assert.equal((await controller.getState()).state.activeTargetId, target.id, 'the selection is untouched');
 });
 
 test('handing back with nothing selected is a no-op', async t => {
