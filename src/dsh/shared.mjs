@@ -59,21 +59,20 @@ export function acquireOpenCU(ctx, { namespace = 'opencu', config = {}, getConfi
     entry.computers = new Map();
     const turns = new WeakMap();
     entry.activity = createActivityFeed(id => turns.get(root.get('sessions')?.get(id)));
-    // The desktop is the user's between steps: keep track of which session holds it
-    // so a turn that ends, or a turn that stops to ask the user something, hands the
-    // screen back instead of leaving the takeover running behind the chat window.
+    // Only explicit native focus/foreground input owns the desktop. Keep its
+    // occurrence even when the same session subsequently works in a browser.
     entry.handBack = async (session, {endpoint, args}) => {
-      if (!entry.runtime.started() || entry.driver !== session.id) return;
-      const { state } = await entry.runtime.request('state', {}, { sessionKey: session.id });
-      const active = state?.targets?.find(target => target.id === state.activeTargetId);
-      if (active?.backend !== 'native') return;
-      if (args.relinquish) entry.driver = undefined;
-      await entry.runtime.request(endpoint, args, { sessionKey: session.id });
+      const driver = entry.driver;
+      if (!entry.runtime.started() || driver?.sessionId !== session.id) return;
+      const result = await entry.runtime.request(endpoint, { ...args, targetId: driver.target.id, targetIdentity: driver.target.identity },
+        { sessionKey: session.id, handBackGuard: () => entry.driver === driver });
+      if (result.ok === false) throw Object.assign(new Error(result.error.message), result.error);
+      if (args.relinquish && entry.driver === driver) entry.driver = undefined;
     };
     entry.offSessionEvent = root.on('session/event', (session, event) => {
       if (event.type === 'turn/start') turns.set(session, event.data.turn);
       else if (event.type === 'turn/end' && turns.get(session) === event.data.turn) turns.delete(session);
-      const handBack = handBackFor(event);
+      const handBack = event.type === 'turn/end' && turns.has(session) && turns.get(session) !== event.data.turn ? null : handBackFor(event);
       if (handBack) void entry.handBack(session, handBack).catch(error => console.error('OpenCU desktop hand-back', error));
       entry.activity.sessionEvent(session.id, event);
     }, { global: true });
@@ -81,10 +80,12 @@ export function acquireOpenCU(ctx, { namespace = 'opencu', config = {}, getConfi
       turns.delete(session);
       entry.runtime.forgetSession(session.id);
       entry.activity.forget(session.id);
-      if (entry.driver === session.id) entry.driver = undefined;
+      const handBack = entry.handBack(session, {endpoint: 'away', args: {relinquish: true}});
       const computer = entry.computers.get(session.id);
-      if (!computer) return;
-      return computer.close().then(() => {
+      return (async () => {
+        try { await handBack; }
+        finally { await computer?.close(); }
+      })().then(() => {
         if (entry.computers.get(session.id) === computer) entry.computers.delete(session.id);
         entry.activity.forget(session.id);
       }).catch(error => console.error('OpenCU computer session cleanup', error));
@@ -109,7 +110,6 @@ export function acquireOpenCU(ctx, { namespace = 'opencu', config = {}, getConfi
         else if (['browser/sessions', 'browser/disconnect'].includes(endpoint)) await entry.presentation.sessionsChanged();
         return result;
       }
-      if (mutating.has(endpoint) && sessionKey !== undefined) entry.driver = sessionKey;
       const activity = mutating.has(endpoint) ? entry.activity.begin(sessionKey, endpoint, args) : null;
       let release, outcome, failure;
       // Input release remains global; only the aborted owner's approvals are cancelled.
@@ -128,7 +128,13 @@ export function acquireOpenCU(ctx, { namespace = 'opencu', config = {}, getConfi
         } else if (endpoint === 'openTarget' && String(args.browserId).startsWith('dsh:')) {
           result = await entry.runtime.request(endpoint, { ...args, sessionId: typeof sessionKey === 'string' ? sessionKey : undefined }, { attachments, signal, sessionKey });
         } else {
-          result = await entry.runtime.request(endpoint, args, { attachments, signal, sessionKey, modelProjection, onApprovalWait });
+          let onControlStart;
+          if (endpoint === 'focus' || endpoint === 'act' && (args.inputMode === 'foreground' || ['focus', 'activate'].includes(args.action ?? args.type))) {
+            // The runtime supplies the approved occurrence immediately before
+            // dispatch. Queued hand-backs recheck this token in the input lane.
+            onControlStart = target => { if (target?.backend === 'native') entry.driver = {sessionId: sessionKey, target}; };
+          }
+          result = await entry.runtime.request(endpoint, args, { attachments, signal, sessionKey, modelProjection, onApprovalWait, onControlStart });
           if (endpoint === 'state' || endpoint === 'targets') result = { ...result, browsers: result.browsers ?? entry.browserHost.listBrowsers(),
             ...(!modelProjection ? { presentation: entry.presentation.snapshot() } : {}) };
         }

@@ -6,9 +6,8 @@ import { join } from 'node:path';
 import { registerHooks } from 'node:module';
 import { controllers } from './fixtures/approval-session-boundaries.mjs';
 
-// Session events are what tell the plugin the model has yielded. Only the session
-// that last drove a native target may hand the desktop back, and only a native
-// target is worth handing back: a browser tab never took the screen.
+// Only the session that explicitly drove a native target owns the desktop.
+// Passive observation and subsequent browser work do not change that owner.
 
 const fixtureURL = new URL('./fixtures/approval-session-boundaries.mjs', import.meta.url).href;
 const mocked = new Set([
@@ -31,6 +30,7 @@ hooks.deregister();
 const native = { id: 'native:synthetic:A', backend: 'native', kind: 'app', platform: 'linux', name: 'Synthetic A', identity: { pid: 10, windowId: 11, executable: '/synthetic/A' } };
 const tab = { id: 'tab:synthetic:B', backend: 'browser', kind: 'tab', name: 'Synthetic B', identity: { tabId: 21 } };
 const tick = () => new Promise(resolve => setImmediate(resolve));
+const awayArgs = args => ({...args, targetId: native.id, targetIdentity: native.identity});
 
 async function fixture(t, { target = native } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'opencu-handback-'));
@@ -40,14 +40,24 @@ async function fixture(t, { target = native } = {}) {
     { bundleIdentifier: native.identity.executable, executable: native.identity.executable, displayName: native.name },
   ] }));
   const calls = [];
+  let awayGate, failAway = false;
+  const state = () => ({ mode: 'active', activeTargetId: target.id, targets: [native, tab], revision: 1 });
   const controller = {
     runtimeInfo: { backends: { native: true, extension: false }, browserProviders: [], browserProvider: null },
     extensionConnections: () => [],
-    getState: async () => ({ ok: true, state: { mode: 'active', activeTargetId: target.id, targets: [target], revision: 1 } }),
+    getState: async () => ({ ok: true, state: state() }),
     listTargets: async () => ({ ok: true, targets: [target] }),
     selectTarget: async () => ({ ok: true, target }),
     applicationMetadata: async value => ({ displayName: value.name }),
-    away: async args => { calls.push(args); return { ok: true, away: true, state: { mode: 'active', activeTargetId: target.id, targets: [target] } }; },
+    focus: async () => ({ ok: true, target, state: state() }),
+    observe: async () => ({ ok: true, target, state: state() }),
+    away: async (args, {isCurrent} = {}) => {
+      const gate = awayGate; awayGate = undefined;
+      if (gate) await gate;
+      if (isCurrent && !isCurrent()) return {ok: true, away: false};
+      calls.push(args);
+      return failAway ? {ok: false, error: {code: 'RELEASE_FAILED', message: 'Synthetic release failure'}} : {ok: true, away: true, state: state()};
+    },
     resume: async () => ({ ok: true }),
     stop: async () => ({ ok: true }),
     close: async () => ({ ok: true }),
@@ -65,17 +75,20 @@ async function fixture(t, { target = native } = {}) {
   });
   const session = { id: 'session-a' };
   const emit = async (event, from = session) => { handlers.get('session/event')(from, event); await tick(); };
-  // Any mutating request marks the session as the one driving the desktop; the
-  // selection itself belongs to the controller test next door.
-  const drive = () => lease.request('resume', {}, { sessionKey: session.id }).catch(() => {});
-  return { calls, emit, drive };
+  const drive = (from = session) => lease.request('focus', {targetId: target.id}, {sessionKey: from.id});
+  return { calls, emit, drive,
+    request: (endpoint, args = {}) => lease.request(endpoint, args, {sessionKey: session.id}),
+    switchTarget: next => { target = next; },
+    delayAway: () => new Promise(resolve => { awayGate = new Promise(resume => resolve(resume)); }),
+    failAway: value => { failAway = value; },
+  };
 }
 
 test('a turn that ends hands the whole desktop back and stops holding it', async t => {
   const f = await fixture(t);
   await f.drive();
   await f.emit({ type: 'turn/end', data: { turn: 1 } });
-  assert.deepEqual(f.calls, [{ relinquish: true }], 'the end of a turn gives the window, the view and the bar back');
+  assert.deepEqual(f.calls, [awayArgs({ relinquish: true })], 'the end of a turn gives the window, the view and the bar back');
   await f.emit({ type: 'turn/end', data: { turn: 2 } });
   assert.equal(f.calls.length, 1, 'a session that no longer holds the desktop does not hand it back twice');
 });
@@ -84,9 +97,9 @@ test('a question hands the view back and keeps holding the window', async t => {
   const f = await fixture(t);
   await f.drive();
   await f.emit({ type: 'tool/call', data: { name: 'ask_user_question' } });
-  assert.deepEqual(f.calls, [{}], 'asking only returns the view: the selection keeps its workspace');
+  assert.deepEqual(f.calls, [awayArgs({})], 'asking only returns the view: the selection keeps its workspace');
   await f.emit({ type: 'turn/end', data: { turn: 1 } });
-  assert.deepEqual(f.calls, [{}, { relinquish: true }], 'the turn can still end the takeover after a question');
+  assert.deepEqual(f.calls, [awayArgs({}), awayArgs({ relinquish: true })], 'the turn can still end the takeover after a question');
 });
 
 test('ordinary steps and tools keep the screen', async t => {
@@ -110,4 +123,56 @@ test('a browser target is left alone', async t => {
   await f.drive();
   await f.emit({ type: 'turn/end', data: { turn: 1 } });
   assert.deepEqual(f.calls, [], 'a tab never took the screen, so there is nothing to give back');
+});
+
+test('a native takeover survives subsequent browser work until hand-back', async t => {
+  const f = await fixture(t);
+  await f.drive();
+  f.switchTarget(tab);
+  await f.drive();
+  await f.emit({type: 'turn/end', data: {turn: 1}});
+  assert.deepEqual(f.calls, [awayArgs({relinquish: true})]);
+});
+
+test('an old hand-back cannot surrender a newer native driver', async t => {
+  const f = await fixture(t);
+  await f.drive();
+  const resume = await f.delayAway();
+  await f.emit({type: 'turn/end', data: {turn: 1}});
+  await f.drive({id: 'session-b'});
+  resume();
+  await tick();
+  assert.deepEqual(f.calls, []);
+  await f.emit({type: 'turn/end', data: {turn: 1}}, {id: 'session-b'});
+  assert.deepEqual(f.calls, [awayArgs({relinquish: true})]);
+});
+
+test('passive native operations never claim the desktop', async t => {
+  const f = await fixture(t);
+  for (const endpoint of ['select', 'observe', 'resume']) {
+    await f.request(endpoint, {reference: native.id, targetId: native.id});
+    await f.emit({type: 'turn/end', data: {turn: 1}});
+  }
+  assert.deepEqual(f.calls, []);
+});
+
+test('failed hand-back keeps its owner for a later retry', async t => {
+  t.mock.method(console, 'error', () => {});
+  const f = await fixture(t);
+  await f.drive();
+  f.failAway(true);
+  await f.emit({type: 'turn/end', data: {turn: 1}});
+  f.failAway(false);
+  await f.emit({type: 'turn/end', data: {turn: 1}});
+  assert.deepEqual(f.calls, [awayArgs({relinquish: true}), awayArgs({relinquish: true})]);
+});
+
+test('a stale turn-end cannot surrender the current turn', async t => {
+  const f = await fixture(t);
+  await f.emit({type: 'turn/start', data: {turn: 2}});
+  await f.drive();
+  await f.emit({type: 'turn/end', data: {turn: 1}});
+  assert.deepEqual(f.calls, []);
+  await f.emit({type: 'turn/end', data: {turn: 2}});
+  assert.deepEqual(f.calls, [awayArgs({relinquish: true})]);
 });

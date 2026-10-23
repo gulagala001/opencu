@@ -69,3 +69,32 @@ test('ending a turn hands the whole desktop back but keeps the selection', async
   assert.equal(state.mode, 'active', 'the session is paused, not stopped: no reselecting next turn');
   assert.equal(state.activeTargetId, target.id);
 });
+
+test('a hand-back checks its owner inside the serial input lane', async t => {
+  const calls = [];
+  let enter, finish;
+  const entered = new Promise(resolve => { enter = resolve; });
+  const wait = new Promise(resolve => { finish = resolve; });
+  const controller = await controllerWith({
+    async act() { enter(); await wait; return {}; },
+    async away() { calls.push('away'); return true; },
+  }, t);
+  await controller.selectTarget(target.id);
+  const action = controller.act({targetId: target.id, action: 'click'});
+  await entered;
+  let current = true;
+  const handBack = controller.away({relinquish: true}, {isCurrent: () => current});
+  current = false;
+  finish();
+  assert.equal((await action).ok, true);
+  assert.equal((await handBack).away, false);
+  assert.deepEqual(calls, []);
+});
+
+test('failed hand-back blocks input until release recovery succeeds', async t => {
+  const controller = await controllerWith({async away() { throw Object.assign(new Error('synthetic failure'), {code: 'RELEASE_FAILED'}); }}, t);
+  await controller.selectTarget(target.id);
+  const response = await controller.away({relinquish: true});
+  assert.equal(response.error.code, 'RELEASE_FAILED');
+  assert.equal((await controller.getState()).state.mode, 'faulted');
+});

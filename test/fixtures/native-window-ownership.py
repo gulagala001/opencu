@@ -93,9 +93,9 @@ def rejected(call, code):
         raise AssertionError('Expected ' + code)
 
 
-for name in ('helper.py', 'wayland.py'):
+for name in ('helper.py', 'wayland.py', 'hyprland.py'):
     window, other_window = Node(21), Node(21)
-    target = dict(id='native:synthetic', pid=21, kind='app', bounds=dict(x=0, y=0, width=800, height=600))
+    target = dict(id='native:synthetic', pid=21, kind='app', name='Synthetic', bounds=dict(x=0, y=0, width=800, height=600))
     # Execute the real element/point/act/tree functions without initializing X11,
     # D-Bus or a desktop-sharing session. Their OS boundaries are synthetic.
     parsed = ast.parse((root_dir / 'native/linux' / name).read_text())
@@ -104,8 +104,11 @@ for name in ('helper.py', 'wayland.py'):
                accessibility_action=accessibility.perform, app_window=lambda _target: window,
                windows={target['id']: window}, pyatspi=SimpleNamespace(STATE_DEFUNCT=0, DESKTOP_COORDS=0, ROLE_PASSWORD_TEXT=2),
                check=lambda *_args: None, foreground=lambda *_args: None, input_lock=threading.RLock(),
+               resolve=lambda target: target, report=lambda *_args: None, describe=lambda *_args: '', accessibility=lambda *_args: 'application',
+               active_address=lambda: 'synthetic-window',
                state=dict(stream=dict(position=(0, 0), size=(800, 600)), devices=3), uuid=uuid, math=math, time=time)
     exec(compile(ast.Module(body=definitions, type_ignores=[]), name, 'exec'), env)
+    target['windowId'] = 'synthetic-window'
     element, point, act = (env[key] for key in ('element', 'point', 'act'))
     child = Node(99, window)
     key = target['id'] + ':observed'
