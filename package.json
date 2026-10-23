@@ -50,6 +50,8 @@
     "README.md",
     "THIRD_PARTY_NOTICES.md",
     "!src/client/",
+    "!**/__pycache__",
+    "!**/*.pyc",
     "!**/.*/**",
     "!**/.*",
     "README_EN.md",
