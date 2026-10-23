@@ -437,6 +437,25 @@ def ensure_foreground(t):
     return True
 
 
+def settle_view(t):
+    """Wait until the compositor presents the workspace we just switched to.
+
+    Hyprland applies focus and workspace changes asynchronously: grim started in
+    the same instant still returns the screen from before the switch, so the
+    model would read - and then click - the workspace it is not driving. One
+    frame is enough, and only a real switch pays for it.
+    """
+    window = window_for(t['windowId'])
+    if window is not None:
+        wanted = workspace_of(window)['id']
+        deadline = time.monotonic() + 1
+        current = active_workspace()
+        while current is not None and current['id'] != wanted and time.monotonic() < deadline:
+            time.sleep(.02)
+            current = active_workspace()
+    time.sleep(.12)
+
+
 def notify(message, color='rgb(ffaa00)'):
     """Tell the user why the desktop just moved under them."""
     try:
@@ -831,9 +850,11 @@ def capture(t, preview=False):
     # Hyprland offers no per-window capture protocol, so the frame comes from the
     # screen: the window has to be the visible one, on the visible workspace.
     t = resolve(t)
-    if isolate(t):
+    moved = isolate(t)
+    if moved:
         t = resolve(t)
-    ensure_foreground(t)
+    if ensure_foreground(t) or moved:
+        settle_view(t)
     start_indicator()
     report('截图 %s' % t['name'])
     region = clip(t['bounds'])
