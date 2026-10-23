@@ -161,6 +161,8 @@ export async function createNativeBackend({dataDir, helperPath, compileHelper = 
       known.set(value.id, value);
       return {focused: true, target: value};
     },
+    /** Stop holding the screen without dropping the selection (see native/linux/hyprland.py). */
+    async away(_target, options = {}) { return (await request('away', {relinquish: options.relinquish === true})).away === true; },
     async permissions() { return {...await currentPermissions(), ...(onCursor ? {cursor: {host: process.platform === 'darwin' ? 'REA-native' : 'REA-desktop', error: cursorError ?? null}} : {})}; },
     async getPermissions() { return backend.permissions(); },
     async applicationMetadata(target) {

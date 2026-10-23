@@ -484,6 +484,16 @@ export async function createController({dataDir, browser, native} = {}) {
         return {targetId: target.id, result, state: snapshot()};
       } finally { if (recovery) recoveryOperations.delete(recovery); }
     })),
+    /** Hand the screen back while keeping the selection, so a model that stops to
+     *  ask the user something does not hold the monitor while it waits. */
+    away: (request = {}) => response(() => serial(async () => {
+      controlAllowed();
+      if (!selected.size || !activeTargetId) return {away: false, state: snapshot()};
+      const {target, backend} = request.targetId ? targetFor(request.targetId, request.targetIdentity) : targetFor();
+      if (typeof backend.away !== 'function') fail('UNSUPPORTED_OPERATION', 'This backend cannot hand the screen back');
+      const relinquish = request.relinquish === true;
+      return {targetId: target.id, relinquish, away: await backend.away(json(target), {relinquish}), state: snapshot()};
+    })),
     permissions: () => response(() => serial(async () => {
       alive();
       const backend = backends.get('native');

@@ -17,7 +17,7 @@ import { createBrowserPairing } from '../extension/pairing.mjs';
 import { listenExtension } from '../extension/listen.mjs';
 import { referenceMatches, sameIdentity, checkExpected, json } from '../protocol.mjs';
 
-const methods = { state: 'getState', targets: 'listTargets', select: 'selectTarget', observe: 'observe', act: 'act', stop: 'stop', userActivity: 'notifyUserActivity', resume: 'resume', deliveries: 'deliveries', permissions: 'permissions', openPermissionSettings: 'openPermissionSettings', requestPermission: 'requestPermission', revealPermissionHelper: 'revealPermissionHelper' };
+const methods = { state: 'getState', targets: 'listTargets', select: 'selectTarget', observe: 'observe', act: 'act', away: 'away', stop: 'stop', userActivity: 'notifyUserActivity', resume: 'resume', deliveries: 'deliveries', permissions: 'permissions', openPermissionSettings: 'openPermissionSettings', requestPermission: 'requestPermission', revealPermissionHelper: 'revealPermissionHelper' };
 const active = new Set(['select', 'observe', 'act', 'focus', 'openTarget', 'stop', 'resume']);
 
 function error(code, message) { return Object.assign(new Error(message), { code }); }
@@ -413,6 +413,8 @@ export function createPluginRuntime(options = {}) {
     },
     pendingAppApprovals: () => appApprovals.snapshot(),
     forgetSession: sessionId => appApprovals.forgetSession(sessionId),
+    /** Whether a controller already exists; asking before start() keeps idle sessions from spawning one. */
+    started: () => Boolean(controller) && !disposed,
     get dataDir() { return dataDir ?? resolve(getConfig().dataDir || DEFAULT_DATA_DIR); },
     request: (endpoint, args, context = {}) => cursorContext.run(context.sessionKey, () => request(endpoint, args, context)),
     async close() {

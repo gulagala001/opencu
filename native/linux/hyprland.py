@@ -232,7 +232,9 @@ def resolve(reference):
 
 
 ISOLATION = 'opencu'
-isolated, displaced = {}, None
+isolated = {}
+view_origin = None  # The workspace the user was looking at before the screen was taken.
+view_taken = None   # The workspace we left them on, so a later hand-back can tell they stayed.
 indicator, indicator_lock = None, threading.Lock()
 indicator_status, status_lock = dict(text='已连接，等待指令', at=0.0), threading.Lock()
 indicator_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hyprland_indicator.py')
@@ -274,7 +276,9 @@ def workspace_argument(workspace):
 
 def move_window(address, workspace):
     if dialect() == 'lua':
-        dispatch('hl.dsp.window.move({ window = "address:%s", workspace = %s, silent = true })'
+        # follow=false is what keeps the view put in the Lua dispatch dialect;
+        # the legacy `silent` spelling is accepted but ignored here.
+        dispatch('hl.dsp.window.move({ window = "address:%s", workspace = %s, follow = false })'
                  % (address, workspace_argument(workspace)))
     else:
         dispatch('movetoworkspacesilent', '%s,address:%s' % (workspace, address))
@@ -291,6 +295,80 @@ def origin_argument(origin):
     return 'name:' + origin['name'] if origin['id'] is not None and origin['id'] < 0 else origin['name']
 
 
+def record_view(workspace):
+    """Remember the workspace the user was looking at before we take the screen."""
+    global view_origin
+    if view_origin is None and workspace is not None:
+        view_origin = workspace
+
+
+def note_taken():
+    """Remember the workspace we left the user looking at."""
+    global view_taken
+    view_taken = active_workspace()
+
+
+def hand_back_view():
+    """Put the view back where the user had it, if they are still where we left them.
+
+    A user who switched workspace in the meantime is not dragged back: only the
+    view we took is given back.
+    """
+    global view_origin, view_taken
+    origin, taken = view_origin, view_taken
+    view_origin, view_taken = None, None
+    if origin is None or taken is None or origin['id'] == taken['id']:
+        return False
+    current = active_workspace()
+    if current is None or current['id'] != taken['id']:
+        return False
+    focus_workspace(origin_argument(origin))
+    return True
+
+
+def remember_view(t):
+    """Record the view only when the screen is about to show another workspace.
+
+    A window that already sits on the workspace the user is looking at takes no
+    view away from them, so there is nothing to hand back later; a window that is
+    moved to the isolation workspace always does, even when it was sharing the
+    user's workspace before the move.
+    """
+    window = window_for(t['windowId'])
+    current = active_workspace()
+    if window is None or current is None:
+        return
+    if current['id'] != workspace_of(window)['id']:
+        record_view(current)
+
+
+def away(relinquish=False):
+    """Stop holding the screen, in one of the two ways a model yields.
+
+    Asking the user something only interrupts the step: the window stays on its
+    workspace with the control bar up, and the view returns to where the user was
+    so the question is readable. Every read and write re-establishes the
+    foreground, so the screen comes back on its own when the model resumes.
+
+    Ending a turn hands the whole desktop back: the window returns to the
+    workspace the user had it on, and the bar goes away, because a session that
+    is not driving must not keep warning the user away from their own desktop.
+    The selection survives, so the next turn needs no reselecting.
+    """
+    if relinquish:
+        handed = hand_back_view() or bool(isolated)
+        restore_isolation()
+        stop_indicator()
+        report('会话暂停，桌面已交还')
+        notify('OpenCU 已暂停，桌面已交还')
+        return handed
+    if not hand_back_view():
+        return False
+    report('已交还桌面 · 等待你的回复')
+    notify('模型在等你回答，桌面已交还')
+    return True
+
+
 def isolate(t):
     """Give the target a workspace of its own so nothing can squeeze it.
 
@@ -300,7 +378,6 @@ def isolate(t):
     layout untouched. A target that already has its workspace to itself would
     gain nothing from moving, so it stays where it is.
     """
-    global displaced
     address = t['windowId']
     if address in isolated:
         return False
@@ -310,9 +387,8 @@ def isolate(t):
     origin = workspace_of(window)
     if origin['name'] == ISOLATION or not companions(window):
         return False
+    record_view(active_workspace())
     isolated[address] = origin
-    if displaced is None:
-        displaced = active_workspace()
     move_window(address, 'name:' + ISOLATION)
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
@@ -322,6 +398,7 @@ def isolate(t):
         time.sleep(.02)
     focus_workspace('name:' + ISOLATION)
     focus_window(address)
+    note_taken()
     start_indicator()
     notify('%s 已移到专用工作区 %s' % (t['name'], ISOLATION))
     return True
@@ -329,16 +406,13 @@ def isolate(t):
 
 def restore_isolation():
     """Put every window this helper moved back where the user had it."""
-    global displaced
-    origin, displaced = displaced, None
     for address, previous in list(isolated.items()):
         isolated.pop(address, None)
         window = window_for(address)
         if window is None or workspace_of(window)['name'] != ISOLATION:
             continue  # Gone, or the user already moved it somewhere on purpose.
         move_window(address, origin_argument(previous))
-    if origin is not None and (active_workspace() or {}).get('name') == ISOLATION:
-        focus_workspace(origin_argument(origin))
+    hand_back_view()
 
 
 def ensure_foreground(t):
@@ -352,12 +426,14 @@ def ensure_foreground(t):
     address = t['windowId']
     if active_address() == address:
         return False
+    remember_view(t)
     focus_window(address)
     deadline = time.monotonic() + 2
     while active_address() != address and time.monotonic() < deadline:
         time.sleep(.02)
     if active_address() != address:
         rejected('TARGET_NOT_ACTIVE', 'The selected window must be foreground: focus it, then repeat this action')
+    note_taken()
     return True
 
 
@@ -465,12 +541,14 @@ def foreground(t):
 
 
 def focus(t):
+    remember_view(t)
     focus_window(t['windowId'])
     # Hyprland applies focus requests asynchronously; wait for the compositor state.
     deadline = time.monotonic() + 2
     while active_address() != t['windowId'] and time.monotonic() < deadline:
         time.sleep(.02)
     foreground(t)
+    note_taken()
 
 
 if not shutil.which('hyprctl'):
@@ -753,6 +831,8 @@ def capture(t, preview=False):
     # Hyprland offers no per-window capture protocol, so the frame comes from the
     # screen: the window has to be the visible one, on the visible workspace.
     t = resolve(t)
+    if isolate(t):
+        t = resolve(t)
     ensure_foreground(t)
     start_indicator()
     report('截图 %s' % t['name'])
@@ -949,6 +1029,8 @@ def describe(kind, t, action):
 
 def act(t, action, expected):
     t = resolve(t)
+    if isolate(t):
+        t = resolve(t)
     ensure_foreground(t)
     start_indicator()
     check(t, expected, False)
@@ -1131,6 +1213,8 @@ def perform(method, args, expected):
             return dict(valid=True, target=t)
         except Exception as error:
             return dict(valid=False, reason=str(error))
+    if method == 'away':
+        return dict(away=away(args.get('relinquish') is True))
     t = resolve(args['reference'] if method in ('select', 'focus') else args['target'])
     if method == 'select':
         if isolate(t):
