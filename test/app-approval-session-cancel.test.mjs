@@ -45,7 +45,10 @@ async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'opencu-session-cancel-'));
   const calls = { stop: 0, close: 0, selected: [] };
   const controller = {
-    runtimeInfo: { backends: { native: true, extension: false } },
+    runtimeInfo: { backends: { native: true, extension: false }, browserProviders: [], browserProvider: null },
+    extensionConnections: () => [],
+    getState: async () => ({ok: true, state: {mode: 'active', activeTargetId: 'synthetic-browser',
+      targets: [...targets, {id: 'synthetic-browser', backend: 'browser', kind: 'tab', identity: {tabId: 1}}]}}),
     listTargets: async () => ({ ok: true, targets }),
     applicationMetadata: async target => ({ displayName: target.name }),
     selectTarget: async reference => {

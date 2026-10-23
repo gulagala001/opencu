@@ -20,6 +20,7 @@ async function fixture(t) {
     },
     observe: async target => { calls.push(['observe', target.id]); return {ax: {nodes: []}}; },
     act: async target => { calls.push(['act', target.id]); return {}; },
+    focus: async target => { calls.push(['focus', target.id]); return {focused: true, target}; },
     release: async () => ({released: true}), close: async () => {},
   };
   const runtime = createPluginRuntime({dataDir, native, browserEnabled: false, extensionEnabled: false});
@@ -42,7 +43,7 @@ async function fixture(t) {
   return {targets, calls, request, approval, accept, select};
 }
 
-for (const endpoint of ['act', 'observe']) test(`${endpoint} keeps the application approved before another session changes selection`, async t => {
+for (const endpoint of ['act', 'observe', 'focus']) test(`${endpoint} keeps the application approved before another session changes selection`, async t => {
   const f = await fixture(t);
   await f.select(0);
   const pending = f.request(endpoint, endpoint === 'act' ? {action: 'type', text: 'A only'} : {format: 'ax'}, 'session-A');
@@ -63,6 +64,16 @@ test('approval cannot retarget a broad selection reference to a new application'
   assert.equal(result.ok, false);
   assert.equal(result.error.code, 'TARGET_NOT_FOUND');
   assert.equal((await f.request('state')).state.activeTargetId, null);
+});
+
+test('focus by reference approves the referenced application rather than the active target', async t => {
+  const f = await fixture(t);
+  await f.select(0);
+  const pending = f.request('focus', {reference: {id: f.targets[1].id}}, 'session-B');
+  assert.equal((await f.approval('session-B')).targetId, 'native:B');
+  await f.accept('session-B');
+  assert.equal((await pending).ok, true);
+  assert.deepEqual(f.calls, [['focus', 'native:B']]);
 });
 
 test('a reused target identity after approval is rejected before input dispatch', async t => {

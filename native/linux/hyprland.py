@@ -59,6 +59,45 @@ def execute(argv, text=True, timeout=20):
         fail('COMMAND_TIMEOUT', ' '.join(argv[:2]) + ' did not finish in time')
 
 
+def execute_input(argv, expected=None, timeout=20):
+    """Track input subprocesses so cancellation stops them before releasing keys.
+
+    Release commands have no expected epoch: they must finish even after stop.
+    The reader uses a separate lock to kill a sender that owns input_lock.
+    """
+    with process_lock:
+        if expected is not None and (expected != epoch or ended or closing):
+            fail('CONTROL_STOPPED', 'Input was cancelled')
+        try:
+            process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        except FileNotFoundError:
+            fail('DEPENDENCY_UNAVAILABLE', argv[0] + ' is not installed')
+        if expected is not None:
+            input_processes.add(process)
+    try:
+        try:
+            out, err = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            fail('COMMAND_TIMEOUT', ' '.join(argv[:2]) + ' did not finish in time')
+        if expected is not None and (expected != epoch or ended or closing):
+            fail('CONTROL_STOPPED', 'Input was cancelled')
+        return subprocess.CompletedProcess(argv, process.returncode, out, err)
+    finally:
+        with process_lock:
+            input_processes.discard(process)
+
+
+def cancel_input_processes():
+    with process_lock:
+        for process in input_processes:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+
+
 def stdout(value):
     stream = value.stdout or ''
     return stream if isinstance(stream, str) else stream.decode('utf-8', 'replace')
@@ -106,7 +145,7 @@ def warp(x, y):
         dispatch('movecursor', str(int(x)), str(int(y)))
 
 
-def move_pointer(x, y):
+def move_pointer(x, y, expected):
     """Warp onto the point and hand the clients a real pointer motion.
 
     Hyprland's cursor dispatcher moves the pointer without telling its clients, and
@@ -117,7 +156,9 @@ def move_pointer(x, y):
     for _ in range(2):
         warp(x, y)
         if ydotool:
-            execute(['ydotool', 'mousemove', '-x', '1', '-y', '0'])
+            value = execute_input(['ydotool', 'mousemove', '-x', '1', '-y', '0'], expected)
+            if value.returncode:
+                fail('INPUT_REJECTED', 'ydotool rejected pointer motion: ' + stderr(value).strip())
         position = cursor_position()
         if position is None or (abs(position[0] - x) <= 2 and abs(position[1] - y) <= 2):
             return
@@ -316,13 +357,15 @@ def hand_back_view():
     """
     global view_origin, view_taken
     origin, taken = view_origin, view_taken
-    view_origin, view_taken = None, None
     if origin is None or taken is None or origin['id'] == taken['id']:
+        view_origin, view_taken = None, None
         return False
     current = active_workspace()
     if current is None or current['id'] != taken['id']:
+        view_origin, view_taken = None, None
         return False
     focus_workspace(origin_argument(origin))
+    view_origin, view_taken = None, None
     return True
 
 
@@ -347,14 +390,17 @@ def away(relinquish=False):
 
     Asking the user something only interrupts the step: the window stays on its
     workspace with the control bar up, and the view returns to where the user was
-    so the question is readable. Every read and write re-establishes the
-    foreground, so the screen comes back on its own when the model resumes.
+    so the question is readable. Resuming foreground work requires explicit
+    focus again; passive previews never reclaim the screen.
 
     Ending a turn hands the whole desktop back: the window returns to the
     workspace the user had it on, and the bar goes away, because a session that
     is not driving must not keep warning the user away from their own desktop.
     The selection survives, so the next turn needs no reselecting.
     """
+    result = release()
+    if not result['released']:
+        fail('RELEASE_FAILED', 'Held input could not be released before handing back the desktop', dict(release=result))
     if relinquish:
         handed = hand_back_view() or bool(isolated)
         restore_isolation()
@@ -407,34 +453,13 @@ def isolate(t):
 def restore_isolation():
     """Put every window this helper moved back where the user had it."""
     for address, previous in list(isolated.items()):
-        isolated.pop(address, None)
         window = window_for(address)
         if window is None or workspace_of(window)['name'] != ISOLATION:
+            isolated.pop(address, None)
             continue  # Gone, or the user already moved it somewhere on purpose.
         move_window(address, origin_argument(previous))
+        isolated.pop(address, None)
     hand_back_view()
-
-
-def ensure_foreground(t):
-    """Put the target in front before anything reads or writes the screen.
-
-    Hyprland resolves a focus request asynchronously and follows the window to
-    its workspace, so this also switches workspace when the target lives on one
-    the user is not looking at. Without that step grim would capture whatever
-    happens to be on screen and uinput would type into the wrong window.
-    """
-    address = t['windowId']
-    if active_address() == address:
-        return False
-    remember_view(t)
-    focus_window(address)
-    deadline = time.monotonic() + 2
-    while active_address() != address and time.monotonic() < deadline:
-        time.sleep(.02)
-    if active_address() != address:
-        rejected('TARGET_NOT_ACTIVE', 'The selected window must be foreground: focus it, then repeat this action')
-    note_taken()
-    return True
 
 
 def settle_view(t):
@@ -561,18 +586,29 @@ def stop_indicator():
 
 def foreground(t):
     if active_address() != t['windowId']:
-        rejected('TARGET_NOT_ACTIVE', 'The selected window must be foreground: focus it, then repeat this action')
+        fail('TARGET_NOT_ACTIVE', 'The selected window must be foreground: focus it, then repeat this action')
 
 
-def focus(t):
-    remember_view(t)
-    focus_window(t['windowId'])
-    # Hyprland applies focus requests asynchronously; wait for the compositor state.
-    deadline = time.monotonic() + 2
-    while active_address() != t['windowId'] and time.monotonic() < deadline:
-        time.sleep(.02)
-    foreground(t)
-    note_taken()
+def focus(t, expected):
+    # Workspace changes are restricted to this explicit focus operation. Release
+    # waits for it to settle before restoring the workspace it moved.
+    with input_lock:
+        check(t, expected, False)
+        moved = isolate(t)
+        t = resolve(t)
+        changed = active_address() != t['windowId']
+        remember_view(t)
+        focus_window(t['windowId'])
+        deadline = time.monotonic() + 2
+        while active_address() != t['windowId'] and time.monotonic() < deadline:
+            check(t, expected, False)
+            time.sleep(.02)
+        check(t, expected)
+        note_taken()
+        if moved or changed:
+            settle_view(t)
+        check(t, expected)
+        start_indicator()
 
 
 if not shutil.which('hyprctl'):
@@ -639,6 +675,7 @@ except BlockingIOError:
 journal = os.path.join(directory, 'held-input.json')
 keys, buttons, elements, mappings = set(), set(), {}, {}
 input_lock, output_lock = threading.RLock(), threading.Lock()
+process_lock, input_processes = threading.RLock(), set()
 commands = queue.Queue()
 epoch, ended, closing = 0, False, False
 
@@ -793,18 +830,18 @@ def button_index(name):
     return BUTTONS.get(name, BUTTONS['left'])
 
 
-def send(kind, code, down):
+def send(kind, code, down, expected=None):
     if not ydotool:
         fail('INPUT_UNAVAILABLE', 'Install ydotool and run ydotoold to send pointer and key input on Hyprland')
     arguments = ['key', '%d:%d' % (code, int(down))] if kind == 'key' else ['click', hex((0x40 if down else 0x80) | code)]
-    value = execute(['ydotool', *arguments])
+    value = execute_input(['ydotool', *arguments], expected)
     if value.returncode:
         fail('INPUT_REJECTED', 'ydotool rejected ' + arguments[0] + ': ' + (stderr(value) or stdout(value)).strip())
 
 
 def input_event(kind, code, down, expected=None):
     with input_lock:
-        if down and (expected != epoch or ended):
+        if down and (expected != epoch or ended or closing):
             fail('CONTROL_STOPPED', 'Input was cancelled')
         held = keys if kind == 'key' else buttons
         if not down and code not in held:
@@ -812,11 +849,15 @@ def input_event(kind, code, down, expected=None):
         if down:
             if code in held:
                 return
-            # uinput has no readable state on Wayland, so a failure must not leave a
-            # key in the durable journal that the compositor never received.
-            send(kind, code, True)
+            # The daemon owns the device, so killing the helper does not release
+            # it. Journal intent first, including dispatches with unknown outcome.
             held.add(code)
-            persist()
+            try:
+                persist()
+            except Exception:
+                held.discard(code)
+                raise
+            send(kind, code, True, expected)
             return
         send(kind, code, False)
         held.discard(code)
@@ -853,21 +894,23 @@ def capture(t, preview=False):
     if not grim:
         fail('CAPTURE_UNAVAILABLE', 'Install grim to capture windows on Hyprland')
     # Hyprland offers no per-window capture protocol, so the frame comes from the
-    # screen: the window has to be the visible one, on the visible workspace.
+    # screen: the window has to be visible already. Monitoring and observation
+    # must never move windows, change focus or restart a surrendered takeover.
     t = resolve(t)
-    moved = isolate(t)
-    if moved:
-        t = resolve(t)
-    if ensure_foreground(t) or moved:
-        settle_view(t)
-    start_indicator()
-    report('截图 %s' % t['name'])
+    if active_address() != t['windowId']:
+        fail('BACKGROUND_CAPTURE_UNAVAILABLE', 'Hyprland can only capture the visible foreground window; explicitly focus it first')
+    if not preview:
+        report('截图 %s' % t['name'])
     region = clip(t['bounds'])
     value = execute(['grim', '-g', '%d,%d %dx%d' % (region['x'], region['y'], region['width'], region['height']), '-'], text=False)
     if value.returncode:
         fail('CAPTURE_FAILED', 'grim failed: ' + stderr(value).strip())
+    current = resolve(t)
+    if active_address() != t['windowId'] or current['bounds'] != t['bounds']:
+        fail('BACKGROUND_CAPTURE_UNAVAILABLE', 'The window changed during capture; observe again after explicitly focusing it')
     data, (width, height) = value.stdout, png_size(value.stdout)
-    report('截图 %s · %d×%d' % (t['name'], width, height))
+    if not preview:
+        report('截图 %s · %d×%d' % (t['name'], width, height))
     if preview:
         return dict(dataUrl='data:image/png;base64,' + base64.b64encode(data).decode(), width=width, height=height, kind='native-frame', timestamp=int(time.time() * 1000))
     token = str(uuid.uuid4())
@@ -909,10 +952,14 @@ def tree(t, options):
         if key.startswith(prefix):
             del elements[key]
     nodes, lines = [], []
+    max_nodes, max_depth = min(3000, max(1, options.get('maxNodes', 1000))), min(80, max(0, options.get('maxDepth', 40)))
+    truncated = False
     deadline = time.monotonic() + min(15, options.get('timeoutMs', 5000) / 1000)
 
     def visit(element, depth, parent=None):
-        if len(nodes) >= min(3000, options.get('maxNodes', 1000)) or depth > min(80, options.get('maxDepth', 40)) or time.monotonic() > deadline:
+        nonlocal truncated
+        if len(nodes) >= max_nodes or depth > max_depth or time.monotonic() >= deadline:
+            truncated = True
             return
         key = prefix + str(uuid.uuid4())
         elements[key] = element
@@ -931,20 +978,20 @@ def tree(t, options):
         nodes.append(node)
         lines.append('  ' * depth + '[' + key + '] ' + node['role'] + ' ' + node['name'] + ' ' + node.get('value', ''))
         for child in element:
+            if len(nodes) >= max_nodes or depth >= max_depth or time.monotonic() >= deadline:
+                truncated = True
+                break
             if child:
                 visit(child, depth + 1, key)
     visit(app_window(t), 0)
     report('无障碍树 %s · %d 个节点' % (t['name'], len(nodes)))
-    return dict(nodes=nodes, text='\n'.join(lines), truncated=time.monotonic() >= deadline or len(nodes) >= options.get('maxNodes', 1000))
+    return dict(nodes=nodes, text='\n'.join(lines), truncated=truncated)
 
 
 def element(t, key):
     if not str(key).startswith(t['id'] + ':') or key not in elements:
         fail('STALE_ELEMENT', 'Observe the selected application again')
-    value = elements[key]
-    if value.getApplication().get_process_id() != t['pid']:
-        fail('TARGET_IDENTITY_CHANGED', 'Element belongs to another process')
-    return value
+    return verify_window(elements[key], app_window(t), fail)
 
 
 def point(t, action):
@@ -970,55 +1017,76 @@ def point(t, action):
 
 
 def check(t, expected, require_foreground=True):
-    if epoch != expected or ended:
+    if epoch != expected or ended or closing:
         fail('CONTROL_STOPPED', 'Input was cancelled')
     resolve(t)
     if require_foreground:
         foreground(t)
 
 
-def type_direct(piece):
+def type_direct(t, piece, expected):
     """Type through uinput so keys held by key_down also apply to typed text.
 
     wtype types on a virtual keyboard of its own, so a modifier pressed through
     key_down would not reach those characters; ASCII runs therefore stay on the
     uinput device and only unreachable characters fall back to wtype.
     """
-    chunks, events = [], []
+    characters = []
     for char in piece:
         found = keys_ready().character(char)
         if not found:
             return False
-        code, level = found
-        events.extend(('%d:1' % shift, '%d:1' % code, '%d:0' % code, '%d:0' % shift) if level
-                      else ('%d:1' % code, '%d:0' % code))
-        if len(events) >= 64:
-            chunks.append(events)
-            events = []
-    if events:
-        chunks.append(events)
-    if not ydotool:
-        fail('INPUT_UNAVAILABLE', 'Install ydotool and run ydotoold to send pointer and key input on Hyprland')
-    for chunk in chunks:
-        value = execute(['ydotool', 'key', *chunk])
-        if value.returncode:
-            fail('INPUT_REJECTED', 'ydotool rejected the text: ' + (stderr(value) or stdout(value)).strip())
+        characters.append(found)
+    with input_lock:
+        if any(code in keys for code, _level in characters):
+            raise ChordAlreadyHeld('INPUT_ALREADY_HELD', 'Typing cannot reuse an already held character key')
+    for code, level in characters:
+        with input_lock:
+            check(t, expected)
+            acquired = []
+            try:
+                for key in ([shift] if level and shift not in keys else []) + [code]:
+                    foreground(t)
+                    try:
+                        input_event('key', key, True, expected)
+                    finally:
+                        if key in keys:
+                            acquired.append(key)
+            finally:
+                for key in reversed(acquired):
+                    input_event('key', key, False)
     return True
 
 
 def type_text(t, text, expected):
+    # Refuse unsupported or already-held characters before any piece is sent;
+    # a later refusal must not pretend earlier pieces were never dispatched.
+    check(t, expected)
+    for char in text:
+        if expected != epoch or ended or closing:
+            fail('CONTROL_STOPPED', 'Input was cancelled')
+        found = (keycode('Return' if char == '\n' else 'Tab'), 0) if char in ('\n', '\t') else keys_ready().character(char)
+        if found and found[0] in keys:
+            raise ChordAlreadyHeld('INPUT_ALREADY_HELD', 'Typing cannot reuse an already held character key')
+        if not found:
+            if keys or buttons:
+                rejected('UNSUPPORTED_ACTION', 'Release held input before typing characters through a separate virtual keyboard')
+            if not wtype:
+                rejected('UNSUPPORTED_ACTION', 'Install wtype for characters the current keyboard layout cannot reach')
     for piece in re.findall(r'[^\n\t]+|[\n\t]', text):
         check(t, expected)
         if piece in ('\n', '\t'):
             code = keycode('Return' if piece == '\n' else 'Tab')
             input_event('key', code, True, expected)
             input_event('key', code, False)
-        elif type_direct(piece):
+        elif type_direct(t, piece, expected):
             continue
         elif wtype:
-            value = execute(['wtype', '--', piece])
-            if value.returncode:
-                fail('INPUT_REJECTED', 'wtype rejected the text: ' + (stderr(value) or stdout(value)).strip())
+            for char in piece:
+                check(t, expected)
+                value = execute_input(['wtype', '--', char], expected)
+                if value.returncode:
+                    fail('INPUT_REJECTED', 'wtype rejected the text: ' + (stderr(value) or stdout(value)).strip())
         else:
             fail('INVALID_TEXT', 'The current keyboard layout cannot type this text; install wtype for characters it cannot reach')
 
@@ -1026,7 +1094,7 @@ def type_text(t, text, expected):
 def move(at, t, expected):
     with input_lock:
         check(t, expected)
-        move_pointer(int(at[0]), int(at[1]))
+        move_pointer(int(at[0]), int(at[1]), expected)
         emit(dict(event=dict(type='cursor', visible=True, targetId=t['id'], x=int(at[0]), y=int(at[1]), space='logical')))
 
 
@@ -1044,8 +1112,7 @@ def describe(kind, t, action):
         return '%s %s%s' % (verbs[kind], name, where)
     if kind == 'type_text':
         body = str(action.get('text', ''))
-        preview = body if len(body) <= 30 else body[:30] + '…'
-        return '键入 %s → %s' % (json.dumps(preview, ensure_ascii=False), name)
+        return '键入 %d 个字符 → %s' % (len(body), name)
     if kind in ('press_key', 'key_down', 'key_up'):
         return '按键 %s → %s' % (action.get('key', ''), name)
     if kind in ('set_value', 'ax_press'):
@@ -1055,10 +1122,6 @@ def describe(kind, t, action):
 
 def act(t, action, expected):
     t = resolve(t)
-    if isolate(t):
-        t = resolve(t)
-    ensure_foreground(t)
-    start_indicator()
     check(t, expected, False)
     kind, mode = action['type'], action.get('inputMode', 'background')
     if mode not in ('background', 'foreground'):
@@ -1094,14 +1157,17 @@ def act(t, action, expected):
     if kind != 'activate':
         if mode != 'foreground':
             rejected('FOREGROUND_REQUIRED', 'uinput is global input; obtain user permission, then focus the window and repeat with inputMode=foreground')
-        foreground(t)
+        if active_address() != t['windowId']:
+            rejected('TARGET_NOT_ACTIVE', 'Explicitly focus the selected window before foreground input')
     if kind == 'activate':
-        focus(t)
+        focus(t, expected)
     elif kind == 'hit_test':
         px, py = point(t, action)
-        hit = app_window(t).queryComponent().getAccessibleAtPoint(px, py, pyatspi.DESKTOP_COORDS)
-        if not hit or hit.getApplication().get_process_id() != t['pid']:
-            fail('TARGET_IDENTITY_CHANGED', 'Point does not belong to the selected application')
+        root = app_window(t)
+        hit = root.queryComponent().getAccessibleAtPoint(px, py, pyatspi.DESKTOP_COORDS)
+        if hit is None:
+            fail('ELEMENT_NOT_FOUND', 'No accessibility element at this point in the selected window')
+        verify_window(hit, root, fail)
         key = t['id'] + ':' + str(uuid.uuid4())
         elements[key] = hit
         return dict(element=dict(elementId=key, name=hit.name, role=hit.getRoleName()))
@@ -1156,7 +1222,8 @@ def act(t, action, expected):
             if not ydotool:
                 fail('INPUT_UNAVAILABLE', 'Install ydotool and run ydotoold to send pointer and key input on Hyprland')
             for _ in range(notches):
-                value = execute(['ydotool', *arguments])
+                check(t, expected)
+                value = execute_input(['ydotool', *arguments], expected)
                 if value.returncode:
                     fail('INPUT_REJECTED', 'ydotool rejected the wheel event: ' + (stderr(value) or stdout(value)).strip())
     elif kind == 'mouse_up':
@@ -1219,11 +1286,13 @@ def perform(method, args, expected):
     if method == 'listTargets':
         return inventory()
     if method in ('release', 'close'):
-        result = release()
-        restore_isolation()
-        report('会话结束，桌面已交还')
-        notify('OpenCU 已结束操作，桌面已交还')
-        stop_indicator()
+        with input_lock:
+            result = release()
+            if result['released']:
+                restore_isolation()
+                report('会话结束，桌面已交还')
+                notify('OpenCU 已结束操作，桌面已交还')
+                stop_indicator()
         if method == 'close':
             if not result['released']:
                 fail('RELEASE_FAILED', 'Held input could not be released')
@@ -1243,18 +1312,11 @@ def perform(method, args, expected):
         return dict(away=away(args.get('relinquish') is True))
     t = resolve(args['reference'] if method in ('select', 'focus') else args['target'])
     if method == 'select':
-        if isolate(t):
-            t = resolve(t)
-        start_indicator()
-        report('已选中 %s' % t['name'])
         return t
     if method == 'focus':
-        isolate(t)
-        t = resolve(t)
-        focus(t)
-        start_indicator()
+        focus(t, expected)
         report('聚焦 %s' % t['name'])
-        return t
+        return resolve(t)
     if method == 'preview':
         return capture(t, True)
     if method == 'act':
@@ -1291,7 +1353,7 @@ def reply(request):
             details = dict(inputDispatched=False, retryable=False)
         else:
             details = dict(getattr(error, 'details', None) or {})
-            if request['method'] == 'act':
+            if request['method'] == 'act' and details.get('inputDispatched') is not False:
                 details['release'] = release()
         value = dict(id=request['id'], ok=False, error=dict(code=getattr(error, 'code', 'NATIVE_FAILURE'), message=str(error), details=details))
     emit(value)
@@ -1304,6 +1366,7 @@ def read_commands():
             request = json.loads(line)
             if request['method'] in ('release', 'close'):
                 epoch += 1
+                cancel_input_processes()
             request['epoch'] = epoch
             if request['method'] in ('preview', 'release', 'verify'):
                 threading.Thread(target=reply, args=(request,), daemon=True).start()
@@ -1312,6 +1375,7 @@ def read_commands():
     finally:
         ended = True
         epoch += 1
+        cancel_input_processes()
         try:
             release()
         finally:
@@ -1337,6 +1401,7 @@ def interrupted(signum, frame):
     """
     global closing
     closing = True
+    cancel_input_processes()
     commands.put(None)
 
 
@@ -1353,8 +1418,11 @@ try:
             break
         reply(request)
 finally:
-    restore_isolation()
-    stop_indicator()
-    if not release()['released']:
-        sys.exit(2)
-    # Process exit releases the uinput handles; no worker keeps shutdown open.
+    with input_lock:
+        try:
+            if not release()['released']:
+                sys.exit(2)
+            restore_isolation()
+        finally:
+            stop_indicator()
+    # ydotoold owns the device; failed releases remain in the durable journal.
