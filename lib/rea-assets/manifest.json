@@ -2729,5 +2729,135 @@
     "file": "shape-8f8944fcc9a5.svg",
     "sha256": "60cf23b1f9df626de0ee63c72ecb7334f9ab0e24160857a04e34784d003a1d7e",
     "source": "vendor/build-inputs/rea/assets/shape-8f8944fcc9a5.svg"
+  },
+  {
+    "file": "opencu-chunk-LGICPRHW.js",
+    "sha256": "604585eb51f8cb76ff0c2250c92b09c736ffcc49e14a85c2d9e02670f1caee1e",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-VV77ZZJX.js",
+    "sha256": "353f967d8e178fd7b568ab584fb00d795f9e515996e322bafe6ef1bb37fa9214",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-6GXQZML6.js",
+    "sha256": "a41192319826b15288241339741ad1f5e2bb1a1fa1233566d0229a09c61c662a",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-IAQDCYG6.js",
+    "sha256": "f58fbe75eeb467cdde73cbb2a6313132585a7a2cdc470b17fcb72bdfef87e390",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-Q2WDUKFZ.js",
+    "sha256": "53968bd756ec7159bbd4602858693abccc45f055c1a730a3cb1dd97c739338d1",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-ZRPA5QIV.js",
+    "sha256": "50d101ede92698195bf1cf35cde80733454cc3878e1ebba0223a97e434c6e855",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-XQETW6CF.js",
+    "sha256": "1dbe36ededede418bd12692f3d9336d50051a85f8949f286897dfc5d5a086ff1",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-client-73GNF6FP.js",
+    "sha256": "86df6d147a1dfff36d2ccd3098a531aa00036f8aca592aab62c51b16b5a67d9d",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-6P7DLJYS.js",
+    "sha256": "04d0483bb6d42341dd3ca3d744068fcaf3fdf6437a7506a7dbda67531b5de3fe",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-HVXAM6LH.js",
+    "sha256": "74db9bccadf894c7d8f08b6843f34b2377470817cd648ae73ecd00537d9d0a49",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-WGFD5BQU.js",
+    "sha256": "461642c273c9625e4f0eefe370642135f8a0e37e984d828dfc46e8bd52415539",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-4NVMQOGJ.js",
+    "sha256": "ab2b5e662579ef1a17a12a3a73f27c0d60be791a8f355cf62b0a18b76dee4adc",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-QWRE2XVV.js",
+    "sha256": "bb87285b65dd83de49225f536da1d58600f7f55a975f10ab2bf0e7eecae234f2",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-EF2MLWTU.js",
+    "sha256": "742b8e9838ca4f3959d1843c1c505b5a11e671b3f20a682c02e2acdbfa63ed7f",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-4OE4GNZU.js",
+    "sha256": "7cceacf720b28796371199851d8f7a15438e5e35601f027ab5d95778b1df43d0",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-LA2VENDX.js",
+    "sha256": "03aa92bbe8cc455e8a3be9709a515a27056c373e6e575a131a4afa5aa3601e19",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-PP7B63HW.js",
+    "sha256": "909993ffbda6a3d6a94e71e82ee924b1fc9ca331279fccaa7b15fd7557f0279b",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-M5PHFBUI.js",
+    "sha256": "bf1438c196be5f7aa53bfc40369997ebe07090f302efe8b88676a6638706b6b0",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-2E2QSNUZ.js",
+    "sha256": "d2fbe57fa3ed8cae09f231aacbeba68b6d8054d8bb8000a7a5c2171b3ff14e3b",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-RULKSIDA.js",
+    "sha256": "0134aee03d1992253ac36408f2d2c7333fcca4342e49c22a625936d9530d467d",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-E4Y5GUUW.js",
+    "sha256": "cf1a261fb2630e6f3210b0896e00f0d9d47f175d169a801815904ec5c54df352",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-7CV7REBL.js",
+    "sha256": "53ec7dcaaee6da58e9e2e62cc12c28207c6b5c9fb40c29ff30959bab9cb1c404",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-V2R6GI5E.js",
+    "sha256": "d68b04cdc89d938fbd7c14d1c3aeba4f8d4c74b399985a1ba148ca16ecd4f156",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-IIY6MX3R.js",
+    "sha256": "6521c81a01a2f1c56d8f38b23a5b1fc2d754cc85d6daffabe08c5d13315a462b",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-NKOFJBVS.js",
+    "sha256": "133f52f2243a2615f2d1b1b68cef274886fc702fec74d221aa9f484cc39ee825",
+    "source": "opencu-client-build"
+  },
+  {
+    "file": "opencu-chunk-OKCBH7X3.js",
+    "sha256": "17d1cc91e66007dc74c2c3e47ca5a8e76f534636ccd186f3b7722cfb4c6e9354",
+    "source": "opencu-client-build"
   }
 ]
