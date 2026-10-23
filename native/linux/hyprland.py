@@ -440,10 +440,11 @@ def ensure_foreground(t):
 def settle_view(t):
     """Wait until the compositor presents the workspace we just switched to.
 
-    Hyprland applies focus and workspace changes asynchronously: grim started in
-    the same instant still returns the screen from before the switch, so the
-    model would read - and then click - the workspace it is not driving. One
-    frame is enough, and only a real switch pays for it.
+    Hyprland applies focus and workspace changes asynchronously and then slides
+    the new workspace in: grim started in the same instant returns the screen
+    from before the switch, with the old workspace still on its way out, so the
+    model would read - and then click - a screen it is not driving. Only a real
+    switch pays for this wait.
     """
     window = window_for(t['windowId'])
     if window is not None:
@@ -453,7 +454,11 @@ def settle_view(t):
         while current is not None and current['id'] != wanted and time.monotonic() < deadline:
             time.sleep(.02)
             current = active_workspace()
-    time.sleep(.12)
+    # The workspace slide itself lasts about half a second here: measured left
+    # edge residue 0.17 at 300ms, 0.10 at 400ms, gone by 550ms. Hyprland 0.56
+    # refuses `hyprctl keyword` for animations, so the slide cannot be skipped
+    # for this one switch and the frame has to wait it out.
+    time.sleep(.55)
 
 
 def notify(message, color='rgb(ffaa00)'):
