@@ -66,7 +66,8 @@ Target selection and actions prefer the background. Binding or viewing a target 
 
 ## Scope
 
-macOS uses Accessibility and targeted input, Windows uses UI Automation, and Linux uses AT-SPI/X11 or Wayland portals. Capabilities depend on the backend, OS permissions and application. A Web deployment operates the server’s machine, not automatically the computer viewing its page.
+macOS uses Accessibility and targeted input, Windows uses UI Automation, and Linux uses AT-SPI/X11, Hyprland IPC or Wayland portals.
+Capabilities depend on the backend, OS permissions and application. A Web deployment operates the server’s machine, not automatically the computer viewing its page.
 
 Mixed-scale multi-monitor operation, audio, account cloud services and complete Playwright equivalence are outside the current scope. Full real-device coverage is not complete across platforms; installation alone does not establish support for every application.
 

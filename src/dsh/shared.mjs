@@ -18,6 +18,16 @@ import { createBrowserHistory } from './browser-history.mjs';
 const key = Symbol.for('opencu.shared-root.v1');
 const roots = globalThis[key] ??= new WeakMap();
 const mutating = new Set(['select', 'observe', 'act', 'focus', 'openTarget', 'resume', 'computer_use']);
+const handBackTools = new Set(['ask_user_question']);
+
+// A turn that ends has finished with the desktop, so the window, the view and the control
+// bar go back to the user; a turn that stops to ask the user something is still running,
+// so only the screen goes back and the selection keeps its workspace.
+function handBackFor(event) {
+  if (event?.type === 'turn/end') return {endpoint: 'away', args: {relinquish: true}};
+  if (event?.type === 'tool/call' && handBackTools.has(event.data?.name)) return {endpoint: 'away', args: {}};
+  return null;
+}
 
 function failure(error) {
   return { ok: false, error: { code: error?.code || 'OPENCU_ERROR', message: error?.message || String(error), details: error?.details ?? {} } };
@@ -49,15 +59,29 @@ export function acquireOpenCU(ctx, { namespace = 'opencu', config = {}, getConfi
     entry.computers = new Map();
     const turns = new WeakMap();
     entry.activity = createActivityFeed(id => turns.get(root.get('sessions')?.get(id)));
+    // The desktop is the user's between steps: keep track of which session holds it
+    // so a turn that ends, or a turn that stops to ask the user something, hands the
+    // screen back instead of leaving the takeover running behind the chat window.
+    entry.handBack = async (session, {endpoint, args}) => {
+      if (!entry.runtime.started() || entry.driver !== session.id) return;
+      const { state } = await entry.runtime.request('state', {}, { sessionKey: session.id });
+      const active = state?.targets?.find(target => target.id === state.activeTargetId);
+      if (active?.backend !== 'native') return;
+      if (args.relinquish) entry.driver = undefined;
+      await entry.runtime.request(endpoint, args, { sessionKey: session.id });
+    };
     entry.offSessionEvent = root.on('session/event', (session, event) => {
       if (event.type === 'turn/start') turns.set(session, event.data.turn);
       else if (event.type === 'turn/end' && turns.get(session) === event.data.turn) turns.delete(session);
+      const handBack = handBackFor(event);
+      if (handBack) void entry.handBack(session, handBack).catch(error => console.error('OpenCU desktop hand-back', error));
       entry.activity.sessionEvent(session.id, event);
     }, { global: true });
     entry.offSessionDisposed = root.on('session/disposed', session => {
       turns.delete(session);
       entry.runtime.forgetSession(session.id);
       entry.activity.forget(session.id);
+      if (entry.driver === session.id) entry.driver = undefined;
       const computer = entry.computers.get(session.id);
       if (!computer) return;
       return computer.close().then(() => {
@@ -85,6 +109,7 @@ export function acquireOpenCU(ctx, { namespace = 'opencu', config = {}, getConfi
         else if (['browser/sessions', 'browser/disconnect'].includes(endpoint)) await entry.presentation.sessionsChanged();
         return result;
       }
+      if (mutating.has(endpoint) && sessionKey !== undefined) entry.driver = sessionKey;
       const activity = mutating.has(endpoint) ? entry.activity.begin(sessionKey, endpoint, args) : null;
       let release, outcome, failure;
       // Input release remains global; only the aborted owner's approvals are cancelled.

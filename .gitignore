@@ -14,6 +14,10 @@ AGENTS.md
 PLAN.md
 .local/
 
+# Python bytecode from the native helpers
+__pycache__/
+*.pyc
+
 # Local research and release preparation
 codegraph.json
 REFERENCE.md
