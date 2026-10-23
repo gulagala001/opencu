@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {linuxHelper} from '../src/native/backend.mjs';
+import {linuxHelper} from '../src/native/linux-helper.mjs';
 
 // Hyprland ships no RemoteDesktop portal, so the compositor backend has to win over the
 // generic Wayland one even though both sessions report the same session type.

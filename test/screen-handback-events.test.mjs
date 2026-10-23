@@ -89,6 +89,14 @@ test('a question hands the view back and keeps holding the window', async t => {
   assert.deepEqual(f.calls, [{}, { relinquish: true }], 'the turn can still end the takeover after a question');
 });
 
+test('ordinary steps and tools keep the screen', async t => {
+  const f = await fixture(t);
+  await f.drive();
+  await f.emit({ type: 'tool/call', data: { name: 'bash' } });
+  await f.emit({ type: 'step/end', data: {} });
+  assert.deepEqual(f.calls, [], 'only a question or the end of a turn yields the desktop');
+});
+
 test('only the session that drove the desktop may hand it back', async t => {
   const f = await fixture(t);
   await f.drive();

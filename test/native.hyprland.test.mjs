@@ -6,7 +6,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createInterface} from 'node:readline';
 import {fileURLToPath} from 'node:url';
-import {createNativeBackend, linuxHelper} from '../src/native/backend.mjs';
+import {createNativeBackend} from '../src/native/backend.mjs';
+import {linuxHelper} from '../src/native/linux-helper.mjs';
 
 // Hyprland exposes no RemoteDesktop portal, so this backend runs only on a live
 // Hyprland session. It never injects input: the checks stay read-only.

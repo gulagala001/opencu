@@ -7,13 +7,8 @@ import {createHelperTransport} from './transport.mjs';
 import {NativeBackendError, nativeError, normalizeAction} from './protocol.mjs';
 import {installMacHelper} from './macos-install.mjs';
 import {checkMacHelperIdentity} from './macos-identity.mjs';
+import {linuxHelper} from './linux-helper.mjs';
 import {MACOS_AX_EXTENSIONS, checkSignal} from '../protocol.mjs';
-
-/** Hyprland implements no RemoteDesktop portal, so its own compositor IPC backend replaces it. */
-export function linuxHelper(env = process.env) {
-  if (!(env.XDG_SESSION_TYPE === 'wayland' || env.WAYLAND_DISPLAY)) return 'helper.py';
-  return /hyprland/i.test(env.XDG_CURRENT_DESKTOP ?? '') || Boolean(env.HYPRLAND_INSTANCE_SIGNATURE) ? 'hyprland.py' : 'wayland.py';
-}
 
 /** Plain backend contract; the controller owns public ok/error envelopes. */
 export async function createNativeBackend({dataDir, helperPath, compileHelper = false, onCursor} = {}) {

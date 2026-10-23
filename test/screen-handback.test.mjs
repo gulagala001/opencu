@@ -4,7 +4,6 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createController} from '../src/core/controller.mjs';
-import {handBackFor} from '../src/dsh/shared.mjs';
 
 // A session that stops to ask the user something is still running, but the user cannot
 // answer a question they cannot see: the screen goes back to the chat window while the
@@ -53,14 +52,6 @@ test('handing back with nothing selected is a no-op', async t => {
   assert.equal(response.ok, true);
   assert.equal(response.away, false);
   assert.equal(calls.length, 0, 'no target means no desktop to give back');
-});
-
-test('only a yield of the driving session asks for the desktop', () => {
-  assert.deepEqual(handBackFor({type: 'tool/call', data: {name: 'ask_user_question'}}), {endpoint: 'away', args: {}});
-  assert.deepEqual(handBackFor({type: 'turn/end', data: {turn: 1, reason: {kind: 'completed'}}}), {endpoint: 'away', args: {relinquish: true}});
-  assert.equal(handBackFor({type: 'tool/call', data: {name: 'bash'}}), null, 'ordinary tools keep the screen');
-  assert.equal(handBackFor({type: 'step/end', data: {}}), null);
-  assert.equal(handBackFor(undefined), null);
 });
 
 test('ending a turn hands the whole desktop back but keeps the selection', async t => {

@@ -18,17 +18,14 @@ import { createBrowserHistory } from './browser-history.mjs';
 const key = Symbol.for('opencu.shared-root.v1');
 const roots = globalThis[key] ??= new WeakMap();
 const mutating = new Set(['select', 'observe', 'act', 'focus', 'openTarget', 'resume', 'computer_use']);
+const handBackTools = new Set(['ask_user_question']);
 
-/**
- * Which hand-back a session event asks for, if any.
- *
- * A turn that ends has finished with the desktop, so the window, the view and the control
- * bar go back to the user; a turn that stops to ask the user something is still running,
- * so only the screen goes back and the selection keeps its workspace.
- */
-export function handBackFor(event) {
+// A turn that ends has finished with the desktop, so the window, the view and the control
+// bar go back to the user; a turn that stops to ask the user something is still running,
+// so only the screen goes back and the selection keeps its workspace.
+function handBackFor(event) {
   if (event?.type === 'turn/end') return {endpoint: 'away', args: {relinquish: true}};
-  if (event?.type === 'tool/call' && event.data?.name === 'ask_user_question') return {endpoint: 'away', args: {}};
+  if (event?.type === 'tool/call' && handBackTools.has(event.data?.name)) return {endpoint: 'away', args: {}};
   return null;
 }
 
