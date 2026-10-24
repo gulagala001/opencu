@@ -16,6 +16,7 @@ function guest({trigger='mouseUp',confirmed=true}={}) {
     if(operation==='releaseInput'){if(closed){if(confirmed)return receipt;throw Error('Invalid guest lease');}return {released:true};}
     if(['cancelSiteTool','cancelUpload','inputMarker'].includes(operation))return {};
     if(operation==='getDialog')return {dialog:null};
+    if(operation==='navigationState')return {url:element.getURL(),documentId:'0',readyState:'complete'};
     if(operation==='point')return {x:10,y:10};
     if(operation==='input'){events.push(args.type);if(args.type===trigger)close();return {dispatched:true};}
     throw Error('Unexpected operation '+operation);
