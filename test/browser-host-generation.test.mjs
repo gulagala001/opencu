@@ -21,6 +21,16 @@ async function fixture(t) {
 }
 const settle = promise => promise.then(value => ({ value }), error => ({ error }));
 
+test('view-change recovery sends a release only for the original target',async t=>{
+  const {host,rendererId,target}=await fixture(t);
+  const work=host.backend.releaseTarget(target);
+  const [command]=(await host.handle('browser/poll',{rendererId})).commands;
+  assert.equal(command.method,'release');assert.deepEqual(command.params.target,target);
+  assert.equal(command.params.dismissDialogs,false);
+  await host.handle('browser/result',{rendererId,id:command.id,result:{released:true}});
+  assert.deepEqual(await work,{released:true});
+});
+
 test('late messages and release receipts cannot replace the current connection', async t => {
   const {host,rendererId,target} = await fixture(t);
   const old = await host.handle('browser/connect',{rendererId});

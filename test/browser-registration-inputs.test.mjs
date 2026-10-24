@@ -91,6 +91,16 @@ async function fixture(t, saved = [], {provided = false} = {}) {
 
 
 
+test('targeted release leaves another page held and journals each acknowledgement separately',async t=>{
+  const f=await fixture(t,[targetRecord('a'),targetRecord('b')]);
+  const a=f.addPage('a'),b=f.addPage('b');
+  const targets=await f.backend.listTargets();
+  assert.equal((await f.backend.releaseTarget(targets.find(target=>target.identity.targetId==='a'))).released,true);
+  assert.deepEqual(a.ups,['Shift']);assert.deepEqual(b.ups,[]);
+  assert.deepEqual((await f.journal()).find(item=>item.id===targetRecord('b').id)?.keys,['Shift']);
+  await f.backend.close();assert.deepEqual(b.ups,['Shift']);
+});
+
 test('initial CDP batch releases and persists an adopted healthy sibling before root teardown', async t => {
   const saved = targetRecord('healthy-held');
   const f = await fixture(t, [saved]);
