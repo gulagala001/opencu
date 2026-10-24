@@ -29,6 +29,13 @@ test('navigation state waits recognize existing state, same-document URL changes
   assert.equal(actions,2);
 });
 
+test('navigation waits recognize same-URL history entries without replacing document identity',async () => {
+  const f=fixture();f.state.navigationId='1';const documentId=f.state.documentId;
+  await f.api.expectNavigation(async()=>{f.state.navigationId='2';},{timeoutMs:100,waitUntil:'commit'});
+  assert.equal(f.state.documentId,documentId);
+  await f.api.expectNavigation(async()=>{f.state.navigationId='3';},{timeoutMs:100,waitUntil:'load'});
+});
+
 test('navigation timeout never replays its action and the same target remains usable',async t => {
   t.mock.timers.enable({apis:['Date'],now:1000});
   const f = fixture();let actions = 0;

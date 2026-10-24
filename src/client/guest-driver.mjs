@@ -38,19 +38,24 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
   const invalidate = () => { exited = true; generation++; lastObservation = null; keys.clear(); buttons.clear(); cancelNavigation?.(); };
   element.addEventListener('render-process-gone', invalidate);
   element.addEventListener('dom-ready', () => { exited = false; });
-  for(const event of ['did-navigate','did-navigate-in-page'])element.addEventListener(event,()=>{documentGeneration++;lastObservation=null;});
+  element.addEventListener('did-navigate',()=>{documentGeneration++;lastObservation=null;});
+  element.addEventListener('did-navigate-in-page',event=>{if(event.isMainFrame !== false)lastObservation=null;});
   const navigate = action => new Promise((resolve, reject) => {
-    let settled = false;
+    let settled = false, started = false;
     const finish = error => {
       if (settled) return;
       settled = true; clearTimeout(timer); cancelNavigation = undefined;
-      for (const event of ['did-stop-loading', 'did-navigate-in-page']) element.removeEventListener(event, loaded);
-      element.removeEventListener('did-fail-load', failed);
+      for (const [event,listener] of listeners) element.removeEventListener(event, listener);
       error ? reject(error) : resolve();
     };
-    const loaded = () => finish();
+    const starting = event => { if (event.isMainFrame !== false) started = true; };
+    const loaded = () => { if (started) finish(); };
+    const sameDocument = event => { if (event.isMainFrame !== false) finish(); };
     const failed = event => { if (event.isMainFrame !== false && event.errorCode !== -3) finish(new Error(event.errorDescription)); };
-    const timer = setTimeout(() => finish(new Error('Browser navigation timed out')), 25000);
+    const listeners = [['did-start-navigation',starting],['did-navigate',starting],['dom-ready',loaded],
+      ['did-stop-loading',loaded],['did-navigate-in-page',sameDocument],['did-fail-load',failed]];
+    const timer = setTimeout(() => finish(Object.assign(new Error('Browser navigation timed out; it may still complete. Observe this same target; do not replay the trigger.'),
+      {code:'NAVIGATION_TIMEOUT',details:{navigationSettled:true,effectVerified:false}})), 25000);
     const cancel = () => {
       try { if (!rendererExited()) element.stop(); }
       catch (error) { finish(error); cancelNavigation = cancel; throw error; }
@@ -58,9 +63,8 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       if (cancelNavigation === cancel) cancelNavigation = undefined;
     };
     cancelNavigation = cancel;
-    for (const event of ['did-stop-loading', 'did-navigate-in-page']) element.addEventListener(event, loaded);
-    element.addEventListener('did-fail-load', failed);
-    try { Promise.resolve(action()).catch(finish); } catch (error) { finish(error); }
+    for (const [event,listener] of listeners) element.addEventListener(event, listener);
+    try { inputSequence++; Promise.resolve(action()).catch(finish); } catch (error) { finish(error); }
   });
   const evaluate = async (operation, args = {}) => {
     if (!automate) fail('HOST_ADAPTER_REQUIRED', 'This DSH version needs the OpenCU accessibility and upload adapter');
@@ -222,12 +226,23 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       check();
       const screenshot = args.elementId == null && args.coordinateSpace?.includes('screenshot') ? lastObservation : null;
       const sendInput = event => send({...event,keyboardEditable:args.keyboardEditable,inputDocumentId,inputActionId}, screenshot, args.elementId);
-      const step = async work => {
+      const step = async (work, navigationAfter = false) => {
         check();
         const task = Promise.resolve().then(() => {check();return work();});
         pending.add(task);
-        try { const result = await task;check();return result; }
+        try { const result = await task; if (navigationAfter) { if(epoch!==generation)fail('CONTROL_STOPPED','Input sequence was cancelled'); } else check(); return result; }
         finally { pending.delete(task); }
+      };
+      const navigationStep = async action => {
+        try { return await step(() => navigate(action)); }
+        catch (error) {
+          if (error.code === 'NAVIGATION_TIMEOUT') {
+            // step has removed its promise from pending before release drains it.
+            try { error.details = {...error.details,release:await release({dismissDialogs:false})}; }
+            catch (failure) { error.details = {...error.details,release:{released:false,error:failure.message}}; }
+          }
+          throw error;
+        }
       };
       const move = async (value, animateMovement = true, resolved = false) => {
         position = resolved ? value : await step(() => point(value));
@@ -247,20 +262,21 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
           if (Object.hasOwn(result, 'value')) return {action: args.action, value: result.value};
           const checking = ['check', 'uncheck', 'setChecked'].includes(method);
           const checked = method === 'setChecked' ? options.checked : method === 'check';
+          let performed;
           if (!checking || result.checked !== checked) {
-            const performed = await this.act({action: checking ? 'click' : method === 'dblclick' ? 'doubleClick' : method === 'pressSequentially' ? 'type' : method,
+            performed = await this.act({action: checking ? 'click' : method === 'dblclick' ? 'doubleClick' : method === 'pressSequentially' ? 'type' : method,
               elementId: result.elementId, button: options.button, key: click?.keys.length ? click.keys.join('+') : options.key, value: options.value, text: options.value,
               sequential:method === 'pressSequentially', deadline:args.deadline, keyboardEditable:result.keyboardEditable, inputMode: args.inputMode});
             if (performed.pendingDialog) return performed;
             if (checking && (await step(() => evaluate('checked', {elementId: result.elementId}))).checked !== checked) fail('LOCATOR_ACTION_FAILED', 'Click did not produce the requested checked state');
           }
-          return {action: args.action, value: null};
+          return {action: args.action, value: null,...(performed?.observationRequired ? {observationRequired:true} : {})};
         }
 
-        case 'navigate': await step(() => navigate(() => element.loadURL(args.url))); break;
-        case 'back': if (element.canGoBack()) await step(() => navigate(() => element.goBack())); break;
-        case 'forward': if (element.canGoForward()) await step(() => navigate(() => element.goForward())); break;
-        case 'reload': await step(() => navigate(() => element.reload())); break;
+        case 'navigate': await navigationStep(() => element.loadURL(args.url)); break;
+        case 'back': if (element.canGoBack()) await navigationStep(() => element.goBack()); break;
+        case 'forward': if (element.canGoForward()) await navigationStep(() => element.goForward()); break;
+        case 'reload': await navigationStep(() => element.reload()); break;
         case 'focus': case 'activate': await step(focus); break;
         case 'move': await move(args); break;
         case 'click': case 'doubleClick': {
@@ -272,7 +288,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
           for (let clickCount = 1; clickCount <= click.count; clickCount++) {
             buttons.add(button); await step(() => sendInput({ type: 'mouseDown', ...position, button, clickCount }));
             await step(() => holdClick(click.durationMs, check));
-            await step(() => sendInput({ type: 'mouseUp', ...position, button, clickCount })); buttons.delete(button);
+            await step(() => sendInput({ type: 'mouseUp', ...position, button, clickCount }),!click.keys.length && clickCount === click.count); buttons.delete(button);
           }
           for (const key of [...click.keys].reverse()) { await step(() => sendInput({type:'keyUp',keyCode:key})); keys.delete(key); }
           break;
@@ -376,6 +392,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       }
       lastObservation = null; changed();
       return { action: args.action, target: metadata(), inputMode: 'background', delivery: 'target-cdp', effectVerified: false,
+        ...(inputActionId && occurrence !== documentGeneration ? {observationRequired:true} : {}),
         ...(!keys.size && !buttons.size ? {release:{released:true}} : {}) };
       } catch (error) {
         error.details = {...error.details,inputDispatched:error.details?.inputDispatched === true || inputSequence !== inputStart};

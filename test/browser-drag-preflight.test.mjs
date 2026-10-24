@@ -173,3 +173,21 @@ test('guest gesture occurrence remains fixed across RPCs and client navigation e
     assert.deepEqual(events.map(event=>event.type),['mouseMove','mouseDown']);assert(events.every(event=>event.inputDocumentId==='3'&&event.inputActionId===events[0].inputActionId));
   }
 });
+
+for(const action of ['click','doubleClick'])test(`${action} accepts navigation only after its final unmodified mouse-up`,async()=>{
+  const f=fixture();let ups=0;const final=action==='doubleClick'?2:1;
+  f.record.page.mouse.up=async()=>{f.events.push({type:'up'});if(++ups===final)f.record.documentGeneration++;};
+  const result=await actOnPage(f.record,{action,coordinateSpace:'css',x:10,y:10},f.options);
+  assert.equal(result.observationRequired,true);assert.equal(f.record.buttons.size,0);assert.equal(ups,final);
+});
+
+test('navigation on the first double-click or with a modifier stops trailing input and retains release ownership',async()=>{
+  for(const action of ['doubleClick','click']){
+    const f=fixture();f.record.page.keyboard={down:async()=>{},up:async()=>{}};
+    f.record.page.mouse.up=async()=>{f.events.push({type:'up'});f.record.documentGeneration++;};
+    await assert.rejects(actOnPage(f.record,{action,coordinateSpace:'css',x:10,y:10,...(action==='click'?{key:'Shift'}:{})},f.options),{code:'STALE_ELEMENT'});
+    assert.deepEqual(f.events.map(event=>event.type),['move','down','up']);
+    if(action==='click')assert.equal(f.record.keys.has('Shift'),true);
+    assert.deepEqual(await releasePage(f.record,100),[]);assert.equal(f.record.keys.size,0);assert.equal(f.record.buttons.size,0);
+  }
+});

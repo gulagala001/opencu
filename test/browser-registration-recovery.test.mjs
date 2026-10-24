@@ -196,3 +196,20 @@ test('a target-close cleanup rejection stays visible instead of treating local p
   page.faults.delete('Page.removeScriptToEvaluateOnNewDocument');
   await b.close(); assertClean(f.sessions[0]);
 });
+
+
+test('main-frame commits replace document identity while same-document and child history preserve it',async t=>{
+  const f=fixture(),page=f.addPage('navigation'),b=await backend(t,f);
+  const [target]=await b.listTargets(),session=f.sessions[0],send=session.send.bind(session);
+  session.send=async(method,args)=>method==='Runtime.evaluate' && args.expression==='({url:location.href,readyState:document.readyState})'
+    ? {result:{value:{url:'https://fixture.test/',readyState:'complete'}}} : send(method,args);
+  const state=async()=> (await b.act(target,{action:'navigationState'})).value;
+  const original=await state();
+  session.emit('Page.navigatedWithinDocument',{frameId:'child'});assert.deepEqual(await state(),original);
+  session.emit('Page.navigatedWithinDocument',{frameId:'navigation-frame'});
+  const history=await state();assert.equal(history.documentId,original.documentId);assert.notEqual(history.navigationId,original.navigationId);
+  session.emit('Page.frameNavigated',{frame:{id:'child',parentId:'navigation-frame'}});assert.deepEqual(await state(),history);
+  session.emit('Page.frameNavigated',{frame:{id:'navigation-frame'}});
+  const committed=await state();assert.notEqual(committed.documentId,history.documentId);assert.notEqual(committed.navigationId,history.navigationId);
+  await b.close();assertClean(session);
+});
