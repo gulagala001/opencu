@@ -5,12 +5,16 @@
   const expected = [];
   const cancelTextInput = () => {
     textInput = undefined;
-    for (let i = expected.length - 1; i >= 0; i--) if (expected[i].textInput) expected.splice(i, 1);
+    for (let i = expected.length - 1; i >= 0; i--) if (expected[i].textInput || expected[i].keyboardInput) expected.splice(i, 1);
+  };
+  const editTarget = target => {
+    if (target?.isContentEditable) while (target.parentElement?.isContentEditable) target = target.parentElement;
+    return target;
   };
   const textInputTarget = () => {
     let target = document.activeElement;
     while (target?.shadowRoot?.activeElement) target = target.shadowRoot.activeElement;
-    if (target?.isContentEditable) while (target.parentElement?.isContentEditable) target = target.parentElement;
+    target = editTarget(target);
     return target?.nodeType === 1 ? target : null;
   };
   const automated = event => {
@@ -18,26 +22,45 @@
     for (let i = expected.length - 1; i >= 0; i--) if (expected[i].expires < now) expected.splice(i, 1);
     const target = event.composedPath?.()[0] ?? event.target;
     if (event.type === 'beforeinput') {
-      const input = expected.find(input => input.textInput && input.target === target && input.inputType === event.inputType && input.data === event.data);
+      const input = expected.find(input => input.target === editTarget(target) && (
+        input.textInput && input.inputType === event.inputType && input.data === event.data ||
+        input.keyboardInput && input.inputTypes.includes(event.inputType)));
       cancelTextInput();
       if (input) {
-        textInput = input;
-        setTimeout(() => { if (textInput === input) textInput = undefined; }, 0);
+        textInput = {...input,inputType:event.inputType};
+        const active = textInput;
+        setTimeout(() => { if (textInput === active) textInput = undefined; }, 0);
       }
       return true;
     }
     if (event.type === 'pointerdown' || event.type === 'keydown' || event.type === 'wheel') cancelTextInput();
     if (event.type === 'input' && textInput) {
-      if (textInput.target === target && textInput.inputType === event.inputType) return true;
+      if (textInput.target === editTarget(target) && textInput.inputType === event.inputType) return true;
       cancelTextInput();
     }
     const index = expected.findIndex(item => item.type === event.type &&
-      (item.key === undefined || item.key === event.key) && (item.x === undefined || Math.abs(item.x - event.clientX) <= 2 && Math.abs(item.y - event.clientY) <= 2) &&
+      (item.key === undefined || item.key === event.key || item.key === event.code) &&
+      (item.target === undefined || item.target === target) &&
+      (item.type !== 'input' || item.inputTypes === undefined || item.inputTypes.includes(event.inputType ?? null)) && (item.x === undefined || Math.abs(item.x - event.clientX) <= 2 && Math.abs(item.y - event.clientY) <= 2) &&
       (item.deltaY === undefined || Math.abs(item.deltaX - event.deltaX) < 1 && Math.abs(item.deltaY - event.deltaY) < 1));
-    if (index < 0) return false;
-    expected.splice(index, 1); return true;
+    if (index < 0) {
+      if (['pointerdown','keydown'].includes(event.type)) for (let i=expected.length-1;i>=0;i--) if(expected[i].type==='click')expected.splice(i,1);
+      return event.type === 'click';
+    }
+    const [input] = expected.splice(index,1);
+    if (event.type === 'keydown' && input.inputTypes?.length) {
+      const editor = textInputTarget();
+      if (editor?.tagName === 'INPUT' && ['checkbox','radio'].includes(editor.type)) {
+        if ([' ','Enter'].includes(event.key)) expected.push({type:'click',target:editor,expires:input.expires});
+      } else if (editor) expected.push({type:'input',target:editor,markerId:input.markerId,keyboardInput:true,
+        inputTypes:editor.tagName === 'SELECT' ? [null] : input.inputTypes,expires:input.expires});
+    } else if (event.type === 'click') {
+      const marker = {type:'input',target,expires:input.expires};expected.push(marker);
+      setTimeout(() => {const index=expected.indexOf(marker);if(index!==-1)expected.splice(index,1);},0);
+    }
+    return true;
   };
-  for (const type of ['pointerdown', 'keydown', 'beforeinput', 'input', 'wheel']) addEventListener(type, event => {
+  for (const type of ['pointerdown', 'keydown', 'beforeinput', 'input', 'wheel', 'click']) addEventListener(type, event => {
     if (!event.isTrusted || automated(event)) return;
     userActivity = { documentId, sequence: ++activitySequence, kind: type, at: new Date().toISOString() };
   }, true);
@@ -71,7 +94,7 @@
       case 'finishInput':
         if (textInput?.markerId === input.markerId) textInput = undefined;
         for (let i = expected.length - 1; i >= 0; i--) if (expected[i].markerId === input.markerId) {
-          if (input.dispatched && !expected[i].textInput) expected[i].expires = performance.now() + 500;
+          if (input.dispatched && !expected[i].textInput && !expected[i].keyboardInput && expected[i].type !== 'keydown') expected[i].expires = performance.now() + 500;
           else expected.splice(i, 1);
         }
         return { finished: true };

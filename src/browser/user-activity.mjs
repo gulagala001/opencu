@@ -6,12 +6,16 @@ function installMonitor() {
   let sequence = 0, activity, textInput, nextInput = 0;
   const cancelTextInput = () => {
     textInput = undefined;
-    for (let i = expected.length - 1; i >= 0; i--) if (expected[i].textInput) expected.splice(i, 1);
+    for (let i = expected.length - 1; i >= 0; i--) if (expected[i].textInput || expected[i].keyboardInput) expected.splice(i, 1);
+  };
+  const editTarget = target => {
+    if (target?.isContentEditable) while (target.parentElement?.isContentEditable) target = target.parentElement;
+    return target;
   };
   const textInputTarget = () => {
     let target = document.activeElement;
     while (target?.shadowRoot?.activeElement) target = target.shadowRoot.activeElement;
-    if (target?.isContentEditable) while (target.parentElement?.isContentEditable) target = target.parentElement;
+    target = editTarget(target);
     return target?.nodeType === 1 ? target : null;
   };
   const checkable = target => {
@@ -21,6 +25,7 @@ function installMonitor() {
   const matches = (item, event) => item.type === event.type &&
     (item.target === undefined || item.target === (event.composedPath?.()[0] ?? event.target)) &&
     (item.key === undefined || item.key === event.key || item.key === event.code) &&
+    (item.type !== 'input' || item.inputTypes === undefined || item.inputTypes.includes(event.inputType ?? null)) &&
     (item.x === undefined || Math.abs(item.x - event.clientX) <= 2 && Math.abs(item.y - event.clientY) <= 2);
   for (const type of ['pointerdown', 'keydown', 'beforeinput', 'input', 'wheel', 'click']) {
     const listener = event => {
@@ -29,23 +34,34 @@ function installMonitor() {
       for (let i = expected.length - 1; i >= 0; i--) if (expected[i].expires < now) expected.splice(i, 1);
       const target = event.composedPath?.()[0] ?? event.target;
       if (type === 'beforeinput') {
-        const input = expected.find(input => input.textInput && input.target === target && input.inputType === event.inputType && input.data === event.data);
+        const input = expected.find(input => input.target === editTarget(target) && (
+          input.textInput && input.inputType === event.inputType && input.data === event.data ||
+          input.keyboardInput && input.inputTypes.includes(event.inputType)));
         cancelTextInput();
         if (input) {
-          textInput = input;
-          setTimeout(() => { if (textInput === input) textInput = undefined; }, 0);
+          textInput = {...input,inputType:event.inputType};
+          const active = textInput;
+          setTimeout(() => { if (textInput === active) textInput = undefined; }, 0);
         }
         return;
       }
       if (type === 'pointerdown' || type === 'keydown' || type === 'wheel') cancelTextInput();
       if (type === 'input' && textInput) {
-        if (textInput.target === target && textInput.inputType === event.inputType) return;
+        if (textInput.target === editTarget(target) && textInput.inputType === event.inputType) return;
         cancelTextInput();
       }
       const index = expected.findIndex(item => matches(item, event));
       if (index >= 0) {
         const [input] = expected.splice(index, 1);
-        if (event.type === 'pointerdown' && event.button === 0) {
+        if (event.type === 'keydown' && input.inputTypes?.length) {
+          const editor = textInputTarget();
+          if (checkable(editor)) {
+            // Space activation completes on keyup; the existing click transaction
+            // owns only that control's later default input, never arbitrary text.
+            if ([' ','Enter'].includes(event.key)) expected.push({type:'click',target:editor,expires:input.expires});
+          } else if (editor) expected.push({type:'input',target:editor,id:input.id,keyboardInput:true,
+            inputTypes:editor.tagName === 'SELECT' ? [null] : input.inputTypes,expires:input.expires});
+        } else if (event.type === 'pointerdown' && event.button === 0) {
           const control = checkable(target);
           if (control) expected.push({type:'click', target:control, expires:input.expires});
         } else if (event.type === 'click') {
@@ -73,14 +89,14 @@ function installMonitor() {
           const target = textInputTarget();
           if (!target) continue;
           expected.push({...event,target,id,expires:performance.now()+500}); markedText = true;
-        } else expected.push({...event,expires:performance.now()+500});
+        } else {expected.push({...event,id,expires:performance.now()+500});if (event.type === 'keydown') markedText = true;}
       }
       return markedText ? {documentId,id} : undefined;
     },
     finish(marker) {
       if (marker?.documentId !== documentId) return;
       if (textInput?.id === marker.id) textInput = undefined;
-      for (let i = expected.length - 1; i >= 0; i--) if (expected[i].textInput && expected[i].id === marker.id) expected.splice(i, 1);
+      for (let i = expected.length - 1; i >= 0; i--) if (expected[i].id === marker.id) expected.splice(i, 1);
     },
     dispose() {
       for (const [type, listener] of listeners) removeEventListener(type, listener, true);

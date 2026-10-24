@@ -1,7 +1,7 @@
 import { observeAccessibility, elementOperation, locatorOperation, invalidateElements } from './accessibility.js';
 import { createPairingClient } from './pairing.js';
 import { createCDPFrameRouter } from './frame-router.js';
-import { extensionKeySpec as keySpec, keyEventParameters, sequentialTextKey, checkSequentialDeadline } from './keyboard.js';
+import { extensionKeySpec as keySpec, keyEventParameters, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes } from './keyboard.js';
 import { clickParameters, checkClickHeld, holdClick } from './click-options.js';
 import { pressParameters, checkPressHeld } from './key-options.js';
 import {filePaths} from './file-input.js';
@@ -164,11 +164,25 @@ async function keyEvent(tabId, spec, down, epoch, beforeDispatch, keyboardEditab
   if (down) { state.keys.set(spec.key, spec); await saveAttached(); }
   checkControl(epoch);
   const event = keyEventParameters(spec, down, modifiers(state), /Mac/u.test(navigator.platform),keyboardEditable);
-  if (down) await content(tabId, 'expectInput', { events: [{ type: 'keydown', key: event.key }, { type: 'input' }] });
-  checkControl(epoch);
-  if (down && beforeDispatch) { await beforeDispatch(); checkControl(epoch); }
-  await cdp(tabId, 'Input.dispatchKeyEvent', event);
-  if (!down) { state.keys.delete(spec.key); await saveAttached(); }
+  let marker, failure;
+  try {
+    if (down) {
+      const inputTypes = keyboardInputTypes(spec.code,modifiers(state),/Mac/u.test(navigator.platform));
+      marker = await content(tabId,'expectInput',{events:[{type:'keydown',key:event.key,...(inputTypes.length ? {inputTypes} : {})}]});
+    }
+    checkControl(epoch);
+    if (down && beforeDispatch) {await beforeDispatch();checkControl(epoch);}
+    await cdp(tabId,'Input.dispatchKeyEvent',event);
+    if (!down) {state.keys.delete(spec.key);await saveAttached();}
+  } catch (error) {failure=error;throw error;}
+  finally {
+    if (marker && failure?.code !== 'JS_DIALOG_OPEN') try {
+      await content(tabId,'finishInput',{markerId:marker.markerId,documentId:marker.documentId,dispatched:false},marker.browserDocumentId);
+    } catch (error) {
+      if (!failure) throw error;
+      failure.details = {...failure.details,inputMarkerError:errorJSON(error)};
+    }
+  }
 }
 const buttonMask = state => [...state.buttons].reduce((n, button) => n | ({ left: 1, right: 2, middle: 4 }[button] || 0), 0);
 async function mouse(tabId, type, point, button = 'none', count = 0, extra = {}, epoch, beforeDispatch) {

@@ -1,4 +1,4 @@
-import { guestKeySpec, keyEventKey, sequentialTextKey, checkSequentialDeadline } from '../../extension/keyboard.js';
+import { guestKeySpec, keyEventKey, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes } from '../../extension/keyboard.js';
 import { clickParameters, checkClickHeld, holdClick } from '../../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../../extension/key-options.js';
 import { inputReleased } from '../protocol.mjs';
@@ -75,7 +75,11 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     try {
       if (event.type === 'mouseDown') await expectInput([{ type: 'pointerdown', x: event.x, y: event.y }]);
       else if (event.type === 'mouseWheel') marker = await expectInput([{ type: 'wheel', x: event.x, y: event.y, deltaX: event.deltaX ?? 0, deltaY: event.deltaY ?? 0 }], true);
-      else if (event.type === 'keyDown') await expectInput([{ type: 'keydown', key: keyEventKey(event.keyCode, keys.has('Shift') ? 8 : 0) }, { type: 'input' }]);
+      else if (event.type === 'keyDown') {
+        const bits = [...keys].reduce((mask,key) => mask | ({Alt:1,Control:2,Meta:4,Shift:8}[key] ?? 0),0);
+        const inputTypes = keyboardInputTypes(guestKeySpec(event.keyCode).code,bits,/Mac/u.test(globalThis.navigator?.platform ?? ''));
+        marker = await expectInput([{type:'keydown',key:keyEventKey(event.keyCode,keys.has('Shift') ? 8 : 0),...(inputTypes.length ? {inputTypes} : {})}]);
+      }
       if (['mouseMove', 'mouseDown', 'mouseWheel'].includes(event.type)) {
         if (elementId != null) await evaluate('verifyElement', { elementId });
         else if (observation) await verifyScreenshot(observation);

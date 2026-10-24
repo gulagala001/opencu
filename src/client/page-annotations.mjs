@@ -13,12 +13,16 @@ export function install(initialState) {
   let lastActivity = 0, textInput;
   const cancelTextInput = () => {
     textInput = undefined;
-    for (let i = expected.length - 1; i >= 0; i--) if (expected[i].textInput) expected.splice(i, 1);
+    for (let i = expected.length - 1; i >= 0; i--) if (expected[i].textInput || expected[i].keyboardInput) expected.splice(i, 1);
+  };
+  const editTarget = target => {
+    if (target?.isContentEditable) while (target.parentElement?.isContentEditable) target = target.parentElement;
+    return target;
   };
   const textInputTarget = () => {
     let target = document.activeElement;
     while (target?.shadowRoot?.activeElement) target = target.shadowRoot.activeElement;
-    if (target?.isContentEditable) while (target.parentElement?.isContentEditable) target = target.parentElement;
+    target = editTarget(target);
     // Closed shadow editors expose their focused host to this event listener.
     // Bind that observable target; the exact beforeinput still proves the edit.
     return target?.nodeType === 1 ? target : null;
@@ -28,31 +32,43 @@ export function install(initialState) {
     const now = performance.now(), target = event.composedPath?.()[0] ?? event.target;
     for (let i = expected.length - 1; i >= 0; i--) if (expected[i].until < now) expected.splice(i, 1);
     if (event.type === 'beforeinput') {
-      const input = expected.find(input => input.textInput && input.target === target && input.inputType === event.inputType && input.data === event.data);
+      const input = expected.find(input => input.target === editTarget(target) && (
+        input.textInput && input.inputType === event.inputType && input.data === event.data ||
+        input.keyboardInput && input.inputTypes.includes(event.inputType)));
       // Every new edit starts a new transaction. An unmatched user beforeinput
       // must never inherit the previous native insertText's remaining events.
       cancelTextInput();
       if (input) {
-        textInput = input;
+        textInput = {...input,inputType:event.inputType};
+        const active = textInput;
         // Chromium emits several input events for one multiline contenteditable
         // edit. They share this native task, even with microtasks between them.
-        setTimeout(() => { if (textInput === input) textInput = undefined; }, 0);
+        setTimeout(() => { if (textInput === active) textInput = undefined; }, 0);
       }
       return;
     }
     if (event.type === 'pointerdown' || event.type === 'keydown' || event.type === 'wheel') cancelTextInput();
     if (event.type === 'input' && textInput) {
-      if (textInput.target === target && textInput.inputType === event.inputType) return;
+      if (textInput.target === editTarget(target) && textInput.inputType === event.inputType) return;
       cancelTextInput();
     }
     const index = expected.findIndex(input => input.type === event.type &&
       (input.target == null || input.target === target) &&
-      (input.key == null || input.key === event.key) &&
+      (input.key == null || input.key === event.key || input.key === event.code) &&
+      (input.type !== 'input' || input.inputTypes === undefined || input.inputTypes.includes(event.inputType ?? null)) &&
       (input.x == null || Math.abs(input.x - event.clientX) < 2 && Math.abs(input.y - event.clientY) < 2) &&
       (input.deltaY == null || Math.abs(input.deltaX - event.deltaX) < 1 && Math.abs(input.deltaY - event.deltaY) < 1));
     if (index !== -1) {
       const [input] = expected.splice(index, 1);
-      if (event.type === 'pointerdown' && event.button === 0) {
+      if (event.type === 'keydown' && input.inputTypes?.length) {
+        const editor = textInputTarget();
+        if (checkable(editor)) {
+          // Space activation completes on keyup; the existing click transaction
+          // owns only that control's later default input, never arbitrary text.
+          if ([' ','Enter'].includes(event.key)) expected.push({type:'click',target:editor,until:input.until});
+        } else if (editor) expected.push({type:'input',target:editor,id:input.id,keyboardInput:true,
+          inputTypes:editor.tagName === 'SELECT' ? [null] : input.inputTypes,until:input.until});
+      } else if (event.type === 'pointerdown' && event.button === 0) {
         const control = checkable(target);
         if (control) expected.push({type:'click', target:control, id:input.id, until:input.until});
       } else if (event.type === 'click') {
@@ -149,7 +165,7 @@ export function install(initialState) {
     finishInput(id, dispatched) {
       if (textInput?.id === id) textInput = undefined;
       for (let i = expected.length - 1; i >= 0; i--) if (expected[i].id === id) {
-        if (dispatched && !expected[i].textInput) expected[i].until = performance.now() + 1500;
+        if (dispatched && !expected[i].textInput && !expected[i].keyboardInput && expected[i].type !== 'keydown') expected[i].until = performance.now() + 1500;
         else expected.splice(i, 1);
       }
     },

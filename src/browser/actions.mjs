@@ -11,7 +11,7 @@ import {pressParameters, checkPressHeld} from '../../extension/key-options.js';
 import {playwrightKeyIdentity} from './playwright-keyboard.mjs';
 import {actOnClipboard,restoreClipboardPermissions} from './clipboard.mjs';
 import {withCDPFrameGuard} from '../../extension/frame-router.js';
-import {sequentialTextKey, checkSequentialDeadline, guestKeySpec, keyEventParameters} from '../../extension/keyboard.js';
+import {sequentialTextKey, checkSequentialDeadline, guestKeySpec, keyEventParameters, keyboardInputTypes} from '../../extension/keyboard.js';
 
 export function normalizeBrowserAction(request = {}) {
   const aliases = {goto: 'navigate', new_tab: 'newTab', close_tab: 'closeTab', double_click: 'doubleClick',
@@ -89,13 +89,13 @@ export async function actOnPage(record, request, options) {
   const frameRouter = withCDPFrameGuard(record.frameRouter,frameOptions.wrapSend,step);
   const frameSend = frameOptions.wrapSend((method,params)=>record.session.send(method,params));
   const input = (events, work, beforeDispatch) => step(async () => {
-    const textEdit = events.some(event => event.textInput);
+    const scopedInput = events.some(event => event.textInput || event.type === 'keydown');
     check();
     if (request.locatorGeneration !== undefined && request.locatorGeneration !== record.documentGeneration) fail('STALE_ELEMENT', 'Document changed before locator input');
     await record.session.send('Emulation.setFocusEmulationEnabled', { enabled: true });
     record.focusEmulated = true;
     check();
-    const expected = await options.expectInput?.(events), marker = textEdit ? expected : undefined;
+    const expected = await options.expectInput?.(events), marker = scopedInput ? expected : undefined;
     let failure;
     try {
       check();
@@ -121,8 +121,9 @@ export async function actOnPage(record, request, options) {
     playwrightKeyIdentity(key);
     record.keys.add(key);
     await options.persistInputs();
-    const events = [{type: 'keydown', key: key === 'Space' ? ' ' : key}];
-    if (!record.keys.has('Meta') && !record.keys.has('Control') && (key.length === 1 || ['Space', 'Backspace', 'Delete', 'Enter'].includes(key))) events.push({type: 'input'});
+    const modifiers = [...record.keys].reduce((bits,value) => bits | ({'modifier:Alt':1,'modifier:Control':2,'modifier:Meta':4,'modifier:Shift':8}[playwrightKeyIdentity(value)] ?? 0),0);
+    const inputTypes = keyboardInputTypes(playwrightKeyIdentity(key),modifiers,process.platform === 'darwin');
+    const events = [{type:'keydown',key:key === 'Space' ? ' ' : key,...(inputTypes.length ? {inputTypes} : {})}];
     // Locator text editors normalize Home/End without changing page/body scrolling
     // or replacing the trusted End/Home event with a different shortcut.
     if (process.platform === 'darwin' && request.keyboardEditable && ['Home','End'].includes(key)) {

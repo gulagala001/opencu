@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { observeAccessibility, elementOperation, locatorOperation, invalidateElements } from '../extension/accessibility.js';
 import { createCDPFrameRouter } from '../extension/frame-router.js';
-import { extensionKeySpec as keySpec, keyEventParameters, sequentialTextKey, checkSequentialDeadline } from '../extension/keyboard.js';
+import { extensionKeySpec as keySpec, keyEventParameters, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes } from '../extension/keyboard.js';
 import { clickParameters, checkClickHeld, holdClick } from '../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../extension/key-options.js';
 
@@ -37,7 +37,7 @@ async function fixture(t) {
     windows: { get: async () => ({ focused: false }), update: async () => { events.push(['windows.update']); } },
     scripting: { executeScript: async request => {
       if (!request.args) return [{ frameId: 0, documentId: 'chrome-doc', result: true }];
-      const [method] = request.args; events.push(['content', method]); await hooks.content?.(method);
+      const [method,args] = request.args; events.push(['content',method,args]); await hooks.content?.(method,args);
       return [{ frameId: 0, documentId: 'chrome-doc', result: { ok: true, result: { documentId: 'doc', geometry } } }];
     } },
     debugger: {
@@ -66,7 +66,7 @@ async function fixture(t) {
     return { ok: true, json: async () => ({ commands: next }) };
   };
   const imports = { observeAccessibility, elementOperation, locatorOperation, invalidateElements, createCDPFrameRouter, keySpec, keyEventParameters,
-    clickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline,
+    clickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes,
     createPairingClient: () => ({ start: async () => {}, pause: async () => {} }) };
   const worker = new Function(...Object.keys(imports), 'chrome', 'navigator', 'fetch', 'setTimeout', `${source}\nreturn {
     ready: initialize(), observe, act, releaseTab, controlToken, attached, observations, loop,
@@ -313,4 +313,17 @@ test('MV3 settings cancellation awaits tab creation and does not continue focusi
     assert.equal(f.events.filter(([name]) => name === 'tabs.create').length, 1);
     assert.equal(f.events.filter(([name]) => name === 'windows.update').length, 0);
   } finally { gate.resolve(); await tick(); }
+});
+
+
+test('MV3 keyboard edit markers are narrow and finished after success or refused dispatch',async t=>{
+  const f=await fixture(t);f.seed([],[]);
+  await f.worker.act(f.identity,{type:'press_key',key:'Meta+v'});
+  const expected=f.events.filter(([name,method])=>name==='content'&&method==='expectInput').map(([, ,args])=>args.events);
+  assert.equal(expected.length,2);assert(expected.every(events=>events.length===1&&events[0].type==='keydown'));
+  assert.deepEqual(expected[1][0].inputTypes,['insertFromPaste','insertFromPasteAsQuotation']);
+  assert.equal(f.events.filter(([name,method])=>name==='content'&&method==='finishInput').length,2);
+  f.events.length=0;f.hooks.send=(method,params)=>{if(method==='Input.dispatchKeyEvent'&&params.type==='keyDown')throw Object.assign(Error('refused keyboard'),{details:{inputDispatched:false}});};
+  await assert.rejects(f.worker.act(f.identity,{type:'press_key',key:'v'}),/refused keyboard/);
+  assert.equal(f.events.filter(([name,method])=>name==='content'&&method==='finishInput').length,1);
 });
