@@ -132,13 +132,12 @@ function installMonitor() {
     read: () => activity ?? null,
     expect(events) {
       const id = ++nextInput;
-      let markedText = false;
       for (const event of events) {
         if (event.textInput) {
           const target = textInputTarget();
           if (!target) continue;
-          expected.push({...event,target,id,expires:performance.now()+500}); markedText = true;
-        } else {expected.push({...event,id,expires:performance.now()+500});if (event.type === 'keydown') markedText = true;}
+          expected.push({...event,target,id,expires:performance.now()+500});
+        } else expected.push({...event,id,expires:performance.now()+500});
       }
       return events.length ? {documentId,id,pointerDown:events.some(event=>event.type==='pointerdown')} : undefined;
     },

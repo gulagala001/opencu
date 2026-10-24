@@ -151,7 +151,7 @@ export function installDocumentRuntime({trackActivity = true} = {}) {
       case 'finishInput':
         if (textInput?.markerId === input.markerId) textInput = undefined;
         for (let i = expected.length - 1; i >= 0; i--) if (expected[i].markerId === input.markerId) {
-          if (input.dispatched && !expected[i].textInput && !expected[i].keyboardInput && expected[i].type !== 'keydown') expected[i].expires = performance.now() + 500;
+          if (input.dispatched && !expected[i].textInput && !expected[i].keyboardInput && !['keydown','pointerdown','pointermove','pointerup'].includes(expected[i].type)) expected[i].expires = performance.now() + 500;
           else expected.splice(i, 1);
         }
         return { finished: true };

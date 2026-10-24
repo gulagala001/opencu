@@ -249,12 +249,17 @@ async function mouse(tabId, type, point, button = 'none', count = 0, extra = {},
   state.x = point.x; state.y = point.y;
   if (type === 'mousePressed') { state.buttons.add(button); await saveAttached(); }
   checkControl(epoch);
-  let marker, submitted = false, failure;
+  let marker, captureMarker, submitted = false, failure;
   try {
     if (epoch && ['mousePressed','mouseMoved','mouseReleased','mouseWheel'].includes(type)) {
       const hit=await state.frameRouter?.atPoint(point);
-      marker = await inputMarker(tabId, 'expectInput', { pending: type === 'mouseWheel',
-        events: [{ type: ({mousePressed:'pointerdown',mouseMoved:'pointermove',mouseReleased:'pointerup',mouseWheel:'wheel'})[type], ...(hit?{}:point), ...(type === 'mouseWheel' ? { deltaX: extra.deltaX ?? 0, deltaY: extra.deltaY ?? 0 } : {}) }] },hit?.route,hit?.backendNodeId);
+      const events=[{type:({mousePressed:'pointerdown',mouseMoved:'pointermove',mouseReleased:'pointerup',mouseWheel:'wheel'})[type],
+        ...(hit?{}:point),...(type==='mouseWheel'?{deltaX:extra.deltaX??0,deltaY:extra.deltaY??0}:{})}];
+      marker=await inputMarker(tabId,'expectInput',{pending:type==='mouseWheel',events},hit?.route,['mousePressed','mouseWheel'].includes(type)?hit?.backendNodeId:undefined);
+      const origin=state.pointerMarkers?.get(button) ?? [...(state.pointerMarkers?.values()??[])][0];
+      if (['mouseMoved','mouseReleased'].includes(type) && origin && (origin.frameRoute?.frameId!==hit?.route?.frameId || origin.frameRoute?.documentId!==hit?.route?.documentId)) {
+        captureMarker=await frameContent(tabId,origin.frameRoute,'expectInput',{events:events.map(({x,y,...event})=>event)});
+      }
     }
     checkControl(epoch);
     if (type === 'mousePressed' && beforeDispatch) { await beforeDispatch(); checkControl(epoch); }
@@ -264,11 +269,17 @@ async function mouse(tabId, type, point, button = 'none', count = 0, extra = {},
     if (type === 'mouseReleased') { state.buttons.delete(button); await saveAttached(); }
   } catch (error) { failure = error; throw error; }
   finally {
-    const completed=type==='mouseReleased'||type==='mouseMoved'||type==='mouseWheel'||!submitted?marker:undefined;
-    if(completed)try { await finishMarker(tabId,completed,type==='mouseWheel'&&submitted);if(type==='mouseReleased') {const pressed=state.pointerMarkers?.get(button);if(pressed)await finishMarker(tabId,pressed);state.pointerMarkers?.delete(button);} }
-    catch (error) {
-      if (!failure) { error.details = { ...error.details, inputDispatched: submitted }; throw error; }
-      failure.details = { ...failure.details, inputMarkerError: errorJSON(error) };
+    const completed=type==='mouseReleased'||type==='mouseMoved'||type==='mouseWheel'||!submitted ? [marker,captureMarker].filter(Boolean) : [];
+    try {
+      for (const current of completed) await finishMarker(tabId,current,type==='mouseWheel'&&submitted);
+      if (type==='mouseReleased' && epoch) {
+        const pressed=state.pointerMarkers?.get(button);
+        if(pressed)await finishMarker(tabId,pressed);
+        state.pointerMarkers?.delete(button);
+      }
+    } catch (error) {
+      if (!failure) { error.details={...error.details,inputDispatched:submitted};throw error; }
+      failure.details={...failure.details,inputMarkerError:errorJSON(error)};
     }
   }
 }
