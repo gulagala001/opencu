@@ -75,13 +75,15 @@ const recoverableActionErrors = new Set([
 
 const changedViewErrors = new Set(['STALE_SCREENSHOT', 'STALE_OBSERVATION', 'STALE_ELEMENT', 'OBSERVATION_CHANGED',
   'TARGET_NOT_ACTIVE', 'TARGET_WINDOW_NOT_ACTIVE', 'FRAME_NOT_FOUND', 'FRAME_DETACHED', 'LOCATOR_NOT_STABLE',
-  'ELEMENT_NOT_FOUND', 'ELEMENT_NOT_VISIBLE']);
+  'ELEMENT_NOT_FOUND', 'ELEMENT_NOT_VISIBLE', 'SITE_TOOL_CONTEXT_CHANGED']);
 export const changedViewError = error => changedViewErrors.has(error?.code);
 
-/** A changed view or rejected input is recoverable only with an explicit dispatch receipt. */
+/** Only explicit dispatch/terminal receipts can distinguish a recoverable action from unknown input. */
 export function recoverableActionError(error, action) {
   const uploadFile = ['upload','fileChooserSetFiles'].includes(action) && ['ENOENT', 'ENOTDIR', 'EISDIR', 'EACCES'].includes(error?.code);
-  return error?.details?.inputDispatched === false && (recoverableActionErrors.has(error.code) || uploadFile)
+  const siteToolResponded = action === 'invokeSiteTool' && error?.code === 'SITE_TOOL_ERROR'
+    && error.details?.siteToolResponded === true && error.details.inputDispatched === true;
+  return (siteToolResponded || error?.details?.inputDispatched === false && (recoverableActionErrors.has(error.code) || uploadFile))
     && (error.details.release === undefined || inputReleased(error.details.release));
 }
 

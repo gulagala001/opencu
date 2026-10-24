@@ -216,3 +216,38 @@ test('target release clears its held-input debt without forgetting other tabs or
   await state.request('act',{targetId:'b',action:'keyUp',key:'Shift'},ack);
   assert.equal(state.pending,false,'the old tab a receipt cannot recreate released input');
 });
+
+
+test('native site tool terminal errors retain the binding without inferring business success',async t=>{
+  const f=await fixture(t);
+  f.hooks.error=Object.assign(Error('website threw after changing state'),{code:'SITE_TOOL_ERROR',details:{inputDispatched:true,effectVerified:false,siteToolResponded:true}});
+  const result=await f.controller.act({targetId:'tab:original',action:'invokeSiteTool'});
+  assert.equal(result.error.code,'SITE_TOOL_ERROR');assert.equal(result.error.details.inputDispatched,true);assert.equal(result.error.details.effectVerified,false);
+  assert.equal(result.state.mode,'active');assert.equal(result.state.targets[0].verified,true);assert.equal(f.releases,0);
+  f.hooks.error=undefined;await f.run('await tab.getScreenshot(); await tab.click([60,40]);');
+  assert.deepEqual(f.events,['mouseMove','mouseDown','mouseUp']);
+});
+
+test('site tool document changes release that target and require observation before continuing',async t=>{
+  const f=await fixture(t);
+  f.hooks.error=Object.assign(Error('site tool document navigated'),{code:'SITE_TOOL_CONTEXT_CHANGED',details:{inputDispatched:true,effectVerified:false}});
+  const result=await f.controller.act({targetId:'tab:original',action:'invokeSiteTool'});
+  assert.equal(result.error.code,'SITE_TOOL_CONTEXT_CHANGED');assert.equal(result.state.mode,'active');assert.equal(result.error.details.observationRequired,true);
+  assert.equal(result.error.details.inputDispatched,true);assert.equal(result.error.details.effectVerified,false);
+  assert.equal(f.targetReleases,1);assert.equal(f.releases,0);
+  f.hooks.error=undefined;assert.equal((await f.controller.act({targetId:'tab:original',action:'siteTools'})).error.code,'OBSERVATION_REQUIRED');
+  await f.run('await tab.getScreenshot(); await tab.click([60,40]);');
+  assert.deepEqual(f.events,['mouseMove','mouseDown','mouseUp']);
+});
+
+for(const [reason,action,code,details] of [
+  ['missing terminal receipt','invokeSiteTool','SITE_TOOL_ERROR',{inputDispatched:true}],
+  ['unrelated operation','click','SITE_TOOL_ERROR',{inputDispatched:true,siteToolResponded:true}],
+  ['unknown cancellation','invokeSiteTool','SITE_TOOL_CANCEL_FAILED',{inputDispatched:true,siteToolResponded:true}],
+  ['unconfirmed release','invokeSiteTool','SITE_TOOL_ERROR',{inputDispatched:true,siteToolResponded:true,release:{released:false}}],
+])test(`site tool ${reason} still blocks unknown or unreleased input`,async t=>{
+  const f=await fixture(t);f.hooks.error=Object.assign(Error(reason),{code,details});
+  const result=await f.controller.act({targetId:'tab:original',action});
+  assert.equal(result.state.mode,'faulted');assert.equal(f.releases,1);
+  assert.equal((await f.controller.act({targetId:'tab:original',action:'click'})).error.code,'CONTROL_STOPPED');
+});

@@ -64,7 +64,7 @@ test('unknown invocation transport failures retain dispatched semantics and clea
 test('native exceptions retain the description when errorText is empty',async()=>{
   const f=await fixture();f.state.invoke=()=>{f.guest.debugger.emit('message',{},'WebMCP.toolResponded',{invocationId:'own',status:'Error',errorText:'',exception:{description:'Error: native fixture rejection',objectId:'native-error'}});return {invocationId:'own'};};
   await assert.rejects(invokeSiteTool(f.guest,f.send,{registrationId:f.descriptor.registrationId,input:{}},new AbortController().signal),
-    error=>error.code==='SITE_TOOL_ERROR' && /native fixture rejection/.test(error.message) && error.details.inputDispatched===true);
+    error=>error.code==='SITE_TOOL_ERROR' && /native fixture rejection/.test(error.message) && error.details.inputDispatched===true && error.details.siteToolResponded===true);
   assert.deepEqual(f.state.calls.find(row=>row.method==='Runtime.releaseObject')?.args,{objectId:'native-error'});
 });
 

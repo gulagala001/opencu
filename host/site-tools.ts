@@ -149,7 +149,7 @@ export async function invokeSiteTool(guest: WebContents, send: Send, args: Recor
         const exception = params.exception as { description?: unknown; value?: unknown; objectId?: string } | undefined
         if (exception?.objectId) void invokeSend('Runtime.releaseObject', { objectId: exception.objectId }).catch(() => {})
         const reason = params.errorText || exception?.description || exception?.value || `Site tool ${String(params.status)}`
-        finish(Object.assign(new Error(String(reason)), { code: 'SITE_TOOL_ERROR' }))
+        finish(Object.assign(new Error(String(reason)), { code: 'SITE_TOOL_ERROR', details: { siteToolResponded: true } }))
       }
     }
     const message = (_event: Electron.Event, method: string, params: Record<string, unknown>, sessionId?: string): void => {
