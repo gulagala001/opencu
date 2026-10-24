@@ -62,7 +62,10 @@ export function createPlaywrightAPI(invoke, display, context = {}) {
       getByLabel: (value, options = {}) => append({...optionsObject(options, ['exact']), kind: 'label', value: matcher(value, 'label')}),
       getByPlaceholder: (value, options = {}) => append({...optionsObject(options, ['exact']), kind: 'placeholder', value: matcher(value, 'placeholder')}),
       getByTestId: value => append({kind: 'testId', value: matcher(value, 'testId')}),
-      locator: value => append({kind: 'css', value: string(value, 'selector')}),
+      locator: (value, options) => {
+        if (options !== undefined) throw new TypeError('locator supports only a CSS selector; use .locator(css).filter({hasText, hasNotText, visible}) for filters');
+        return append({kind: 'css', value: string(value, 'selector')});
+      },
       filter: (options = {}) => {
         optionsObject(options, ['visible']);
         for (const key of Object.keys(options)) if (!['hasText', 'hasNotText', 'visible'].includes(key)) throw new Error(`Unsupported locator filter: ${key}`);
