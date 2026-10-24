@@ -8,7 +8,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { chmod, mkdir, open, realpath, rename, unlink } from 'node:fs/promises';
+import { chmod, mkdir, open, readFile, realpath, rename, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -95,6 +95,14 @@ export async function createDirectSession({dataDir, outputDir, config = {}, metr
   for (const key of ['browser', 'native', 'extension', 'getConfig', 'dshBrowser']) if (key in config) throw failure('INVALID_CONFIG', `${key} is not a direct-session option`);
   if (config.browserOptions?.context || config.browserOptions?.playwright) throw failure('INVALID_CONFIG', 'Injected browser contexts/providers are not supported');
   if (metricsOutput) metricsOutput = explicitPath(metricsOutput, 'metricsOutput');
+  if (config.browserEnabled !== false) {
+    const asset = new URL('../lib/page-cursor.js', import.meta.url);
+    try { await readFile(asset); }
+    catch (cause) {
+      throw Object.assign(failure('BUILD_REQUIRED', 'OpenCU browser assets are missing or unreadable. Run npm run build:client before creating a direct session.'),
+        {cause, details: {asset: asset.pathname, command: 'npm run build:client'}});
+    }
+  }
   for (const root of [dataDir, outputDir]) {
     await mkdir(root, {recursive: true, mode: 0o700});
     explicitPath(await realpath(root), 'storage root');
@@ -106,16 +114,23 @@ export async function createDirectSession({dataDir, outputDir, config = {}, metr
   let computer, closing, closed = false;
   async function measure(label, action) {
     const started = performance.now(); let result, caught;
-    try { result = await action(); return result; }
-    catch (error) { caught = error; throw error; }
-    finally {
-      if (metricsOutput) {
+    try { result = await action(); }
+    catch (error) { caught = error; }
+    if (metricsOutput) {
+      try {
         const wire = caught ? serializeReplError(caught) : result;
-        try { await recordCall({output: metricsOutput, label, phase: 'direct', durationMs: performance.now() - started,
-          resultBytes: Buffer.byteLength(JSON.stringify(wire) ?? ''), ok: !caught && result?.ok !== false}); }
-        catch (error) { if (caught) caught.metricsError = error; else throw error; }
+        await recordCall({output: metricsOutput, label, phase: 'direct', durationMs: performance.now() - started,
+          resultBytes: Buffer.byteLength(JSON.stringify(wire) ?? ''), ok: !caught && result?.ok !== false});
+      } catch (error) {
+        // Monitoring is a separate receipt: completed input must never appear to
+        // have failed merely because its measurement could not be persisted.
+        const metricsError = serializeReplError(error);
+        if (caught) caught.metricsError = metricsError;
+        else result = {...result, metricsError};
       }
     }
+    if (caught) throw caught;
+    return result;
   }
   function dispatch(endpoint, args, context = {}) {
     const work = runtime.request(endpoint, args, {attachments, sessionKey, ...context});
@@ -178,7 +193,7 @@ async function main(argv) {
           const result = method === 'run' ? await session.run(args) : method === 'request' ? await session.request(args.endpoint, args.args)
             : method === 'readImage' ? await session.readImage(args.image) : await session[method]();
           send({id, ok: true, result}); if (method === 'close') lines.close();
-        } catch (error) { send({id: input?.id, ok: false, error: serializeReplError(error)}); }
+        } catch (error) { send({id: input?.id, ok: false, error: {...serializeReplError(error), ...(error?.metricsError ? {metricsError: error.metricsError} : {})}}); }
       };
       if (['reset', 'close'].includes(input?.method)) await operation();
       else { const work = tail.then(operation); tail = work.catch(() => {}); }

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 import sharp from 'sharp';
 import { createDirectSession } from '../scripts/cu-direct.mjs';
@@ -44,5 +45,47 @@ test('production direct Worker preserves errors, stores real attachments and can
     await session.close(); await cancelled;
     assert.deepEqual(await session.close(), {ok: true, closed: true});
     assert.throws(() => session.run({code: '1'}), {code: 'SESSION_CLOSED'});
+  } finally { await session.close(); await rm(root, {recursive: true, force: true}); }
+});
+
+
+test('missing browser assets fail before session storage or input is created', async () => {
+  const root = await mkdtemp(join(process.env.OPENCU_TEST_TEMP_DIR ?? tmpdir(), 'opencu-direct-assets-'));
+  try {
+    // Use the real runtime via a source symlink, but omit build assets in this
+    // isolated checkout; do not change an active caller's lib directory.
+    await mkdir(join(root, 'scripts'));
+    await copyFile(new URL('../scripts/cu-direct.mjs', import.meta.url), join(root, 'scripts', 'cu-direct.mjs'));
+    await symlink(fileURLToPath(new URL('../scripts/cu-metrics.mjs', import.meta.url)), join(root, 'scripts', 'cu-metrics.mjs'));
+    await symlink(fileURLToPath(new URL('../src', import.meta.url)), join(root, 'src'));
+    const {createDirectSession: createUnbuiltSession} = await import(pathToFileURL(join(root, 'scripts', 'cu-direct.mjs')).href);
+    const options = {dataDir: join(root, 'data'), outputDir: join(root, 'output')};
+    await assert.rejects(createUnbuiltSession(options), error => error.code === 'BUILD_REQUIRED'
+      && error.message.includes('build:client') && error.details.command === 'npm run build:client');
+    await assert.rejects(stat(options.dataDir), {code: 'ENOENT'});
+    const session = await createUnbuiltSession({...options, config: {browserEnabled: false}});
+    try { assert.equal((await session.run({code: '20+22'})).outputs.at(-1), '42'); }
+    finally { await session.close(); }
+  } finally { await rm(root, {recursive: true, force: true}); }
+});
+
+test('metrics write failures preserve successful execution and original runtime errors', async () => {
+  const root = await mkdtemp(join(process.env.OPENCU_TEST_TEMP_DIR ?? tmpdir(), 'opencu-direct-metrics-'));
+  const metricsOutput = join(root, 'calls.jsonl');
+  const session = await createDirectSession({dataDir: join(root, 'data'), outputDir: join(root, 'output'),
+    config: {browserEnabled: false}, metricsOutput});
+  try {
+    // A directory reliably rejects append even when tests run as a privileged user.
+    await rm(metricsOutput); await mkdir(metricsOutput);
+    const result = await session.run({code: 'var executed = 1; executed++'});
+    assert.equal(result.ok, true); assert.equal(result.outputs.at(-1), '1');
+    assert.equal(result.metricsError.code, 'EISDIR');
+    assert.equal((await session.run({code: 'executed'})).outputs.at(-1), '2');
+    await assert.rejects(session.run({code: 'throw Object.assign(new Error("real failure"), {code:"REAL_FAILURE",details:{stage:"evaluation"}})'}),
+      error => error.code === 'REAL_FAILURE' && error.details.stage === 'evaluation' && error.metricsError.code === 'EISDIR');
+    const requested = await session.request('reconfigure');
+    assert.equal(requested.ok, true); assert.equal(requested.metricsError.code, 'EISDIR');
+    const reset = await session.reset();
+    assert.equal(reset.reset, true); assert.equal(reset.metricsError.code, 'EISDIR');
   } finally { await session.close(); await rm(root, {recursive: true, force: true}); }
 });
