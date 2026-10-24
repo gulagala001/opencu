@@ -26,6 +26,7 @@ async function fixture(t) {
         const child = {...target('child'), id: 'tab:child'};
         targets.push(child); return {target: child};
       }
+      if (['navigate','reload','type'].includes(args.action)) return {target:{...targets.find(target => target.id === value.id),...(args.url ? {url:args.url} : {})}};
       if (args.action !== 'closeTab') return {};
       targets.splice(targets.findIndex(item => item.id === value.id), 1);
       return {closedTargetId: value.id};
@@ -72,6 +73,27 @@ test('a verified action result updates the binding without sharing its mutable d
     original.target.identity.occurrence = "edited"; await original.typeText("child only");`);
   assert.deepEqual(f.calls, [['type', 'tab:child', 'child']]);
   assert.equal(f.actions.at(-1).observationId, undefined, 'a new target cannot reuse the original observation');
+  const capability = JSON.parse((await f.run('({id:original.id,control:original.capabilities.control(),metadata:original.target.control})')).outputs.at(-1));
+  assert.equal(capability.id,'tab:child');assert.equal(capability.control.input,'target-cdp');
+  assert.deepEqual(capability.metadata,capability.control);
+});
+
+test('navigation and ordinary action receipts refresh actual control capabilities without replacing the target occurrence',async t => {
+  const f = await fixture(t);
+  for (const action of ['await original.goto("https://example.test/next");','await original.reload();','await original.typeText("once");']) {
+    const result = await f.run(`${action} ({id:original.id,identity:original.target.identity,control:original.capabilities.control(),metadata:original.target.control});`);
+    const value = JSON.parse(result.outputs.at(-1));
+    assert.equal(value.id,'tab:reused');assert.equal(value.identity.occurrence,'original');
+    assert.equal(value.control.input,'target-cdp');assert.deepEqual(value.control.waits.navigation,['commit','domcontentloaded','load']);
+    assert.deepEqual(value.metadata,value.control);
+  }
+  // Neither stale backend metadata nor an edited prior capability object may
+  // replace routes freshly derived from the verified current descriptor.
+  f.targets[0].control = {input:'stale-backend-route',waits:{navigation:false}};
+  const result = await f.run('original.capabilities.control().input = "stale-prior-route"; await original.typeText("new route"); original.capabilities.control();');
+  const control = JSON.parse(result.outputs.at(-1));
+  assert.equal(control.input,'target-cdp');assert.deepEqual(control.waits.navigation,['commit','domcontentloaded','load']);
+  assert.equal(f.calls.at(-1)[1],'tab:reused');
 });
 
 for (const endpoint of ['observe', 'act', 'resume', 'preview', 'focus', 'openTarget'])

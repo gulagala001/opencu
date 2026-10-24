@@ -411,6 +411,10 @@ export async function createController({dataDir, browser, native} = {}) {
           if (replaced) forgetTarget(target.id);
           selected.set(current.id, {...current, verified: true, cold: false});
           activeTargetId = current.id;
+          // Consumers replace their binding metadata from this receipt. Return
+          // the verified, normalized descriptor, including freshly derived
+          // control routes, rather than the backend's undecorated target.
+          result = {...result,target:json(current)};
         }
         if (result?.closedTargetId) forgetTarget(result.closedTargetId);
         if (inputReleased(result?.release)) {
