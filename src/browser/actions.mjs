@@ -9,7 +9,7 @@ import {uploadFiles} from './upload-files.mjs';
 import {clickParameters, checkClickHeld, holdClick} from '../../extension/click-options.js';
 import {pressParameters, checkPressHeld} from '../../extension/key-options.js';
 import {playwrightKeyIdentity} from './playwright-keyboard.mjs';
-import {actOnClipboard} from './clipboard.mjs';
+import {actOnClipboard,restoreClipboardPermissions} from './clipboard.mjs';
 import {withCDPFrameGuard} from '../../extension/frame-router.js';
 import {sequentialTextKey, checkSequentialDeadline, guestKeySpec, keyEventParameters} from '../../extension/keyboard.js';
 
@@ -389,7 +389,17 @@ export async function actOnPage(record, request, options) {
 export async function releasePage(record, timeoutMs, {dismissDialogs = true, persistInputs} = {}) {
   if (record.page.isClosed() || record.crashed) {
     record.keys.clear(); record.buttons.clear();
-    return [];
+    // Closing a page does not revoke its origin's browser-context permission.
+    // Its own session may be gone; the backend retains a browser-level sender.
+    let timer;
+    try {
+      await Promise.race([(async () => {
+        await Promise.allSettled([...record.pending]);
+        await restoreClipboardPermissions(record);
+      })(),new Promise((_,reject) => {timer=setTimeout(() => reject(new Error('Clipboard permission release is still in flight')),timeoutMs);})]);
+      return [];
+    } catch (error) {return [{targetId:record.id,code:error.code,error:error.message}];}
+    finally {clearTimeout(timer);}
   }
   const dialog = record.dialogs?.read();
   if (dialog && !dismissDialogs) return [{targetId:record.id,error:'A JavaScript dialog remains open; automatic cleanup did not dismiss it',dialog}];
@@ -427,6 +437,8 @@ export async function releasePage(record, timeoutMs, {dismissDialogs = true, per
     const settled = await (guard ? guard.wait(pending) : pending);
     if (!settled) return [{targetId: record.id, error: 'Input command is still in flight'}, ...(dialogRelease?.failures ?? []).map(error=>({targetId:record.id,error}))];
     const failures = [];
+    try {await bounded(() => restoreClipboardPermissions(record));}
+    catch (error) {failures.push({targetId:record.id,code:error.code,error:error.message});}
     for (const button of [...record.buttons]) {
       try { await bounded(() => releaseInput(() => record.page.mouse.up({button}), () => record.buttons.delete(button))); }
       catch (error) { guard?.check(); failures.push({targetId: record.id, button, error: error.message}); }

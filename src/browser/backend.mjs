@@ -1,4 +1,5 @@
 import {createFileChoosers} from './file-chooser.mjs';
+import {restoreClipboardPermissions} from './clipboard.mjs';
 import {randomUUID, createHash} from 'node:crypto';
 import {mkdir, readFile} from 'node:fs/promises';
 import {join, resolve} from 'node:path';
@@ -160,6 +161,10 @@ export async function createBrowserBackend(options = {}) {
         try {await record.fileChoosers?.release();}
         catch (error) {chooserFailure = {targetId:record.id,error:error.message};}
         const failures = await releasePage(record, releaseTimeoutMs, {dismissDialogs, persistInputs: inputState.persist});
+        if (!chooserFailure && !failures.length && record.page.isClosed()) {
+          records.delete(record.id); pages.delete(record.page);
+          await inputState.forget(record);
+        }
         return chooserFailure ? [...failures,chooserFailure] : failures;
       })().finally(() => { recordReleases.delete(record); });
       recordReleases.set(record, work);
@@ -191,7 +196,10 @@ export async function createBrowserBackend(options = {}) {
       if (failures.length) fail('RELEASE_FAILED', 'Initialization cleanup could not release input', failures);
       for (const attempt of pages.values()) await cleanupRegistration(attempt);
       if (!rootClosed) {
-        if (ownContext) await context?.close();
+        if (ownContext) {
+          await context?.close();
+          if (browser?.isConnected?.() === false) for (const record of records.values()) await restoreClipboardPermissions(record,{ownedProcessClosed:true});
+        }
         else if (connected) await browser?.close();
         rootClosed = true;
       }
@@ -231,6 +239,14 @@ export async function createBrowserBackend(options = {}) {
         identity: {browserId, connectionId, targetId: targetInfo.targetId, contextId: targetInfo.browserContextId ?? 'default'},
         keys: new Set(), buttons: new Set(), pending: new Set(), elements: new Map(), nextElementId: 0, documentGeneration: 0,
       };
+      if (record.sessionClipboard) {
+        const permissionBrowser = browser;
+        record.clipboardPermissionSend = async (method,params) => {
+          const transport = await permissionBrowser.newBrowserCDPSession();
+          try {return await transport.send(method,params);}
+          finally {await transport.detach().catch(() => {});}
+        };
+      }
       record.frameRouter = createCDPFrameRouter((method, params) => session.send(method, params), listener => {
         const received = params => listener('Target.receivedMessageFromTarget', params), detached = params => listener('Target.detachedFromTarget', params);
         session.on('Target.receivedMessageFromTarget', received); session.on('Target.detachedFromTarget', detached);
@@ -255,8 +271,11 @@ export async function createBrowserBackend(options = {}) {
       attempt.removers.push(listen(page, 'close', () => {
         void record.fileChoosers.dispose().catch(error => backgroundErrors.push(error.message));
         for (const remove of attempt.removers) remove();
-        records.delete(id); pages.delete(page);
-        void inputState.forget(record).catch(error => backgroundErrors.push(error.message));
+        pages.delete(page);
+        if (!record.clipboardPermissionRestores?.size) {
+          records.delete(id);
+          void inputState.forget(record).catch(error => backgroundErrors.push(error.message));
+        }
       }));
       return record;
     })().catch(async error => {
@@ -535,7 +554,10 @@ export async function createBrowserBackend(options = {}) {
         await deliveryStore.flush();
         for (const attempt of pages.values()) await cleanupRegistration(attempt);
         if (!rootClosed) {
-          if (ownContext) await context?.close();
+          if (ownContext) {
+            await context?.close();
+            if (browser?.isConnected?.() === false) for (const record of records.values()) await restoreClipboardPermissions(record,{ownedProcessClosed:true});
+          }
           else if (connected) await browser?.close();
           rootClosed = true;
         }
