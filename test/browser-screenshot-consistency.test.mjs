@@ -92,7 +92,8 @@ test('scroll during journal persistence prevents down and release still clears h
 test('drag preserves coordinates and releases on stable geometry',async()=>{
   const f=fixture();f.request={...f.request,action:'drag',path:[{x:100,y:100},{x:200,y:200}]};
   await actOnPage(f.record,f.request,f.options);
-  assert.deepEqual(f.events.map(event=>event.type),['move','down','move','up']);
+  assert.equal(f.events[0].type,'move');assert.equal(f.events[1].type,'down');assert.equal(f.events.at(-1).type,'up');
+  assert(f.events.filter(event=>event.type==='move').length>2);
 });
 
 test('stale geometry cannot block key and button release',async()=>{

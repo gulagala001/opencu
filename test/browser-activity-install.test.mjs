@@ -46,7 +46,7 @@ function protocol() {
 test('live activity calls reuse installation while preserving expected and human input', async () => {
   const f = protocol(), monitor = await createUserActivityMonitor(f.session);
   assert.equal(await monitor.read(), null);
-  assert.equal(await monitor.expect([{type: 'pointerdown', x: 4, y: 8}]), undefined);
+  assert((await monitor.expect([{type: 'pointerdown', x: 4, y: 8}]))?.markers.length);
   f.event('pointerdown', {clientX: 4, clientY: 8});
   assert.equal(await monitor.read(), null);
   f.event('pointerdown', {clientX: 20, clientY: 30});

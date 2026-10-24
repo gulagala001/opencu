@@ -8,6 +8,7 @@ import {validateFileInput,writeFileInput} from '../../extension/file-input.js';
 import {uploadFiles} from './upload-files.mjs';
 import {clickParameters, locatorClickParameters, checkClickHeld, holdClick} from '../../extension/click-options.js';
 import {pressParameters, checkPressHeld} from '../../extension/key-options.js';
+import {dragPath} from '../../extension/pointer-path.js';
 import {playwrightKeyIdentity} from './playwright-keyboard.mjs';
 import {actOnClipboard,restoreClipboardPermissions} from './clipboard.mjs';
 import {withCDPFrameGuard} from '../../extension/frame-router.js';
@@ -89,7 +90,7 @@ export async function actOnPage(record, request, options) {
   const frameRouter = withCDPFrameGuard(record.frameRouter,frameOptions.wrapSend,step);
   const frameSend = frameOptions.wrapSend((method,params)=>record.session.send(method,params));
   const input = (events, work, beforeDispatch) => step(async () => {
-    const scopedInput = events.some(event => event.textInput || event.type === 'keydown');
+    const scopedInput = events.length > 0;
     check();
     if (request.locatorGeneration !== undefined && request.locatorGeneration !== record.documentGeneration) fail('STALE_ELEMENT', 'Document changed before locator input');
     await record.session.send('Emulation.setFocusEmulationEnabled', { enabled: true });
@@ -145,17 +146,17 @@ export async function actOnPage(record, request, options) {
   };
   const mouseUp = async button => {
     button = buttonName(button);
-    await step(() => { record.inputDispatchSequence = (record.inputDispatchSequence ?? 0) + 1; return page.mouse.up({button}); });
+    await input([{type:'pointerup',...record.pointer}],() => page.mouse.up({button}));
     record.buttons.delete(button);
   };
   const point = async value => {
     if (value.elementId !== undefined) return step(() => elementPoint(record, value,frameRouter,frameSend));
     return step(() => screenshotPoint(record, {...request, ...value}));
   };
-  const move = async value => {
-    const location = await point(value);
-    if (options.cursor) await step(() => options.cursor({...location, visible: true, animateMovement: true}));
-    await input([], () => page.mouse.move(location.x, location.y), checkScreenshot);
+  const move = async (value, animateMovement = true, resolved = false) => {
+    const location = resolved ? value : await point(value);
+    if (options.cursor) await step(() => options.cursor({...location, visible: true, animateMovement}));
+    await input([{type:'pointermove',...location}], () => page.mouse.move(location.x, location.y), checkScreenshot);
     record.pointer = location;
     return location;
   };
@@ -174,7 +175,7 @@ export async function actOnPage(record, request, options) {
       await options.persistInputs();
       await input([{type: 'pointerdown', ...record.pointer}], () => page.mouse.down({button, clickCount: index}), checkPointer);
       await step(() => holdClick(click.durationMs, check));
-      await step(() => { record.inputDispatchSequence = (record.inputDispatchSequence ?? 0) + 1; return page.mouse.up({button, clickCount: index}); });
+      await input([{type:'pointerup',...record.pointer}],() => page.mouse.up({button,clickCount:index}));
       record.buttons.delete(button);
     }
     for (const key of [...click.keys].reverse()) await keyUp(key);
@@ -279,15 +280,20 @@ export async function actOnPage(record, request, options) {
       await input([{type: 'wheel'}], () => page.mouse.wheel(finite(request.deltaX ?? 0, 'deltaX'), finite(request.deltaY ?? 0, 'deltaY')), checkPointer);
       break;
     case 'drag': {
-      if (!Array.isArray(request.path) || request.path.length < 2) fail('INVALID_ARGUMENT', 'drag requires at least two path points');
-      const points = request.path.map(value => ({x: finite(value.x, 'x'), y: finite(value.y, 'y')}));
-      // Reject an invalid later endpoint before any pointer input. move() still
-      // resolves each point again so preflight does not replace freshness checks.
-      for (const value of points) await point(value);
-      await move(points[0]);
-      await mouseDown(request.button);
-      for (const value of points.slice(1)) await move(value);
-      await mouseUp(request.button);
+      const plan=dragPath(request.path,request.durationMs), waypoints=[];
+      const button = buttonName(request.button);
+      // Validate every explicit endpoint before acquiring input, then interpolate
+      // in CSS pixels. Each dispatch still checks the original screenshot.
+      for (const value of plan.waypoints) waypoints.push(await point(value));
+      if (record.buttons.has(button)) fail('INPUT_ALREADY_HELD','Drag cannot acquire an already held mouse button');
+      const {points,intervalMs}=dragPath(waypoints,request.durationMs);
+      await move(points[0],true,true);
+      await mouseDown(button);
+      for (const value of points.slice(1)) {
+        await step(() => holdClick(intervalMs,check));
+        await move(value,false,true);
+      }
+      await mouseUp(button);
       break;
     }
     case 'keyDown': await keyDown(request.key); break;

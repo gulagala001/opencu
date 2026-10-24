@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { actOnPage, releasePage } from '../src/browser/actions.mjs';
+import {dragPath} from '../extension/pointer-path.js';
 
 // Production actions and coordinate mapping with a synthetic page/CDP boundary.
 // Dispatch ordering is tested here; no real browser click effect is claimed.
@@ -60,8 +61,8 @@ test('valid preview-scaled drag preserves every dispatched endpoint', async () =
   const f = fixture();
   await actOnPage(f.record, { ...f.request, previewWidth: 200, previewHeight: 150,
     path: [{ x: 10, y: 10 }, { x: 100, y: 75 }, { x: 199, y: 149 }] }, f.options);
-  assert.deepEqual(f.events, [{ type: 'move', x: 40, y: 40 }, { type: 'down' },
-    { type: 'move', x: 400, y: 300 }, { type: 'move', x: 796, y: 596 }, { type: 'up' }]);
+  const samples=dragPath([{x:40,y:40},{x:400,y:300},{x:796,y:596}]).points;
+  assert.deepEqual(f.events,[{type:'move',...samples[0]},{type:'down'},...samples.slice(1).map(point=>({type:'move',...point})),{type:'up'}]);
   assert.equal(f.persisted, 1); assert.equal(f.record.buttons.size, 0);
 });
 
@@ -79,14 +80,17 @@ test('preflight does not cache coordinates across subsequent drag movement', asy
 test('from/to aliases preserve screenshot-scaled drag behavior', async () => {
   const f = fixture();
   await actOnPage(f.record, { ...f.request, from: [10, 20], to: [30, 40] }, f.options);
-  assert.deepEqual(f.events, [{ type: 'move', x: 20, y: 40 }, { type: 'down' }, { type: 'move', x: 60, y: 80 }, { type: 'up' }]);
+  assert.deepEqual(f.events.filter(event=>event.type==='move').at(0),{type:'move',x:20,y:40});
+  assert.deepEqual(f.events.filter(event=>event.type==='move').at(-1),{type:'move',x:60,y:80});
+  assert(f.events.filter(event=>event.type==='move').length>2);
 });
 
 test('CSS drag coordinates retain the existing direct-coordinate path', async () => {
   const f = fixture(); f.record.screenshot = undefined;
   f.record.page.evaluate = async () => { throw Error('CSS coordinates do not need screenshot geometry'); };
   await actOnPage(f.record, { action: 'drag', coordinateSpace: 'css', path: [{ x: -10, y: 20 }, { x: 900, y: 700 }] }, f.options);
-  assert.deepEqual(f.events, [{ type: 'move', x: -10, y: 20 }, { type: 'down' }, { type: 'move', x: 900, y: 700 }, { type: 'up' }]);
+  assert.deepEqual(f.events.filter(event=>event.type==='move').at(0),{type:'move',x:-10,y:20});
+  assert.deepEqual(f.events.filter(event=>event.type==='move').at(-1),{type:'move',x:900,y:700});
 });
 
 test('already-aborted drag never starts preflight or input', async () => {
@@ -103,8 +107,8 @@ for (const coordinateSpace of ['screenshot-pixels', 'physical-screenshot-pixels'
     f.record.screenshot.viewport.deviceScaleFactor = 2; f.viewport.deviceScaleFactor = 2;
     await actOnPage(f.record, { ...f.request, coordinateSpace,
       path: [{ x: 200, y: 200 }, { x: 800, y: 600 }] }, f.options);
-    assert.deepEqual(f.events, [{ type: 'move', x: 100, y: 100 }, { type: 'down' },
-      { type: 'move', x: 400, y: 300 }, { type: 'up' }]);
+    assert.deepEqual(f.events.filter(event=>event.type==='move').at(0),{type:'move',x:100,y:100});
+    assert.deepEqual(f.events.filter(event=>event.type==='move').at(-1),{type:'move',x:400,y:300});
   });
 }
 
@@ -114,4 +118,37 @@ test('invalid path does not alter an explicitly held left button', async () => {
     path: [{ x: 10, y: 10 }, { x: 400, y: 10 }] }, f.options), { code: 'INVALID_COORDINATES' });
   assert.deepEqual([...f.record.buttons], ['left']);
   assert.deepEqual(f.events, []); assert.equal(f.persisted, 0);
+});
+
+for (const [name,extra] of [['overlong path',{path:Array.from({length:257},()=>({x:1,y:1}))}],['nonfinite duration',{durationMs:NaN}],['negative duration',{durationMs:-1}],['fractional duration',{durationMs:1.5}]]) test(`drag preflights ${name}`,async()=>{
+  const f=fixture();await assert.rejects(actOnPage(f.record,{...f.request,path:[{x:1,y:1},{x:2,y:2}],...extra},f.options),{code:'INVALID_ARGUMENT'});
+  assert.deepEqual(f.events,[]);assert.equal(f.persisted,0);
+});
+test('drag refuses its held button and preserves unrelated held inputs',async()=>{
+  const f=fixture();f.record.buttons.add('left');f.record.keys.add('Shift');
+  await assert.rejects(actOnPage(f.record,{...f.request,path:[{x:1,y:1},{x:2,y:2}]},f.options),{code:'INPUT_ALREADY_HELD'});assert.deepEqual(f.events,[]);
+  f.record.buttons.delete('left');f.record.buttons.add('right');await actOnPage(f.record,{...f.request,path:[{x:1,y:1},{x:2,y:2}],durationMs:0},f.options);
+  assert.deepEqual([...f.record.buttons],['right']);assert.deepEqual([...f.record.keys],['Shift']);
+});
+test('drag samples retain explicit turns, cap huge moves and cancel into the release journal',async()=>{
+  const path=dragPath([{x:0,y:0},{x:600,y:0},{x:600,y:600}]);assert(path.points.some(point=>point.x===600&&point.y===0));assert(path.points.length>3);
+  assert.equal(dragPath([{x:0,y:0},{x:1e300,y:1e300}]).points.length,257);
+  const f=fixture(),controller=new AbortController();f.record.page.mouse.move=async(x,y)=>{f.events.push({type:'move',x,y});if(f.events.filter(event=>event.type==='move').length===3)controller.abort();};
+  await assert.rejects(actOnPage(f.record,{...f.request,signal:controller.signal,path:[{x:1,y:1},{x:200,y:100}]},f.options),{code:'CONTROL_STOPPED'});
+  assert.equal(f.record.buttons.has('left'),true);assert.deepEqual(await releasePage(f.record,100),[]);assert.equal(f.events.at(-1).type,'up');
+});
+
+test('guest drag preflights later endpoints and uses sampled cursor updates',async()=>{
+  const {createGuestDriver}=await import('../src/client/guest-driver.mjs'),events=[],cursors=[];
+  const driver=createGuestDriver({addEventListener(){},getURL:()=> 'https://fixture.test/',getTitle:()=> 'Fixture'}, {},()=>{},()=>{},value=>cursors.push(value),undefined,async(operation,args)=>{
+    if(operation==='getDialog')return {};
+    if(operation==='input')events.push(args);
+    return {};
+  });
+  await assert.rejects(driver.act({action:'drag',coordinateSpace:'css',path:[{x:1,y:1},{x:NaN,y:2}]}),{code:'INVALID_ARGUMENT'});assert.equal(events.length,0);
+  await driver.act({action:'keyDown',key:'Shift'});events.length=0;
+  await driver.act({action:'drag',coordinateSpace:'css',path:[{x:1,y:1},{x:180,y:1},{x:180,y:150}],durationMs:0});
+  assert(events.filter(event=>event.type==='mouseMove').length>3);assert(events.some(event=>event.type==='mouseMove'&&event.x===180&&event.y===1));
+  assert.equal(cursors[0].animateMovement,true);assert(cursors.slice(1).every(cursor=>cursor.animateMovement===false));
+  assert(events.every(event=>event.modifiers.includes('shift')));assert.equal(events.at(-1).type,'mouseUp');
 });

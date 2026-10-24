@@ -45,6 +45,21 @@ function installMonitor() {
     return {targets:changesValue ? [control] : [],inputTypes:[...inputTypes,...(type !== 'range' && navigation ? ['insertText'] : []),null]};
   };
 
+  let pointerControl, pointerEffect;
+  const pointerTarget = target => {
+    const control=target?.closest?.('label')?.control ?? target?.closest?.('select') ?? target;
+    if (control?.isConnected === false || control?.matches?.(':disabled')) return;
+    return control?.tagName === 'SELECT' || control?.tagName === 'INPUT' && ['range','number','date','datetime-local','month','time','week','color'].includes(control.type) ? control : undefined;
+  };
+  const pointerDefault = (event,target) => {
+    if (event.type === 'pointerdown') pointerControl=event.button === 0 ? {target:pointerTarget(target),pointerId:event.pointerId} : undefined;
+    const control=pointerControl && pointerControl.pointerId === event.pointerId ? pointerControl.target : undefined;
+    if (control && (event.type === 'pointerdown' || event.type === 'pointerup' || event.buttons & 1)) {
+      const effect=pointerEffect={target:control,input:true,change:true};
+      setTimeout(()=>{if(pointerEffect===effect)pointerEffect=undefined;},0);
+    }
+    if (event.type === 'pointerup') pointerControl=undefined;
+  };
   const checkable = target => {
     const control = target?.closest?.('label')?.control ?? target;
     return control?.tagName === 'INPUT' && ['checkbox', 'radio'].includes(control.type) ? control : null;
@@ -54,12 +69,13 @@ function installMonitor() {
     (item.key === undefined || item.key === event.key || item.key === event.code) &&
     (item.type !== 'input' || item.inputTypes === undefined || item.inputTypes.includes(event.inputType ?? null)) &&
     (item.x === undefined || Math.abs(item.x - event.clientX) <= 2 && Math.abs(item.y - event.clientY) <= 2);
-  for (const type of ['pointerdown', 'keydown', 'beforeinput', 'input', 'wheel', 'click']) {
+  for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'keydown', 'beforeinput', 'input', 'change', 'wheel', 'click']) {
     const listener = event => {
       if (!event.isTrusted) return;
       const now = performance.now();
       for (let i = expected.length - 1; i >= 0; i--) if (expected[i].expires < now) expected.splice(i, 1);
       const target = event.composedPath?.()[0] ?? event.target;
+      if (['input','change'].includes(event.type) && pointerEffect && pointerEffect.target === pointerTarget(target) && pointerEffect[event.type] && (event.inputType == null || ['insertText','insertReplacementText'].includes(event.inputType))) {pointerEffect[event.type]=false;return;}
       if (type === 'beforeinput') {
         const input = expected.find(input => input.target === editTarget(target) && (
           input.textInput && input.inputType === event.inputType && input.data === event.data ||
@@ -80,6 +96,7 @@ function installMonitor() {
       const index = expected.findIndex(item => matches(item, event));
       if (index >= 0) {
         const [input] = expected.splice(index, 1);
+        if (['pointerdown','pointermove','pointerup'].includes(event.type)) pointerDefault(event,target);
         if (event.type === 'keydown') {
           const editor = textInputTarget();
           const native = keyboardControlInput(editor,event,input.inputTypes);
@@ -101,7 +118,8 @@ function installMonitor() {
         }
         return;
       }
-      if (event.type === 'click') return;
+      if (['pointerdown','pointermove','pointerup','pointercancel','keydown','wheel'].includes(event.type)) {pointerControl=undefined;pointerEffect=undefined;}
+      if (['click','change','pointermove','pointerup','pointercancel'].includes(event.type)) return;
       if (event.type === 'pointerdown' || event.type === 'keydown') {
         for (let i = expected.length - 1; i >= 0; i--) if (expected[i].type === 'click') expected.splice(i, 1);
       }
@@ -110,6 +128,7 @@ function installMonitor() {
     addEventListener(type, listener, true); listeners.push([type, listener]);
   }
   globalThis.opencuActivity = {
+    documentId,
     read: () => activity ?? null,
     expect(events) {
       const id = ++nextInput;
@@ -121,23 +140,23 @@ function installMonitor() {
           expected.push({...event,target,id,expires:performance.now()+500}); markedText = true;
         } else {expected.push({...event,id,expires:performance.now()+500});if (event.type === 'keydown') markedText = true;}
       }
-      return markedText ? {documentId,id} : undefined;
+      return events.length ? {documentId,id,pointerDown:events.some(event=>event.type==='pointerdown')} : undefined;
     },
     finish(marker) {
       if (marker?.documentId !== documentId) return;
       if (textInput?.id === marker.id) textInput = undefined;
-      for (let i = expected.length - 1; i >= 0; i--) if (expected[i].id === marker.id) expected.splice(i, 1);
+      for (let i = expected.length - 1; i >= 0; i--) if (expected[i].id === marker.id && !(marker.pointerDown && expected[i].type === 'click')) expected.splice(i, 1);
     },
     dispose() {
       for (const [type, listener] of listeners) removeEventListener(type, listener, true);
-      expected.length = 0; textInput = undefined;
+      expected.length = 0; textInput = undefined; pointerControl=undefined; pointerEffect=undefined;
       delete globalThis.opencuActivity;
     },
   };
 }
 
 /** A separate Chromium world observes real input without exposing hooks to the site. */
-export async function createUserActivityMonitor(session, {onAcquire} = {}) {
+export async function createUserActivityMonitor(session, {onAcquire, frameRouter} = {}) {
   const source = `(${installMonitor.toString()})()`;
   const {identifier} = await session.send('Page.addScriptToEvaluateOnNewDocument', {source, worldName});
   async function evaluate(expression, install = true) {
@@ -155,11 +174,64 @@ export async function createUserActivityMonitor(session, {onAcquire} = {}) {
     if (current === null) return run(`${source};${expression}`);
     return current?.value;
   }
+  const routes=new Map(),seen=new Map();
+  let pointerRoute,sequence=0,activity,rootDocument;
+  const stale=error=>['FRAME_DETACHED','STALE_ELEMENT','STALE_DOCUMENT'].includes(error.code);
+  const routed=async(route,expression,install=true)=>{
+    await frameRouter.validate(route);
+    const response=await route.send('Runtime.evaluate',{contextId:route.contextId,expression:install ? `${source};${expression}` : expression,returnByValue:true});
+    if(response.exceptionDetails)throw new Error(response.exceptionDetails.exception?.description??response.exceptionDetails.text);
+    routes.set(route.frameId,route);
+    return response.result.value;
+  };
+  const inFrame=route=>route?.owners?.length>0;
+  const markerFor=async(route,events,node)=>{
+    if(!inFrame(route))return {marker:await evaluate(`globalThis.opencuActivity.expect(${JSON.stringify(events)})`)};
+    await routed(route,'null');
+    let marker;
+    if(node!==undefined){
+      const objectId=await frameRouter.remoteElement(route,node);
+      try{
+        const response=await route.send('Runtime.callFunctionOn',{objectId,functionDeclaration:'function(events){const target=this.nodeType===3?this.parentElement:this;return globalThis.opencuActivity.expect(events.map(event=>({...event,target,x:undefined,y:undefined})));}',arguments:[{value:events}],returnByValue:true});
+        if(response.exceptionDetails)throw new Error(response.exceptionDetails.exception?.description??response.exceptionDetails.text);
+        marker=response.result.value;
+      }finally{await route.send('Runtime.releaseObject',{objectId}).catch(()=>{});}
+    }else marker=await routed(route,`globalThis.opencuActivity.expect(${JSON.stringify(events.map(({x,y,...event})=>event))})`);
+    return {route,marker};
+  };
   let scriptRemoved = false, disposed = false, disposing;
   const monitor = {
-    read: () => evaluate('globalThis.opencuActivity.read()'),
-    expect: events => evaluate(`globalThis.opencuActivity.expect(${JSON.stringify(events)})`),
-    finish: marker => evaluate(`globalThis.opencuActivity.finish(${JSON.stringify(marker)})`),
+    async read(){
+      const root=await evaluate('({documentId:globalThis.opencuActivity.documentId,activity:globalThis.opencuActivity.read()})');
+      if(rootDocument!==root.documentId){rootDocument=root.documentId;sequence=0;activity=undefined;seen.clear();pointerRoute=undefined;}
+      const rows=[root.activity];
+      for(const route of [...routes.values()])try{rows.push(await routed(route,'globalThis.opencuActivity.read()'));}
+      catch(error){if(!stale(error))throw error;routes.delete(route.frameId);if(pointerRoute===route)pointerRoute=undefined;}
+      for(const current of rows)if(current && (seen.get(current.documentId)??0)<current.sequence){
+        sequence+=current.sequence-(seen.get(current.documentId)??0);seen.set(current.documentId,current.sequence);
+        if(!activity || current.at>=activity.at)activity={...current,frameDocumentId:current.documentId};
+      }
+      return activity ? {...activity,documentId:rootDocument,sequence} : null;
+    },
+    async expect(events){
+      if(!events.length)return;
+      if(!frameRouter)return {markers:[await markerFor(undefined,events)]};
+      const event=events[0],pointer=event.type.startsWith('pointer'),point=Number.isFinite(event.x)&&Number.isFinite(event.y);
+      const hit=pointer&&point ? await frameRouter.atPoint(event) : undefined;
+      const route=hit?.route ?? await frameRouter.focused();
+      const previous=pointerRoute;
+      if(event.type==='pointerdown')pointerRoute=route;
+      const markers=[await markerFor(route,events,event.type==='pointerdown'?hit?.backendNodeId:undefined)];
+      if(pointer && event.type!=='pointerdown' && previous && (previous.frameId!==route.frameId || previous.documentId!==route.documentId)) markers.push(await markerFor(previous,events));
+      if(event.type==='pointerup')pointerRoute=undefined;
+      return {markers};
+    },
+    async finish(value){
+      for(const {route,marker} of value?.markers??[])if(marker)try{
+        if(route)await routed(route,`globalThis.opencuActivity.finish(${JSON.stringify(marker)})`);
+        else await evaluate(`globalThis.opencuActivity.finish(${JSON.stringify(marker)})`);
+      }catch(error){if(!route||!stale(error))throw error;routes.delete(route.frameId);if(pointerRoute===route)pointerRoute=undefined;}
+    },
     dispose() {
       if (disposed) return Promise.resolve();
       return disposing ??= (async () => {
@@ -168,6 +240,9 @@ export async function createUserActivityMonitor(session, {onAcquire} = {}) {
           scriptRemoved = true;
         }
         await evaluate('globalThis.opencuActivity && globalThis.opencuActivity.dispose()', false);
+        for(const route of [...routes.values()])try{await routed(route,'globalThis.opencuActivity && globalThis.opencuActivity.dispose()',false);}
+        catch(error){if(!stale(error))throw error;}
+        routes.clear();seen.clear();pointerRoute=undefined;
         disposed = true;
       })().finally(() => { disposing = undefined; });
     },

@@ -310,7 +310,7 @@ export async function createBrowserBackend(options = {}) {
     return attempt.work;
   }
   async function activityFor(record) {
-    record.activityPromise ??= createUserActivityMonitor(record.session, {onAcquire: monitor => { record.activity = monitor; }}).then(activity => (record.activity = activity)).catch(error => { delete record.activityPromise; throw error; });
+    record.activityPromise ??= createUserActivityMonitor(record.session, {frameRouter:record.frameRouter,onAcquire: monitor => { record.activity = monitor; }}).then(activity => (record.activity = activity)).catch(error => { delete record.activityPromise; throw error; });
     return record.activityPromise;
   }
   async function newTab(request, record) {

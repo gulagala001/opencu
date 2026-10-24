@@ -8,6 +8,7 @@ import { clickParameters, locatorClickParameters, checkClickHeld, holdClick } fr
 import { pressParameters, checkPressHeld } from '../extension/key-options.js';
 import {installDocumentRuntime} from '../extension/content.js';
 import {locatorInputFixture} from './fixtures/locator-input.mjs';
+import {dragPath} from '../extension/pointer-path.js';
 
 // Execute the production MV3 worker and its real AX/input helpers. Only Chrome
 // APIs and local bridge transport are simulated; no browser is started.
@@ -67,7 +68,7 @@ async function fixture(t) {
     const next = commands.length ? commands.shift() : await new Promise(resolve => polls.push(resolve));
     return { ok: true, json: async () => ({ commands: next }) };
   };
-  const imports = { observeAccessibility, elementOperation, locatorOperation, invalidateElements, createCDPFrameRouter, installDocumentRuntime, keySpec, keyEventParameters,
+  const imports = { observeAccessibility, elementOperation, locatorOperation, invalidateElements, createCDPFrameRouter, installDocumentRuntime, dragPath, keySpec, keyEventParameters,
     clickParameters, locatorClickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes,
     createPairingClient: () => ({ start: async () => {}, pause: async () => {} }) };
   const worker = new Function(...Object.keys(imports), 'chrome', 'navigator', 'fetch', 'setTimeout', `${source}\nreturn {
@@ -352,4 +353,23 @@ test('MV3 keyboard edit markers are narrow and finished after success or refused
   f.events.length=0;f.hooks.send=(method,params)=>{if(method==='Input.dispatchKeyEvent'&&params.type==='keyDown')throw Object.assign(Error('refused keyboard'),{details:{inputDispatched:false}});};
   await assert.rejects(f.worker.act(f.identity,{type:'press_key',key:'v'}),/refused keyboard/);
   assert.equal(f.events.filter(([name,method])=>name==='content'&&method==='finishInput').length,1);
+});
+
+test('MV3 drag preflights whole paths, keeps turns and preserves unrelated held input',async t=>{
+  const f=await fixture(t);f.seed(['Shift'],['right']);
+  await f.worker.act(f.identity,{type:'drag',coordinateSpace:'css',path:[{x:10,y:10},{x:60,y:10},{x:60,y:60}],durationMs:0});
+  const input=f.events.filter(([method])=>method==='Input.dispatchMouseEvent').map(([,params])=>params);
+  const moves=input.filter(row=>row.type==='mouseMoved');assert(moves.length>3);assert(moves.some(row=>row.x===60&&row.y===10));assert.deepEqual([moves.at(-1).x,moves.at(-1).y],[60,60]);
+  assert.deepEqual([...f.worker.attached.get(73).buttons],['right']);assert.deepEqual([...f.worker.attached.get(73).keys.keys()],['Shift']);
+  f.events.length=0;await assert.rejects(f.worker.act(f.identity,{type:'drag',coordinateSpace:'css',path:[{x:10,y:10},{x:100,y:10}]}),{code:'INVALID_COORDINATES'});assert(!f.events.some(([method])=>method.startsWith('Input.')));
+  await assert.rejects(f.worker.act(f.identity,{type:'drag',coordinateSpace:'css',button:'right',path:[{x:10,y:10},{x:20,y:20}]}),{code:'INPUT_ALREADY_HELD'});
+});
+
+test('MV3 drag checks screenshot geometry between samples and journals the interrupted button',async t=>{
+  const f=await fixture(t);f.seed([],[]);const shot=await f.worker.observe(f.identity,{format:'screenshot'});let moved=false;
+  f.hooks.send=(method,params)=>{if(method==='Input.dispatchMouseEvent'&&params.type==='mousePressed')moved=true;};
+  f.hooks.content=(method,args)=>{if(method==='identity'&&moved)throw Object.assign(Error('document changed'),{code:'STALE_DOCUMENT'});};
+  await assert.rejects(f.worker.act(f.identity,{type:'drag',screenshotId:shot.screenshot.id,path:[{x:10,y:10},{x:60,y:60}],durationMs:0}),{code:'STALE_DOCUMENT'});
+  assert.equal(f.worker.attached.get(73).buttons.has('left'),true);delete f.hooks.content;await f.worker.releaseTab(73);
+  assert(f.events.some(([method,params])=>method==='Input.dispatchMouseEvent'&&params.type==='mouseReleased'));
 });

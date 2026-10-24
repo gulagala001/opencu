@@ -2,6 +2,7 @@ import { guestKeySpec, keyEventKey, sequentialTextKey, checkSequentialDeadline, 
 import { clickParameters, locatorClickParameters, checkClickHeld, holdClick } from '../../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../../extension/key-options.js';
 import { inputReleased } from '../protocol.mjs';
+import { dragPath } from '../../extension/pointer-path.js';
 
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 
@@ -221,9 +222,9 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         try { const result = await task; if (epoch !== generation) fail('CONTROL_STOPPED', 'Input sequence was cancelled'); return result; }
         finally { pending.delete(task); }
       };
-      const move = async value => {
-        position = await step(() => point(value));
-        await step(() => cursor?.({ ...position, visible: true, animateMovement: true, moveSequence: ++moveSequence, sessionConversationId: target.sessionId }));
+      const move = async (value, animateMovement = true, resolved = false) => {
+        position = resolved ? value : await step(() => point(value));
+        await step(() => cursor?.({ ...position, visible: true, animateMovement, moveSequence: ++moveSequence, sessionConversationId: target.sessionId }));
         await step(() => sendInput({ type: 'mouseMove', ...position }));
       };
       const down = async button => { buttons.add(button); await step(() => sendInput({ type: 'mouseDown', ...position, button, clickCount: 1 })); };
@@ -273,10 +274,17 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         case 'mouseUp': await up(args.button ?? 'left'); break;
         case 'scroll': if (args.x != null || args.elementId != null) await move(args); await step(() => sendInput({ type: 'mouseWheel', ...position, deltaX: args.deltaX ?? 0, deltaY: args.deltaY ?? 0 })); break;
         case 'drag': {
-          if (!Array.isArray(args.path) || args.path.length < 2) fail('INVALID_ARGUMENT', 'Drag needs two or more points');
-          await move({ ...args, ...args.path[0] }); await down(args.button ?? 'left');
-          for (const value of args.path.slice(1)) await move({ ...args, ...value });
-          await up(args.button ?? 'left'); break;
+          const plan=dragPath(args.path,args.durationMs),waypoints=[],button=args.button ?? 'left';
+          if (!['left','middle','right'].includes(button)) fail('INVALID_ARGUMENT','Drag button must be left, middle, or right');
+          if (buttons.has(button)) fail('INPUT_ALREADY_HELD','Drag cannot acquire an already held mouse button');
+          for (const value of plan.waypoints) waypoints.push(await step(() => point({...args,...value,elementId:undefined})));
+          const {points,intervalMs}=dragPath(waypoints,args.durationMs);
+          await move(points[0],true,true); await down(button);
+          for (const value of points.slice(1)) {
+            await step(() => holdClick(intervalMs,() => {if (epoch !== generation) fail('CONTROL_STOPPED','Input sequence was cancelled');}));
+            await move(value,false,true);
+          }
+          await up(button); break;
         }
         case 'keyDown': {const key=guestKeySpec(args.key).key; keys.add(key); await step(() => sendInput({ type:'keyDown',keyCode:key })); break;}
         case 'keyUp': {
