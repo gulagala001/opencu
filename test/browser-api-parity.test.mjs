@@ -62,6 +62,25 @@ test('supported locator option values fail at the API boundary', async () => {
   assert.equal(calls, 0);
 });
 
+test('locator rejects its unadvertised second argument before input and keeps explicit filters', async () => {
+  const requests = [];
+  const api = createPlaywrightAPI(async (_action, request) => {
+    requests.push(structuredClone(request));
+    return 'clicked';
+  }, value => value);
+  for (const options of [{hasText: '打开乙'}, {}, null, [], false, '打开乙']) {
+    assert.throws(() => api.locator('.item button', options).first().click(),
+      /locator supports only a CSS selector; use \.locator\(css\)\.filter/);
+  }
+  assert.equal(requests.length, 0);
+  assert.equal(await api.locator('.item button', undefined).filter({hasText: '打开乙'}).first().click(), 'clicked');
+  assert.deepEqual(requests, [{locator: [
+    {kind: 'css', value: '.item button'},
+    {kind: 'filter', hasText: '打开乙'},
+    {kind: 'nth', index: 0},
+  ], method: 'click', args: {}}]);
+});
+
 test('safe failures may retry within their deadline without changing the locator chain', async t => {
   t.mock.timers.enable({apis: ['Date', 'setTimeout'], now: 1000});
   const requests = [];
