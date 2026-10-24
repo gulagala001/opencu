@@ -84,28 +84,28 @@ export function elementFor(record, request) {
   return entry;
 }
 
-export async function elementPoint(record, request) {
+export async function elementPoint(record, request, router = record.frameRouter, send = (method,params)=>record.session.send(method,params)) {
   const entry = elementFor(record, request);
-  if (entry.route) return record.frameRouter.point(entry);
+  if (entry.route) return router.point(entry);
   try {
-    const {object} = await record.session.send('DOM.resolveNode', {backendNodeId: entry.backendNodeId});
+    const {object} = await send('DOM.resolveNode', {backendNodeId: entry.backendNodeId});
     try {
-      const result = await record.session.send('Runtime.callFunctionOn', {
+      const result = await send('Runtime.callFunctionOn', {
         objectId: object.objectId,
         functionDeclaration: 'async function() { let previous; let stable = 0; for (let frame = 0; frame < 120; frame++) { this.scrollIntoView({behavior:"instant",block:"center",inline:"center"}); await new Promise(requestAnimationFrame); const box = this.getBoundingClientRect(); const current = [box.x,box.y,box.width,box.height]; if (previous && current.every((value,index) => Math.abs(value-previous[index]) < 0.5) && box.bottom > 0 && box.top < innerHeight) stable++; else stable = 0; if (stable >= 3) return; previous = current; } throw new Error("Element layout is moving"); }',
         awaitPromise: true,
       });
       if (result.exceptionDetails) throw new Error('Element cannot be scrolled into view');
-    } finally { await record.session.send('Runtime.releaseObject', {objectId: object.objectId}); }
-    const {model} = await record.session.send('DOM.getBoxModel', {backendNodeId: entry.backendNodeId});
+    } finally { await send('Runtime.releaseObject', {objectId: object.objectId}); }
+    const {model} = await send('DOM.getBoxModel', {backendNodeId: entry.backendNodeId});
     const quad = model.content;
     return {x: (quad[0] + quad[2] + quad[4] + quad[6]) / 4, y: (quad[1] + quad[3] + quad[5] + quad[7]) / 4};
   } catch { fail('STALE_ELEMENT', 'Element no longer has an actionable box; observe again'); }
 }
 
-export async function focusElement(record, request) {
+export async function focusElement(record, request, router = record.frameRouter) {
   const entry = elementFor(record, request);
-  if (entry.route) return record.frameRouter.focus(entry);
+  if (entry.route) return router.focus(entry);
   try {
     await record.session.send('DOM.focus', {backendNodeId: entry.backendNodeId});
   } catch { fail('STALE_ELEMENT', 'Element can no longer receive focus; observe again'); }

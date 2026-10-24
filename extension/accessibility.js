@@ -1,5 +1,5 @@
 import { runCDPLocator } from './cdp-locator.js';
-import { hitTestViewport } from './frame-router.js';
+import { hitTestViewport, withCDPFrameGuard } from './frame-router.js';
 import { runTextEdit } from './text-edit.js';
 import {selectOptionsFunction, selectOptionsResult} from './select-options.js';
 import {captureAXTree, axElementKey} from './ax-tree.js';
@@ -41,6 +41,8 @@ export async function observeAccessibility(tabId, send, documentId, check = () =
     text: visible.map(node => `${node.elementId ? `[${node.elementId}] ` : ''}${node.role} ${JSON.stringify(node.name)}${node.value !== undefined ? ` value=${JSON.stringify(node.value)}` : ''}`).join('\n') };
 }
 export async function elementOperation(tabId, send, operation, args, router, editOptions = {}) {
+  editOptions.check?.();
+  router = withCDPFrameGuard(router,editOptions.wrapSend,editOptions.guard);
   const state = states.get(tabId), elements = state?.elements;
   if (args.observationId !== undefined && args.observationId !== state?.observationId) fail('Element observation has expired; observe again.');
   // A screenshot has no AX payload. A later element action still receives the
@@ -48,14 +50,15 @@ export async function elementOperation(tabId, send, operation, args, router, edi
   if (state?.deferredAX && typeof args.elementId === 'string' && !elements.has(args.elementId)) {
     const captured = await captureAXTree(send,router);
     const next = new Map();
-    for (const {node,route,key} of captured.nodes) if (node.backendDOMNodeId) next.set(`${state.identityScope}:${key}`,{backendNodeId:node.backendDOMNodeId,route});
+    for (const {node,route,key} of captured.nodes) if (node.backendDOMNodeId) next.set(`${state.identityScope}:${key}`,{backendNodeId:node.backendDOMNodeId,route:router?.original(route) ?? route});
     await captured.validate();
+    editOptions.check?.();
     if (states.get(tabId) !== state) fail('Element observation has expired; observe again.');
     for (const [id,entry] of next) elements.set(id,entry);
     delete state.deferredAX;
   }
   const entry = elements?.get(args.elementId);
-  const route = entry?.route;
+  const route = router?.route(entry?.route) ?? entry?.route;
   let backendNodeId = entry?.backendNodeId, elementId = args.elementId;
   if (route) {await router.validate(route); send = route.send;}
   if (operation === 'hitTest') {
@@ -132,16 +135,18 @@ export async function elementOperation(tabId, send, operation, args, router, edi
   } finally { await send('Runtime.releaseObject', { objectId: object.objectId }); }
 }
 
-export async function locatorOperation(tabId, send, request, documentId, router) {
+export async function locatorOperation(tabId, send, request, documentId, router, options = {}) {
+  router = withCDPFrameGuard(router,options.wrapSend,options.guard);
   let state = states.get(tabId);
   if (!state || state.documentId !== documentId) {
     state = {elements:new Map(),identityScope:crypto.randomUUID(),documentId};
     states.set(tabId, state);
   }
   return runCDPLocator(send, request, (backendNodeId, route) => {
+    options.check?.();
     if (states.get(tabId) !== state) fail('Document changed while resolving locator.');
     const elementId = `${state.identityScope}:${axElementKey(backendNodeId,route)}`;
-    state.elements.set(elementId, {backendNodeId,route});
+    state.elements.set(elementId, {backendNodeId,route:router?.original(route) ?? route});
     return elementId;
   }, router);
 }

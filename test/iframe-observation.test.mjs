@@ -5,6 +5,7 @@ import {createCDPFrameRouter} from '../extension/frame-router.js';
 import {observeAccessibility,elementOperation,invalidateElements} from '../extension/accessibility.js';
 import {observePage} from '../src/browser/observation.mjs';
 import {actOnPage} from '../src/browser/actions.mjs';
+import {hitTest} from '../src/browser/dom.mjs';
 
 function fixture() {
   const frames = new Map(['top','outer','inner'].map((id,index)=>[id,{id,documentId:`document-${index}`,child:['outer','inner'][index]}]));
@@ -111,4 +112,41 @@ test('router normalizes only explicit protocol context loss and preserves unrela
   error=Error('unknown transport failure');
   await assert.rejects(router.validate(route),candidate=>candidate===error);
   await router.close();
+});
+
+test('managed route cannot focus after an action was cancelled during its second validation',async()=>{
+  const entered=Promise.withResolvers(),gate=Promise.withResolvers(),events=[],aborter=new AbortController();let validations=0;
+  const send=async(method,args={})=>{
+    if(method==='Page.getFrameTree')return {frameTree:{frame:{id:'top'}}};
+    if(method==='Page.createIsolatedWorld')return {executionContextId:1};
+    if(method==='Runtime.evaluate'){
+      if(args.expression==='globalThis.__opencuFrameDocument'&&++validations===2){entered.resolve();await gate.promise;}
+      return {result:{value:'document'}};
+    }
+    events.push(method);return {};
+  };
+  const router=createCDPFrameRouter(send,()=>()=>{}),route=await router.main();
+  const record={page:{keyboard:{insertText:async()=>events.push('insertText')}},session:{send},frameRouter:router,documentGeneration:0,
+    elements:new Map([[1,{backendNodeId:42,route}]]),pending:new Set(),keys:new Set(),buttons:new Set()};
+  const action=actOnPage(record,{action:'type',text:'must not dispatch',elementId:1,signal:aborter.signal},{});
+  await entered.promise;aborter.abort();await assert.rejects(action,{code:'CONTROL_STOPPED'});gate.resolve();
+  await Promise.allSettled([...record.pending]);assert.deepEqual(events,[]);assert.equal(record.inputDispatchSequence,undefined);
+  await router.close();
+});
+
+test('root hit testing never reuses an OOPIF backend number for another element',async()=>{
+  let childReads=0;
+  const route={frameId:'child',sessionId:'oopif',contextId:2,send:async()=>{childReads++;throw Error('unrelated child must not be read');}};
+  const send=async method=>{
+    if(method==='Page.getLayoutMetrics')return {layoutViewport:{pageX:0,pageY:0}};
+    if(method==='DOM.getNodeForLocation')return {backendNodeId:42};
+    if(method==='DOM.resolveNode')return {object:{objectId:'root-node'}};
+    if(method==='Runtime.callFunctionOn')return {result:{value:{tagName:'button',url:'https://root.invalid/'}}};
+    return {};
+  };
+  const record={page:{evaluate:async()=>({width:100,height:100})},session:{send},frameRouter:{validate:async()=>{}},
+    elements:new Map([[8,{backendNodeId:42,route}]]),nextElementId:8,observationId:'obs'};
+  const result=await hitTest(record,{x:10,y:10,coordinateSpace:'css'});
+  assert.equal(result.url,'https://root.invalid/');assert.equal(result.elementId,9);assert.equal(childReads,0);
+  assert.equal(record.elements.get(8).route,route);
 });

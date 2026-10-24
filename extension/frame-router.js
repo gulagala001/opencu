@@ -5,6 +5,34 @@ export async function hitTestViewport(send, point) {
   return send('DOM.getNodeForLocation', {x:Math.floor(point.x+viewport.pageX),y:Math.floor(point.y+viewport.pageY),includeUserAgentShadowDOM:false});
 }
 
+/** Scope a live route to one action without storing that action's fence in IDs. */
+export function withCDPFrameGuard(router, wrapSend = send => send, guard = work => work()) {
+  if (!router) return router;
+  const routes = new WeakMap(), originals = new WeakMap();
+  const original = route => originals.get(route) ?? route;
+  const route = source => {
+    if (!source) return source;
+    if (originals.has(source)) return source;
+    if (routes.has(source)) return routes.get(source);
+    const scoped = {...source,send:wrapSend(source.send),owners:[]};
+    routes.set(source,scoped); originals.set(scoped,source);
+    scoped.owners = (source.owners ?? []).map(owner=>({...owner,parent:route(owner.parent)}));
+    return scoped;
+  };
+  const element = entry => ({...entry,route:route(entry.route)});
+  return {
+    route,original,
+    main:()=>guard(async()=>route(await router.main())),
+    child:(parent,node,frameId)=>guard(async()=>route(await router.child(original(parent),node,frameId))),
+    validate:item=>guard(()=>router.validate(route(item))),
+    remoteElement:(item,node)=>guard(()=>router.remoteElement(route(item),node)),
+    point:entry=>guard(()=>router.point(element(entry))),
+    checkPoint:(entry,point)=>guard(()=>router.checkPoint(element(entry),point)),
+    focus:entry=>guard(()=>router.focus(element(entry))),
+    close:()=>router.close(),
+  };
+}
+
 /** CDP sessions for real frame documents, including out-of-process iframes. */
 export function createCDPFrameRouter(sendRoot, subscribe) {
   const sessions = new Map(), pending = new Map();

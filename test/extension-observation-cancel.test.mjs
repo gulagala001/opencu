@@ -96,6 +96,56 @@ test('MV3 screenshot format captures pixels without reading AX and keeps fresh o
   assert.equal(f.events.filter(([method]) => method === 'Page.captureScreenshot').length, 1);
 });
 
+async function routedFixture(t) {
+  const f=await fixture(t),events=[],hooks={};
+  const send=async(method,params={})=>{
+    events.push([method,params]);await hooks.send?.(method,params);
+    if(method==='Page.getFrameTree')return {frameTree:{frame:{id:'top'}}};
+    if(method==='Page.createIsolatedWorld')return {executionContextId:7};
+    if(method==='Runtime.evaluate')return {result:params.expression==='document'?{objectId:'document'}:{value:'document-token'}};
+    if(method==='DOM.describeNode')return {node:{nodeType:9,children:[]}};
+    if(method==='Accessibility.getFullAXTree')return {nodes:[{nodeId:'1',frameId:'top',backendDOMNodeId:1,role:{value:'RootWebArea'}},{nodeId:'2',backendDOMNodeId:42,role:{value:'textbox'}}]};
+    if(method==='DOM.resolveNode')return {object:{objectId:'input'}};
+    if(method==='Runtime.callFunctionOn')return {result:{value:{changed:true}}};
+    return {};
+  };
+  const router=createCDPFrameRouter(send,()=>()=>{});f.worker.attached.get(73).frameRouter=router;
+  const observation=await observeAccessibility(73,send,'doc',()=>{},{},router);
+  const elementId=observation.ax.nodes.find(node=>node.role==='textbox').elementId;
+  return {...f,routeEvents:events,routeHooks:hooks,elementId,observationId:observation.observationId};
+}
+
+for(const type of ['set_value','type_text','click'])test(`MV3 routed ${type} never writes after cancellation during document validation`,async t=>{
+  const f=await routedFixture(t),entered=deferred(),gate=deferred();let blocked=false;
+  if(type==='click'){f.worker.attached.get(73).keys.clear();f.worker.attached.get(73).buttons.clear();}
+  f.routeHooks.send=async(method,params)=>{if(!blocked&&method==='Runtime.evaluate'&&params.expression==='globalThis.__opencuFrameDocument'){blocked=true;entered.resolve();await gate.promise;}};
+  f.queue(f.message('routed','act',{action:{type,elementId:f.elementId,observationId:f.observationId,value:'must not change',text:'must not type'}}));
+  await within(entered.promise);const before=f.worker.controlToken(73);f.queue(f.message('release','release'));
+  try{
+    await within((async()=>{while(f.worker.controlToken(73).tabEpoch===before.tabEpoch)await tick();})());
+    gate.resolve();const result=await f.result('routed');
+    assert.equal(result.error.code,'CONTROL_STOPPED');assert.equal(result.error.details.inputDispatched,false);
+    assert.equal((await within(f.result('release'))).ok,true);
+    assert.equal(f.routeEvents.filter(([method])=>['DOM.focus','DOM.scrollIntoViewIfNeeded','Runtime.callFunctionOn'].includes(method)).length,0);
+  }finally{gate.resolve();}
+});
+
+for(const [type,dispatch] of [['set_value','Runtime.callFunctionOn'],['type_text','DOM.focus'],['click','DOM.scrollIntoViewIfNeeded']])test(`MV3 routed ${type} retains a true dispatch receipt when cancelled after ${dispatch}`,async t=>{
+  const f=await routedFixture(t),entered=deferred(),gate=deferred();let blocked=false;
+  if(type==='click'){f.worker.attached.get(73).keys.clear();f.worker.attached.get(73).buttons.clear();}
+  f.routeHooks.send=async method=>{if(!blocked&&method===dispatch){blocked=true;entered.resolve();await gate.promise;}};
+  f.queue(f.message('routed','act',{action:{type,elementId:f.elementId,observationId:f.observationId,value:'changed',text:'typed'}}));
+  await within(entered.promise);const before=f.worker.controlToken(73);f.queue(f.message('release','release'));
+  try{
+    await within((async()=>{while(f.worker.controlToken(73).tabEpoch===before.tabEpoch)await tick();})());
+    gate.resolve();const result=await f.result('routed');
+    assert.equal(result.error.code,'CONTROL_STOPPED');assert.equal(result.error.details.inputDispatched,true);
+    assert.equal((await within(f.result('release'))).ok,true);
+    assert.equal(f.routeEvents.filter(([method])=>method===dispatch).length,1);
+    if(type==='set_value')assert(f.routeEvents.some(([method,params])=>method==='Runtime.releaseObject'&&params.objectId==='input'),'cancelled DOM calls still release their remote object');
+  }finally{gate.resolve();}
+});
+
 for (const stage of ['verify', 'identity', 'ax', 'screenshot']) {
   test(`MV3 releases held key and mouse while ${stage} read is pending`, async t => {
     const f = await fixture(t), entered = deferred(), gate = deferred(), cursorGate = deferred(); let stalled = false, cursorStalled = false;
