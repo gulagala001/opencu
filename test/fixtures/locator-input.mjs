@@ -1,4 +1,5 @@
 import {runInNewContext} from 'node:vm';
+import {installDocumentRuntime} from '../../extension/content.js';
 
 // Execute the production serialized DOM locator; only its CDP/page boundary is
 // synthetic. Pointer/key dispatch remains the responsibility of each backend.
@@ -11,7 +12,10 @@ export function locatorInputFixture() {
     getClientRects:() => [box], getBoundingClientRect:() => box,
     scrollIntoView:() => {scrolls++;}};
   const context = {document:{querySelectorAll:() => [button],elementFromPoint:() => button},
-    getComputedStyle:() => ({display:'block',visibility:'visible'}), innerWidth:100, innerHeight:100};
+    getComputedStyle:() => ({display:'block',visibility:'visible'}), innerWidth:100, innerHeight:100,
+    crypto, performance, setTimeout, clearTimeout, addEventListener() {}, removeEventListener() {},
+    MutationObserver: class { observe() {} }, visualViewport: null};
+  runInNewContext(`(${installDocumentRuntime})()`, context);
   const remote = (value, byValue = false) => {
     if (byValue || value == null || typeof value !== 'object') return {result:{value}};
     const objectId = String(++next); objects.set(objectId,value);
@@ -29,6 +33,7 @@ export function locatorInputFixture() {
   };
   const route = {send,frameId:'main',sessionFrameId:'main',documentId:'document',owners:[]};
   const router = {main:async() => route,validate:async() => {},original:value => value,
+    remoteElement:async() => { const id = String(++next); objects.set(id,button); return id; },
     point:async() => ({x:30,y:30}),checkPoint:async() => {},focused:async() => route,atPoint:async() => ({route,backendNodeId:1})};
   return {send,router,calls,get scrolls(){return scrolls;}};
 }
