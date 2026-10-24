@@ -63,6 +63,11 @@ test('missing browser assets fail before session storage or input is created', a
     await assert.rejects(createUnbuiltSession(options), error => error.code === 'BUILD_REQUIRED'
       && error.message.includes('build:client') && error.details.command === 'npm run build:client');
     await assert.rejects(stat(options.dataDir), {code: 'ENOENT'});
+    if (process.platform === 'darwin') {
+      await assert.rejects(createUnbuiltSession({...options, config: {browserEnabled: false, nativeEnabled: true}}),
+        error => error.code === 'BUILD_REQUIRED' && error.details.asset.endsWith('/lib/cursor.html'));
+      await assert.rejects(stat(options.dataDir), {code: 'ENOENT'});
+    }
     const session = await createUnbuiltSession({...options, config: {browserEnabled: false}});
     try { assert.equal((await session.run({code: '20+22'})).outputs.at(-1), '42'); }
     finally { await session.close(); }
