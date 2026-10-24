@@ -1,0 +1,66 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {actOnClipboard,createClipboardAPI,normalizeClipboardItems} from '../src/browser/clipboard.mjs';
+
+const item=text=>({entries:[{mimeType:'text/plain',text}]});
+
+test('clipboard items reject invalid shapes, aliases, duplicates and malformed base64 before browser access',()=>{
+  for(const value of [null,{},[],Array(1),[{entries:Array(1)}],[{}],[{entries:[]}],[{entries:[{mimeType:'TEXT/PLAIN',text:'x'}]}],
+    [{entries:[{mimeType:'text/plain',text:'x',base64:'eA=='}]}],[{entries:[{mimeType:'text/plain',base64:'eA'}]}],
+    [{entries:[{mimeType:'text/plain',base64:'eB=='}]}],[{entries:[{mimeType:'text/plain',text:'a'},{mimeType:'text/plain',text:'b'}]}],
+    [{...item('x'),presentationStyle:'image'}],[{...item('x'),other:true}]])
+    assert.throws(()=>normalizeClipboardItems(value),{code:'INVALID_ARGUMENT'});
+  assert.deepEqual(normalizeClipboardItems([{entries:[{mimeType:'image/png',base64:'eA=='}],presentationStyle:'inline'}]),
+    [{entries:[{mimeType:'image/png',base64:'eA=='}],presentationStyle:'inline'}]);
+  assert.throws(()=>normalizeClipboardItems([item('x'.repeat(16*1024*1024+1))]),{code:'INVALID_ARGUMENT'});
+});
+
+test('API validates arguments and unsupported browser routes never call a backend',async()=>{
+  const calls=[],api=createClipboardAPI({active:()=>{},act:async(...args)=>{calls.push(args);return {result:{value:'native'}};}});
+  await assert.rejects(api.read(1),{code:'INVALID_ARGUMENT'});await assert.rejects(api.writeText(1),{code:'INVALID_ARGUMENT'});
+  await assert.rejects(api.write([]),{code:'INVALID_ARGUMENT'});await assert.rejects(api.readText(),{code:'UNSUPPORTED_CLIPBOARD'});
+  await assert.rejects(api.writeText('x'),{code:'UNSUPPORTED_CLIPBOARD'});assert.deepEqual(calls,[]);
+  const supported=createClipboardAPI({active:()=>{},supported:()=>true,act:async(...args)=>{calls.push(args);return {result:{value:'native'}};}});
+  assert.equal(await supported.readText(),'native');assert.equal(await supported.writeText('中文🙂'),undefined);
+  assert.deepEqual(calls,[['clipboardReadText',undefined],['clipboardWriteText',{text:'中文🙂'}]]);
+});
+
+function fixture({interrupt,restoreFailure=false,initial='prompt'}={}) {
+  const calls=[],aborter=new AbortController();let evals=0,permissionCalls=0,writes=0;
+  const record={sessionClipboard:true,documentGeneration:0,identity:{contextId:'owned-context'},pending:new Set(),session:{send:async(method,params)=>{
+    calls.push({method,params});
+    if(method==='Page.getFrameTree')return {frameTree:{frame:{id:'main',url:'https://fixture.test/'}}};
+    if(method==='Page.createIsolatedWorld')return {executionContextId:7};
+    if(method==='Runtime.evaluate' && !evals++)return {result:{value:{available:true,url:'https://fixture.test/',supported:true,
+      permissions:[{name:'clipboard-read',state:initial},{name:'clipboard-write',state:'granted'}]}}};
+    if(method==='Browser.setPermission' && ++permissionCalls===1 && interrupt==='permission')aborter.abort(Error('cancelled during permission'));
+    if(method==='Browser.setPermission' && permissionCalls===2 && restoreFailure)throw Error('restore transport lost');
+    if(method==='Emulation.setFocusEmulationEnabled' && interrupt==='navigation')record.documentGeneration++;
+    if(method==='Runtime.evaluate'){if(interrupt==='operation')aborter.abort(Error('cancelled after native operation'));return {result:{value:'native'}};}
+    return {};
+  }}};
+  const run=action=>actOnClipboard(record,{action,text:'text'},{step:async work=>{aborter.signal.throwIfAborted();const result=await work();aborter.signal.throwIfAborted();return result;},
+    check:()=>aborter.signal.throwIfAborted(),onWrite:()=>{writes++;}});
+  return {record,calls,run,get writes(){return writes;}};
+}
+
+test('native clipboard restores the original context/origin permission and records target focus emulation',async()=>{
+  const f=fixture();assert.equal((await f.run('clipboardReadText')).value,'native');assert.equal(f.record.focusEmulated,true);
+  const permissions=f.calls.filter(row=>row.method==='Browser.setPermission');assert.equal(permissions.length,2);
+  assert.deepEqual(permissions.map(row=>row.params.setting),['granted','prompt']);
+  assert(permissions.every(row=>row.params.origin==='https://fixture.test' && row.params.browserContextId==='owned-context'));
+  assert.equal(f.record.pending.size,0);assert.equal(f.writes,0);
+});
+
+for(const interrupt of ['permission','navigation','operation'])test(`clipboard ${interrupt} interruption restores permissions without replay`,async()=>{
+  const f=fixture({interrupt});await assert.rejects(f.run('clipboardWriteText'),interrupt==='navigation'?{code:'STALE_CLIPBOARD_DOCUMENT'}:/cancelled/);
+  const permissions=f.calls.filter(row=>row.method==='Browser.setPermission');assert.equal(permissions.length,2);
+  assert.equal(permissions.at(-1).params.setting,'granted');assert.equal(f.record.pending.size,0);
+  assert.equal(f.writes,interrupt==='operation'?1:0);
+  assert.equal(f.calls.filter(row=>row.method==='Runtime.evaluate').length,interrupt==='operation'?2:1);
+});
+
+test('permission cleanup failures remain explicit and cannot report clipboard success',async()=>{
+  const f=fixture({restoreFailure:true});await assert.rejects(f.run('clipboardWriteText'),{code:'CLIPBOARD_PERMISSION_RESTORE_FAILED',details:{inputDispatched:true,effectVerified:false}});
+  assert.equal(f.writes,1);assert.equal(f.record.pending.size,0);
+});
