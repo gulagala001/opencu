@@ -91,6 +91,10 @@ test('lost native frame contexts recover only after a confirmed occurrence chang
   assert.equal(changed.code,'STALE_ELEMENT');assert.equal(changed.cause,source);assert.equal(changed.details.inputDispatched,true);assert.equal(validated,0);
   const detached=await inputFrameFailure(failure(),{documentChanged:()=>false,validate:async()=>{validated++;throw Object.assign(Error('Frame document changed'),{code:'FRAME_DETACHED'});}});
   assert.equal(detached.code,'FRAME_DETACHED');assert.equal(validated,1);
+  const sessionFailure=Object.assign(Error('Session with given id not found.'),{code:-32001,details:{inputDispatched:true}});
+  const missingSession=await inputFrameFailure(sessionFailure,{validate:async()=>{throw Object.assign(Error('Frame detached'),{code:'FRAME_DETACHED'});}});
+  assert.equal(missingSession.code,'FRAME_DETACHED');assert.equal(missingSession.cause,sessionFailure);assert.equal(missingSession.details.inputDispatched,true);
+  assert.equal(await inputFrameFailure(sessionFailure,{validate:async()=>{}}),sessionFailure,'a live route cannot excuse a missing session message');
   const live=failure();assert.equal(await inputFrameFailure(live,{documentChanged:()=>false,validate:async()=>{}}),live,'a live route cannot excuse the lost reply');
   const ambiguous=failure();assert.equal(await inputFrameFailure(ambiguous,{validate:async()=>{throw Error('another untyped protocol failure');}}),ambiguous,'confirmation failure alone is not occurrence evidence');
   for(const error of [Error('Transport disconnected'),Object.assign(failure(),{code:'CONTROL_STOPPED'}),Object.assign(failure(),{code:'EPIPE'})]) {

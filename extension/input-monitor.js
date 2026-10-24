@@ -1,7 +1,7 @@
 /** Require occurrence evidence before treating a lost CDP context as a changed view. */
 export async function inputFrameFailure(error, {documentChanged, validate} = {}) {
   const protocol=error?.code===undefined || typeof error.code==='number' || error.details?.cdpError;
-  const unavailable=/Cannot find (?:execution )?context with (?:(?:the )?(?:given|specified) )?id|(?:No|Missing) execution context|Execution context (?:with (?:(?:the )?(?:given|specified) )?id )?(?:was )?(?:destroyed|not found)|Could not find object with given id|Cannot find object with (?:given|specified) id|No session with (?:(?:the )?(?:given|specified) )?id|Session closed(?:[.:]|$)|Target (?:closed|detached)|Inspected target navigated or closed/iu;
+  const unavailable=/Cannot find (?:execution )?context with (?:(?:the )?(?:given|specified) )?id|(?:No|Missing) execution context|Execution context (?:with (?:(?:the )?(?:given|specified) )?id )?(?:was )?(?:destroyed|not found)|Could not find object with given id|Cannot find object with (?:given|specified) id|No session with (?:(?:the )?(?:given|specified) )?id|Session with given id not found|Session closed(?:[.:]|$)|Target (?:closed|detached)|Inspected target navigated or closed/iu;
   if (!protocol || !unavailable.test(error?.message ?? '')) return error;
   let code;
   if (documentChanged?.()) code='STALE_ELEMENT';
