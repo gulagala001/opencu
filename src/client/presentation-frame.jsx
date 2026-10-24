@@ -1,6 +1,7 @@
 import React from 'react';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import { PresentationCompletion } from './presentation-completion.jsx';
+import { isNestedPresentationControl } from './presentation-interaction.mjs';
 import { Bw as PresentationFrame, Lw as NativeVideo, Vw as writeVideoFrame, zw as closeVideoStream } from './rea/local-conversation-thread-6508b6dc26ad.js';
 
 const MAX_DECODE_RETRIES = 4;
@@ -141,7 +142,9 @@ function MonitorFrameContent({ frame, index, count, focus, report, positioned = 
     : videoFallback ? intl.formatMessage({ id: 'opencu.monitor.capturedImages', defaultMessage: 'Video preview is unavailable. Showing captured images.' }) : null;
   return <PresentationFrame index={index} presentationCount={count} presentationID={frame.presentationID}
     nativeLayout={null} shouldUseReducedMotion={reducedMotion || transferring} isEntering={entering && !transferring} isReady={ready || !!frame.error || !!failure}
-    onEntranceComplete={() => setEntering(false)} onClick={() => focus(frame.presentationID)}>
+    onEntranceComplete={() => setEntering(false)} onClick={event => {
+      if (!isNestedPresentationControl(event.target, event.currentTarget)) focus(frame.presentationID);
+    }}>
     <div ref={content} style={{ position: 'relative', width: '100%', height: positioned ? '100%' : undefined }}>
     {unavailable ? <div role="status" className="m-0 flex min-h-20 flex-col items-center justify-center gap-2 bg-surface-elevated-secondary p-3 text-center text-xs text-token-text-secondary"
       style={{ margin: 0, minHeight: 80, maxHeight: 208, overflow: 'hidden', overflowWrap: 'anywhere', padding: 12, fontSize: 12, lineHeight: '18px', color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-surface-elevated-secondary)' }}>

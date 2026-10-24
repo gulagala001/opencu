@@ -40,6 +40,12 @@ export function createPresentationUpdateQueue(render, {requestFrame = requestAni
   };
 }
 
+/** A frame is itself a REA button; only descendant controls own a separate action. */
+export function isNestedPresentationControl(target, frame) {
+  const control = target instanceof Element && target.closest('button,a[href],input,select,textarea,[role="button"],[contenteditable="true"]');
+  return !!control && control !== frame;
+}
+
 /** The REA frame is shared with the dock; only its desktop host can move a window. */
 export function connectPresentationInteraction(root, report) {
   let drag = null, ignoreClickUntil = 0, animation, geometry, contrastGeometry, disposed = false, elementsDirty = true, elements = [];
@@ -110,6 +116,9 @@ export function connectPresentationInteraction(root, report) {
   const down = event => {
     if (drag || event.button !== 0 || !event.isPrimary || !hit(event.target) || event.target.closest('[data-pip-close]')) return;
     const element = event.target.closest('[data-pip-presentation-frame]');
+    // The frame itself is a REA button. Nested controls keep their own click
+    // recipient; capturing them on the frame would turn Retry into frame focus.
+    if (isNestedPresentationControl(event.target, element)) return;
     const edge = resizeEdge(element, event);
     drag = { id: event.pointerId, element, edge, x: event.screenX, y: event.screenY, moved: false };
     element.setPointerCapture(event.pointerId);
