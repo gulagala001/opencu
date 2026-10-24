@@ -35,7 +35,7 @@ final class CaptureStore {
             try checkpoint()
             if attempt > 0 { pump(0.08 * Double(attempt)) }
             let surface = try targets.captureSurface(target)
-            if let root = expectedRoot, !CFEqual(root, surface.root) {
+            if let root = expectedRoot, !sameCaptureRoot(root, surface.root) {
                 throw NativeFailure("STALE_OBSERVATION", "The active dialog changed between AX observation and capture. Observe again.")
             }
             guard let window = surface.window else {
@@ -45,7 +45,7 @@ final class CaptureStore {
             if let image = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(window.id), [.boundsIgnoreFraming, .bestResolution]), image.width > 0, image.height > 0 {
                 try checkpoint()
                 let live = try targets.captureSurface(target)
-                guard CFEqual(surface.root, live.root), live.window?.id == window.id, live.window?.bounds == window.bounds else {
+                guard sameCaptureRoot(surface.root, live.root), live.window?.id == window.id, live.window?.bounds == window.bounds else {
                     throw NativeFailure("STALE_OBSERVATION", "The active capture window changed during screenshot capture. Observe again.")
                 }
                 return (image, surface)
@@ -71,6 +71,7 @@ final class CaptureStore {
         let image: CGImage
         var capturedRoot: AXUIElement?
         var capturedWindowID: Int?
+        var modalDetection = surface?.modalDetection ?? "unavailable"
         if windowID == nil {
             // Current scope is one display; never claim mixed-display scaling support.
             let display = CGMainDisplayID()
@@ -81,7 +82,7 @@ final class CaptureStore {
             image = pixels
             if let surface = surface {
                 let live = try targets.captureSurface(target)
-                guard CFEqual(surface.root, live.root), live.window == nil else {
+                guard sameCaptureRoot(surface.root, live.root), live.window == nil else {
                     throw NativeFailure("STALE_OBSERVATION", "The active dialog changed during screenshot capture. Observe again.")
                 }
             }
@@ -91,7 +92,7 @@ final class CaptureStore {
         } else {
             let captured: NativeCaptureSurface
             (image, captured) = try windowImage(target, targets: targets, expectedRoot: expectedRoot, checkpoint: checkpoint)
-            bounds = captured.window!.bounds; capturedRoot = captured.root; capturedWindowID = captured.window!.id
+            bounds = captured.window!.bounds; capturedRoot = captured.root; capturedWindowID = captured.window!.id; modalDetection = captured.modalDetection
         }
         try checkpoint()
         let bitmap = NSBitmapImageRep(cgImage: image)
@@ -108,17 +109,18 @@ final class CaptureStore {
         return ["path": file.path, "mimeType": "image/png", "mediaType": "image/png", "width": image.width, "height": image.height,
             "scale": Double(image.width) / bounds.width, "scaleX": Double(image.width) / bounds.width,
             "scaleY": Double(image.height) / bounds.height, "bounds": rectJSON(bounds), "coordinateSpace": "physical-screenshot-pixels",
-            "mappingId": token, "scope": capturedWindowID == nil ? "display" : "window", "capturedWindowId": capturedWindowID as Any? ?? NSNull()]
+            "mappingId": token, "scope": capturedWindowID == nil ? "display" : "window", "capturedWindowId": capturedWindowID as Any? ?? NSNull(), "modalDetection": modalDetection]
     }
 
     func preview(_ target: [String: Any], targets: TargetStore) throws -> [String: Any] {
         guard CGPreflightScreenCaptureAccess() else { throw NativeFailure("SCREEN_CAPTURE_PERMISSION_REQUIRED", "Screen Recording permission is required for monitoring.") }
         guard target["windowId"] is Int else { throw NativeFailure("WINDOW_REQUIRED", "Choose a specific application window for monitoring.") }
-        let (image, _) = try windowImage(target, targets: targets)
+        let (image, surface) = try windowImage(target, targets: targets)
         guard let jpeg = NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.65]) else {
             throw NativeFailure("SCREEN_CAPTURE_FAILED", "Could not encode monitor frame.")
         }
-        return ["dataUrl": "data:image/jpeg;base64,\(jpeg.base64EncodedString())", "width": image.width, "height": image.height]
+        return ["dataUrl": "data:image/jpeg;base64,\(jpeg.base64EncodedString())", "width": image.width, "height": image.height,
+            "capturedWindowId": surface.window!.id, "modalDetection": surface.modalDetection]
     }
 
     func presentationContrast(_ params: [String: Any]) throws -> [String: Any] {
@@ -167,7 +169,7 @@ final class CaptureStore {
         if let windowID = mapping.windowId {
             let surface = try targets.captureSurface(target)
             guard surface.window?.id == windowID, surface.window?.bounds == mapping.bounds,
-                  mapping.surfaceRoot == nil || CFEqual(mapping.surfaceRoot, surface.root) else {
+                  mapping.surfaceRoot == nil || sameCaptureRoot(mapping.surfaceRoot, surface.root) else {
                 throw NativeFailure("STALE_SCREENSHOT", "The window or active dialog changed. Observe again before using screenshot coordinates.")
             }
         }

@@ -76,6 +76,14 @@ struct InteractionChecks {
         failure("MODAL_CAPTURE_UNAVAILABLE") { _ = try accessibilityCaptureWindow(dialog, pid: 123, candidates: [own, WindowRecord(id: 102, pid: 123, title: "duplicate", bounds: dialog)]) }
         let mapping = ScreenshotMapping(bounds: dialog, width: 800, height: 360, token: "sheet", windowId: 101)
         try expect(mapping.point(400, 180) == CGPoint(x: 600, y: 390))
+        var cgReads = 0, axReads = 0
+        let cgSurface: String = try accessibilityCaptureSurface(accessibilityAvailable: false, cgOnly: { cgReads += 1; return "cg" }, accessibility: { () throws -> String in axReads += 1; throw NativeFailure("MODAL_STATE_UNAVAILABLE", "Must not read AX without permission") })
+        expect(cgSurface == "cg" && cgReads == 1 && axReads == 0)
+        failure("MODAL_STATE_UNAVAILABLE") {
+            let _: String = try accessibilityCaptureSurface(accessibilityAvailable: true, cgOnly: { cgReads += 1; return "cg" }, accessibility: { () throws -> String in axReads += 1; throw NativeFailure("MODAL_STATE_UNAVAILABLE", "Temporary AX read failure") })
+        }
+        expect(cgReads == 1 && axReads == 1)
+        expect(NativeCaptureSurface(root: nil, window: own).modalDetection == "unavailable")
         print("macOS interaction checks passed: menu actions/descendants/disabled items, sheet ownership/nesting/closure, clipped and hidden geometry")
     }
 }

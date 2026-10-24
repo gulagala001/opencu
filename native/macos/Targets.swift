@@ -10,8 +10,20 @@ struct WindowRecord {
 }
 
 struct NativeCaptureSurface {
-    let root: AXUIElement
+    let root: AXUIElement?
     let window: WindowRecord?
+    var modalDetection: String { root == nil ? "unavailable" : "accessibility" }
+}
+
+func accessibilityCaptureSurface<Surface>(accessibilityAvailable: Bool, cgOnly: () throws -> Surface, accessibility: () throws -> Surface) throws -> Surface {
+    // Lack of AX permission does not revoke independent read-only CG capture.
+    // A failed read with permission granted must never take this fallback.
+    try accessibilityAvailable ? accessibility() : cgOnly()
+}
+
+func sameCaptureRoot(_ left: AXUIElement?, _ right: AXUIElement?) -> Bool {
+    if let left = left, let right = right { return CFEqual(left, right) }
+    return left == nil && right == nil
 }
 
 func accessibilityCaptureWindow(_ bounds: CGRect, pid: pid_t, candidates: [WindowRecord]) throws -> WindowRecord {
@@ -138,17 +150,27 @@ final class TargetStore {
     }
 
     func captureSurface(_ target: [String: Any]) throws -> NativeCaptureSurface {
-        let current = try validated(target), root = try observationRoot(current)
-        let role = try modalRole(root)
-        if role == kAXApplicationRole { return NativeCaptureSurface(root: root, window: nil) }
-        if role == kAXWindowRole, let id = current["windowId"] as? Int,
-           let selected = window(id), Int(selected.pid) == current["pid"] as? Int {
-            return NativeCaptureSurface(root: root, window: selected)
-        }
-        guard let bounds = axRect(root) else {
-            throw NativeFailure("MODAL_CAPTURE_UNAVAILABLE", "The active dialog has no verifiable capture bounds; no other window or display was captured.")
-        }
-        return NativeCaptureSurface(root: root, window: try accessibilityCaptureWindow(bounds, pid: pid_t(current["pid"] as? Int ?? 0), candidates: windows()))
+        let current = try validated(target)
+        return try accessibilityCaptureSurface(accessibilityAvailable: AXIsProcessTrusted(), cgOnly: {
+            if let id = current["windowId"] as? Int {
+                guard let selected = window(id), Int(selected.pid) == current["pid"] as? Int else {
+                    throw NativeFailure("TARGET_IDENTITY_CHANGED", "The selected capture window no longer exists.")
+                }
+                return NativeCaptureSurface(root: nil, window: selected)
+            }
+            return NativeCaptureSurface(root: nil, window: nil)
+        }, accessibility: {
+            let root = try observationRoot(current), role = try modalRole(root)
+            if role == kAXApplicationRole { return NativeCaptureSurface(root: root, window: nil) }
+            if role == kAXWindowRole, let id = current["windowId"] as? Int,
+               let selected = window(id), Int(selected.pid) == current["pid"] as? Int {
+                return NativeCaptureSurface(root: root, window: selected)
+            }
+            guard let bounds = axRect(root) else {
+                throw NativeFailure("MODAL_CAPTURE_UNAVAILABLE", "The active dialog has no verifiable capture bounds; no other window or display was captured.")
+            }
+            return NativeCaptureSurface(root: root, window: try accessibilityCaptureWindow(bounds, pid: pid_t(current["pid"] as? Int ?? 0), candidates: windows()))
+        })
     }
 
     func requireInteraction(_ element: AXUIElement, target: [String: Any]) throws {

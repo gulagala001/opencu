@@ -110,10 +110,13 @@ final class VideoStore {
             streams[id] = video
         }
         do {
-            let frame = try streams[id]!.frame(checkpoint: checkpoint), live = try targets.captureSurface(target)
-            guard CFEqual(surface.root, live.root), live.window?.id == windowID else {
+            var frame = try streams[id]!.frame(checkpoint: checkpoint)
+            let live = try targets.captureSurface(target)
+            guard sameCaptureRoot(surface.root, live.root), live.window?.id == windowID else {
                 throw NativeFailure("STALE_OBSERVATION", "The active dialog changed during preview capture. Refresh this same target.")
             }
+            frame["modalDetection"] = surface.modalDetection
+            frame["capturedWindowId"] = windowID
             return frame
         }
         catch { streams.removeValue(forKey: id)?.close(); throw error }
