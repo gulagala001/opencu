@@ -165,6 +165,45 @@ test('native release receipts cover the helper hardware stream, including pre-di
   assert.equal(result.state.mode,'active');assert.deepEqual(result.error.details.releasedTargetIds,['a','b']);
 });
 
+test('native modal rejection preserves the binding for sheet dismissal and document input',async t=>{
+  const dataDir=await mkdtemp(new URL('../.local/interaction-modal-',import.meta.url).pathname);
+  const target={id:'native:fixture:window:1',backend:'native',platform:'darwin',windowId:1,identity:{window:1}};
+  const events=[];let sheetOpen=true,rejection='MODAL_BLOCKED';
+  const backend={listTargets:async()=>[target],select:async()=>target,verify:async()=>({valid:true,target}),
+    observe:async()=>({ax:{nodes:[{id:sheetOpen?2:1,role:'AXButton',name:sheetOpen?'Cancel':'Save'}]}}),
+    act:async(_target,action)=>{
+      if(sheetOpen&&action.elementId===1)throw Object.assign(Error(rejection),{code:rejection,details:{inputDispatched:false,release:{released:true}}});
+      if(action.elementId===2){sheetOpen=false;events.push('cancel');}
+      else events.push('save');
+      return {inputDispatched:true};
+    },release:async()=>({released:true}),close:async()=>{}};
+  const controller=await createController({dataDir,browser:false,native:backend});
+  t.after(async()=>{await controller.close();await rm(dataDir,{recursive:true,force:true});});
+  assert.equal((await controller.selectTarget(target)).ok,true);
+  for(const code of ['MODAL_BLOCKED','MODAL_STATE_UNAVAILABLE','MODAL_POINTER_UNAVAILABLE']){
+    sheetOpen=true;rejection=code;
+    const rejected=await controller.act({targetId:target.id,action:'click',elementId:1});
+    assert.equal(rejected.error.code,code);assert.equal(rejected.state.mode,'active');
+    assert.deepEqual(rejected.error.details.releasedTargetIds,[target.id]);
+    assert.equal((await controller.observe({targetId:target.id,format:'ax'})).ok,true);
+    assert.equal((await controller.act({targetId:target.id,action:'click',elementId:2})).ok,true);
+    assert.equal((await controller.observe({targetId:target.id,format:'ax'})).ok,true);
+    assert.equal((await controller.act({targetId:target.id,action:'click',elementId:1})).ok,true);
+  }
+  assert.deepEqual(events,['cancel','save','cancel','save','cancel','save']);
+});
+
+for(const code of ['MODAL_BLOCKED','MODAL_STATE_UNAVAILABLE','MODAL_POINTER_UNAVAILABLE']){
+  for(const [reason,details] of [['dispatched',{inputDispatched:true,release:{released:true}}],['unreleased',{inputDispatched:false,release:{released:false}}]]){
+    test(`native ${code} ${reason} still blocks input`,async t=>{
+      const f=await fixture(t);f.hooks.error=Object.assign(Error(code),{code,details});
+      const result=await f.controller.act({targetId:'tab:original',action:'click'});
+      assert.equal(result.state.mode,'faulted');
+      assert.equal((await f.controller.act({targetId:'tab:original',action:'click'})).error.code,'CONTROL_STOPPED');
+    });
+  }
+}
+
 test('target release clears its held-input debt without forgetting other tabs or accepting late receipts',async()=>{
   const state=createInputReleaseState(),down=targetId=>({targetId,action:'keyDown',key:'Shift'});
   const ack=async()=>({ok:true,result:{inputDispatched:true}});
