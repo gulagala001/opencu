@@ -53,7 +53,14 @@ export function createPageDialogs(page, generation) {
   // invalidate the next dialog opened by the resumed website script.
   const dialogClosed = () => {
     const opening = awaitingClose.shift();
-    if (!opening) return;
+    if (!opening) {
+      // Page.enable can be queued behind an already open dialog. That session
+      // observes its close without its opening; retire the unpaired Page event
+      // so it cannot steal the next dialog's source or closure acknowledgement.
+      const entry = pageOpenings.shift();
+      if (entry && current === entry) invalidate();
+      return;
+    }
     opening.closed = true;
     if (opening.entry && current === opening.entry) invalidate();
   };

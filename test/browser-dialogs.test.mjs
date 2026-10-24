@@ -45,6 +45,22 @@ test('a late protocol close cannot invalidate a chained dialog or let its old to
   f.close();assert.equal(f.dialogs.read(),null);
 });
 
+test('a close without its pre-enable opening retires the old page event before the next dialog',async t=>{
+  const f=await fixture(t);f.open('before enable');const original=f.dialogs.read();
+  f.close();assert.equal(f.dialogs.read(),null);
+  f.open('after enable');f.protocolOpen('https://child.test/after-enable');
+  assert.equal(f.dialogs.read().url,'https://child.test/after-enable');
+  await assert.rejects(f.dialogs.handle({dialogId:original.id,accept:true}),{code:'STALE_DIALOG'});
+  f.close();assert.equal(f.dialogs.read(),null);
+});
+
+test('a pre-enable close arriving after the next Page event preserves the new dialog identity',async t=>{
+  const f=await fixture(t);f.open('before enable');f.open('after enable');const next=f.dialogs.read();
+  f.close();assert.equal(f.dialogs.read().id,next.id);
+  f.protocolOpen('https://child.test/after-enable');assert.equal(next.url,'https://child.test/after-enable');
+  f.close();assert.equal(f.dialogs.read(),null);
+});
+
 test('disposing dialog state removes both protocol lifecycle listeners',async t=>{
   const f=await fixture(t);assert.equal(f.session.listenerCount('Page.javascriptDialogOpening'),1);
   f.dialogs.dispose();assert.equal(f.session.listenerCount('Page.javascriptDialogOpening'),0);assert.equal(f.session.listenerCount('Page.javascriptDialogClosed'),0);
