@@ -234,7 +234,7 @@ async function observe(identity, options = {}, token = controlToken(identity.tab
     await attach(identity, read);
     const current = await verify(identity, true, read);
     const dom = await content(identity.tabId, 'identity', { documentId: identity.documentId }, current.browserDocumentId, read);
-    const accessibility = await observeAccessibility(identity.tabId, (method, params) => read(() => cdp(identity.tabId, method, params)), identity.documentId, read.check, options);
+    const {commit, ...accessibility} = await read(() => observeAccessibility(identity.tabId, (method, params) => read(() => cdp(identity.tabId, method, params)), identity.documentId, read.check, {...options,deferCommit:true}, attached.get(identity.tabId)?.frameRouter));
     let screenshot;
     if (options.screenshot !== false) {
       if (Math.abs(dom.geometry.visual.scale - 1) > 0.001) fail('UNSUPPORTED_PINCH_ZOOM', 'Reset pinch zoom before screenshot-coordinate actions. Browser page zoom is supported.');
@@ -246,6 +246,7 @@ async function observe(identity, options = {}, token = controlToken(identity.tab
     }
     await verify(identity, true, read);
     read.check();
+    await read(commit);
     if (screenshot) observations.set(identity.tabId, screenshot);
     return { identity, ...dom, ...accessibility, ...(screenshot ? { screenshot } : {}) };
   });

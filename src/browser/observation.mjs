@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {mkdir, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {fail, checkSignal} from '../protocol.mjs';
+import {captureAXTree, axElementKey} from '../../extension/ax-tree.js';
 
 export async function observePage(record, request, options) {
   checkSignal(request.signal);
@@ -10,17 +11,19 @@ export async function observePage(record, request, options) {
   const generation = record.documentGeneration;
   const observationId = randomUUID();
   const result = {observationId, url: record.page.url(), title: await record.page.title(), coordinateSpace: 'viewport-css-pixels'};
+  let captured, nextElements, nextElementId = record.nextElementId ?? 0;
+  const check = () => {
+    checkSignal(request.signal);
+    if (generation !== record.documentGeneration) fail('STALE_OBSERVATION', 'Document changed during observation');
+  };
   checkSignal(request.signal);
   if (format !== 'screenshot') {
-    const {nodes} = await record.session.send('Accessibility.getFullAXTree');
-    checkSignal(request.signal);
-    if (generation !== record.documentGeneration) fail('STALE_OBSERVATION', 'Document changed during accessibility observation');
-    const previous = new Map([...record.elements].filter(([, entry]) => !entry.route?.sessionId).map(([id, entry]) => [entry.backendNodeId, id]));
-    record.elements.clear();
-    const visible = nodes.filter(node => !node.ignored);
-    const elements = visible.map(node => {
-      const elementId = node.backendDOMNodeId ? previous.get(node.backendDOMNodeId) ?? ++record.nextElementId : undefined;
-      if (elementId) record.elements.set(elementId, {backendNodeId: node.backendDOMNodeId, observationId});
+    captured = await captureAXTree((method, params) => record.session.send(method, params),record.frameRouter,check);
+    const previous = new Map([...record.elements].map(([id, entry]) => [axElementKey(entry.backendNodeId,entry.route),id]));
+    nextElements = new Map();
+    const elements = captured.nodes.map(({node,route,key}) => {
+      const elementId = node.backendDOMNodeId ? previous.get(key) ?? ++nextElementId : undefined;
+      if (elementId) nextElements.set(elementId, {backendNodeId: node.backendDOMNodeId, route, observationId});
       return {
         ...(elementId ? {elementId} : {}), nodeId: node.nodeId,
         role: node.role?.value ?? '', name: node.name?.value ?? '',
@@ -62,8 +65,9 @@ export async function observePage(record, request, options) {
       ...(request.includeBase64 ? {base64: output.toString('base64')} : {}),
     };
   }
-  checkSignal(request.signal);
-  if (generation !== record.documentGeneration) fail('STALE_OBSERVATION', 'Document changed during observation');
+  await captured?.validate();
+  check();
+  if (nextElements) {record.elements = nextElements; record.nextElementId = nextElementId;}
   record.observationId = observationId;
   if (result.screenshot) {
     const {base64, ...mapping} = result.screenshot;

@@ -82,7 +82,19 @@ export function createCDPFrameRouter(sendRoot, subscribe) {
   };
   const validateDocument = async route => {
     if (closed) throw failure('Frame router is closed', 'FRAME_DETACHED');
-    const token = unwrap(await route.send('Runtime.evaluate', {contextId:route.contextId,returnByValue:true,expression:'globalThis.__opencuFrameDocument'}));
+    let reply;
+    try {reply = await route.send('Runtime.evaluate', {contextId:route.contextId,returnByValue:true,expression:'globalThis.__opencuFrameDocument'});}
+    catch (error) {
+      const protocol = error.code === undefined || typeof error.code === 'number' || error.code === 'STALE_ELEMENT' && error.details?.cdpError;
+      if (protocol && /Cannot find (?:execution )?context with (?:(?:the )?(?:given|specified) )?id|(?:No|Missing) execution context|Execution context (?:with (?:(?:the )?(?:given|specified) )?id )?(?:was )?(?:destroyed|not found)|No session with (?:(?:the )?(?:given|specified) )?id|Session closed(?:[.:]|$)|Target (?:closed|detached)|Inspected target navigated or closed/iu.test(error.message)) {
+        const detached = failure('Frame document is no longer available; observe again', 'FRAME_DETACHED');
+        detached.cause = error;
+        detached.details = {...error.details,inputDispatched:false};
+        throw detached;
+      }
+      throw error;
+    }
+    const token = unwrap(reply);
     if (token !== route.documentId) throw failure('Frame document changed', 'FRAME_DETACHED');
   };
   const validate = async route => {

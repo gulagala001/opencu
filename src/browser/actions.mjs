@@ -160,7 +160,9 @@ export async function actOnPage(record, request, options) {
     for (const key of [...click.keys].reverse()) await keyUp(key);
   };
   const focusKeyboardElement = () => step(async () => {
-    elementFor(record,request);
+    const entry = elementFor(record,request);
+    if (entry.route) await record.frameRouter.validate(entry.route);
+    check();
     // Missing observation IDs fail before this fence. Once focus is attempted,
     // its result may be unknown and must not be treated as an undispatched input.
     record.inputDispatchSequence = (record.inputDispatchSequence ?? 0) + 1;
