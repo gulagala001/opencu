@@ -47,7 +47,7 @@ test('cancellation before acknowledgement cancels only the acquired native invoc
   const work=invokeSiteTool(f.guest,f.send,{registrationId:f.descriptor.registrationId,input:{}},invocation.controller.signal);
   const result=work.then(value=>({value}),error=>({error}));await ready;
   const cancelled=cancelSiteTool(f.guest,'request-1');acknowledge({invocationId:'own'});
-  const outcome=await result;assert.match(outcome.error.message,/cancelled/);assert.equal(outcome.error.details.inputDispatched,true);invocation.finish();
+  const outcome=await result;assert.match(outcome.error.message,/cancelled/);assert.equal(outcome.error.code,'SITE_TOOL_CANCELLED');assert.equal(outcome.error.details.siteToolResponded,true);assert.equal(outcome.error.details.inputDispatched,true);invocation.finish();
   assert.deepEqual(await cancelled,{cancelled:true});assert.deepEqual(await cancelSiteTool(f.guest),{cancelled:false});
   assert.deepEqual(f.state.calls.filter(row=>row.method==='WebMCP.cancelInvocation').map(row=>row.args),[{invocationId:'own'}]);
   assert.equal(f.guest.debugger.listenerCount('message'),0);
@@ -89,4 +89,14 @@ test('navigation and lost targets promptly end in-flight native calls with dispa
     for(const name of ['message','detach'])assert.equal(f.guest.debugger.listenerCount(name),0);
     for(const name of ['destroyed','render-process-gone'])assert.equal(f.guest.listenerCount(name),0);
   }
+});
+
+
+test('queued site tool cancellation retains a proven pre-dispatch receipt',async()=>{
+  const f=await fixture(),invocation=beginSiteTool(f.guest,'queued-request');
+  const cancelled=cancelSiteTool(f.guest,'queued-request');
+  await assert.rejects(invokeSiteTool(f.guest,f.send,{registrationId:f.descriptor.registrationId,input:{}},invocation.controller.signal),
+    error=>error.code==='SITE_TOOL_CANCELLED'&&error.details.inputDispatched===false);
+  assert.equal(f.state.calls.some(row=>row.method==='WebMCP.invokeTool'),false);
+  invocation.finish();assert.deepEqual(await cancelled,{cancelled:true});
 });

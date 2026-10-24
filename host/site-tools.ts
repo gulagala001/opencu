@@ -10,6 +10,7 @@ type Registration = { tool: Tool; document: string; signature: string; send: Sen
 type Invocation = { controller: AbortController; done: Promise<void>; finish: (error?: Error) => void }
 const registrations = new WeakMap<WebContents, Map<string, Registration>>()
 const invocations = new WeakMap<WebContents, Map<string, Invocation>>()
+const cancelledBeforeDispatch = (message: string): Error => Object.assign(new Error(message), { code: 'SITE_TOOL_CANCELLED', details: { inputDispatched: false } })
 const documentKey = (frame: Frame): string => JSON.stringify([frame.id, frame.loaderId, frame.url, frame.urlFragment])
 
 /** Read native WebMCP descriptors and bind each registration to its current document. */
@@ -93,7 +94,7 @@ export function beginSiteTool(guest: WebContents, requestId: unknown): Invocatio
   let settle!: (error?: Error) => void
   const done = new Promise<void>((resolve, reject) => { settle = error => error ? reject(error) : resolve() })
   void done.catch(() => {})
-  const timer = setTimeout(() => { controller.abort(new Error('Site tool invocation timed out')) }, 25000)
+  const timer = setTimeout(() => { controller.abort(cancelledBeforeDispatch('Site tool invocation timed out')) }, 25000)
   const invocation = { controller, done, finish(error?: Error) { clearTimeout(timer); if (!error) active.delete(requestId); settle(error) } }
   active.set(requestId, invocation)
   return invocation
@@ -103,7 +104,7 @@ export function beginSiteTool(guest: WebContents, requestId: unknown): Invocatio
 export async function cancelSiteTool(guest: WebContents, requestId?: string): Promise<{ cancelled: boolean }> {
   const active = invocations.get(guest)
   const pending = requestId ? [active?.get(requestId)].filter((item): item is Invocation => !!item) : [...active?.values() ?? []]
-  for (const item of pending) item.controller.abort(new Error('Site tool invocation cancelled'))
+  for (const item of pending) item.controller.abort(cancelledBeforeDispatch('Site tool invocation cancelled'))
   await Promise.all(pending.map(item => item.done))
   return { cancelled: pending.length > 0 }
 }
@@ -135,15 +136,17 @@ export async function invokeSiteTool(guest: WebContents, send: Send, args: Recor
         details:{...(error as Error & {details?:object}).details,inputDispatched:dispatched,effectVerified:false}}))
       else resolve({ output, tool, untrusted: true, inputDispatched:true, effectVerified:false })
     }
+    const cancellationError = (): Error => Object.assign(new Error(signal.reason instanceof Error ? signal.reason.message : 'Site tool invocation cancelled'), {
+      code: 'SITE_TOOL_CANCELLED', details: { siteToolResponded: true } })
     const cancellationFailed = (error: Error): void => { finish(Object.assign(error, { code: 'SITE_TOOL_CANCEL_FAILED' })) }
     const cancel = (): void => {
       cancelTimer ??= setTimeout(() => { cancellationFailed(new Error('Site tool cancellation was not acknowledged')) }, 5000)
       if (!invocationId || settled) return
-      cancellation ??= invokeSend('WebMCP.cancelInvocation', { invocationId }).then(() => { quiescent = true; finish(signal.reason) }, cancellationFailed)
+      cancellation ??= invokeSend('WebMCP.cancelInvocation', { invocationId }).then(() => { quiescent = true; finish(cancellationError()) }, cancellationFailed)
     }
     const responded = (params: Record<string, unknown>): void => {
       quiescent = true
-      if (signal.aborted) finish(signal.reason)
+      if (signal.aborted) finish(cancellationError())
       else if (params.status === 'Completed') finish(undefined, params.output)
       else {
         const exception = params.exception as { description?: unknown; value?: unknown; objectId?: string } | undefined

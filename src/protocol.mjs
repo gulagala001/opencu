@@ -64,7 +64,7 @@ const recoverableActionErrors = new Set([
   'UNSUPPORTED_PINCH_ZOOM', 'UNSUPPORTED_URL', 'NO_HISTORY_ENTRY',
   'STALE_FILE_CHOOSER', 'FILE_CHOOSER_BUSY', 'FILE_CHOOSER_NOT_READY', 'FILE_CHOOSER_TIMEOUT', 'UNSUPPORTED_UPLOAD_DIRECTORY', 'UPLOAD_SOURCE_UNAVAILABLE',
   'UNSUPPORTED_CLIPBOARD', 'UNSUPPORTED_CLIPBOARD_FORMAT', 'STALE_CLIPBOARD_DOCUMENT', 'INVALID_CLIPBOARD_STATE',
-  'CLIPBOARD_TOO_LARGE', 'CLIPBOARD_ACCESS_FAILED', 'STALE_SITE_TOOL',
+  'CLIPBOARD_TOO_LARGE', 'CLIPBOARD_ACCESS_FAILED', 'STALE_SITE_TOOL', 'SITE_TOOL_CANCELLED',
   'LOCATOR_NOT_FOUND', 'AMBIGUOUS_LOCATOR', 'UNSUPPORTED_LOCATOR', 'LOCATOR_NOT_ACTIONABLE', 'LOCATOR_NOT_STABLE',
   'ELEMENT_NOT_EDITABLE', 'ELEMENT_NOT_FOUND', 'ELEMENT_DISABLED', 'ELEMENT_NOT_VISIBLE', 'AMBIGUOUS_TEXT', 'TEXT_NOT_FOUND',
   'UNSUPPORTED_PASTE_FORMAT', 'BACKGROUND_SELECTION_UNAVAILABLE', 'BACKGROUND_ACTION_UNAVAILABLE',
@@ -81,7 +81,7 @@ export const changedViewError = error => changedViewErrors.has(error?.code);
 /** Only explicit dispatch/terminal receipts can distinguish a recoverable action from unknown input. */
 export function recoverableActionError(error, action) {
   const uploadFile = ['upload','fileChooserSetFiles'].includes(action) && ['ENOENT', 'ENOTDIR', 'EISDIR', 'EACCES'].includes(error?.code);
-  const siteToolResponded = action === 'invokeSiteTool' && error?.code === 'SITE_TOOL_ERROR'
+  const siteToolResponded = action === 'invokeSiteTool' && ['SITE_TOOL_ERROR','SITE_TOOL_CANCELLED'].includes(error?.code)
     && error.details?.siteToolResponded === true && error.details.inputDispatched === true;
   return (siteToolResponded || error?.details?.inputDispatched === false && (recoverableActionErrors.has(error.code) || uploadFile))
     && (error.details.release === undefined || inputReleased(error.details.release));

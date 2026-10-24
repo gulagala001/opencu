@@ -242,6 +242,7 @@ test('site tool document changes release that target and require observation bef
 
 for(const [reason,action,code,details] of [
   ['missing terminal receipt','invokeSiteTool','SITE_TOOL_ERROR',{inputDispatched:true}],
+  ['cancelled without terminal receipt','invokeSiteTool','SITE_TOOL_CANCELLED',{inputDispatched:true}],
   ['unrelated operation','click','SITE_TOOL_ERROR',{inputDispatched:true,siteToolResponded:true}],
   ['unknown cancellation','invokeSiteTool','SITE_TOOL_CANCEL_FAILED',{inputDispatched:true,siteToolResponded:true}],
   ['unconfirmed release','invokeSiteTool','SITE_TOOL_ERROR',{inputDispatched:true,siteToolResponded:true,release:{released:false}}],
@@ -250,4 +251,17 @@ for(const [reason,action,code,details] of [
   const result=await f.controller.act({targetId:'tab:original',action});
   assert.equal(result.state.mode,'faulted');assert.equal(f.releases,1);
   assert.equal((await f.controller.act({targetId:'tab:original',action:'click'})).error.code,'CONTROL_STOPPED');
+});
+
+
+test('proven queued and acknowledged native site tool cancellation preserve active control',async t=>{
+  const f=await fixture(t);
+  for(const details of [{inputDispatched:false},{inputDispatched:true,effectVerified:false,siteToolResponded:true}]){
+    f.hooks.error=Object.assign(Error('site tool invocation timed out'),{code:'SITE_TOOL_CANCELLED',details});
+    const result=await f.controller.act({targetId:'tab:original',action:'invokeSiteTool'});
+    assert.equal(result.error.code,'SITE_TOOL_CANCELLED');assert.equal(result.state.mode,'active');
+    assert.equal(result.error.details.inputDispatched,details.inputDispatched);assert.equal(f.releases,0);
+  }
+  f.hooks.error=undefined;await f.run('await tab.getScreenshot(); await tab.click([60,40]);');
+  assert.deepEqual(f.events,['mouseMove','mouseDown','mouseUp']);
 });
