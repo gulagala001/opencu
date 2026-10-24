@@ -29,6 +29,6 @@ export function locatorInputFixture() {
   };
   const route = {send,frameId:'main',sessionFrameId:'main',documentId:'document',owners:[]};
   const router = {main:async() => route,validate:async() => {},original:value => value,
-    point:async() => ({x:30,y:30}),checkPoint:async() => {},focused:async() => undefined,atPoint:async() => undefined};
+    point:async() => ({x:30,y:30}),checkPoint:async() => {},focused:async() => route,atPoint:async() => ({route,backendNodeId:1})};
   return {send,router,calls,get scrolls(){return scrolls;}};
 }
