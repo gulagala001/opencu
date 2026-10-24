@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
 import {createHash} from 'node:crypto';
-import {mkdtemp, readFile, writeFile, rm} from 'node:fs/promises';
+import {mkdtemp, readFile, writeFile, mkdir, rename, rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {createBrowserBackend} from '../src/browser/backend.mjs';
 import {createPluginRuntime} from '../src/dsh/runtime.mjs';
@@ -11,6 +11,7 @@ const digest = value => createHash('sha256').update(value).digest('hex');
 const browserId = `browser:cdp:${digest(endpoint).slice(0, 16)}`;
 const connectionId = `cdp:${digest(endpoint)}`;
 const tick = () => new Promise(resolve => setImmediate(resolve));
+const ioTick = () => new Promise(resolve => setTimeout(resolve,10));
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => {resolve = yes; reject = no;}); return {promise, resolve, reject}; };
 const syntheticError = message => Object.assign(new Error(message), {code: 'SYNTHETIC_TRANSIENT'});
 const targetRecord = targetId => ({
@@ -18,8 +19,8 @@ const targetRecord = targetId => ({
   identity: {browserId, connectionId, targetId, contextId: 'synthetic-context'},
   keys: ['Shift'], buttons: [],
 });
-async function until(predicate, label) {
-  for (let index = 0; index < 100; index++) { if (predicate()) return; await tick(); }
+async function until(predicate, label, wait = tick) {
+  for (let index = 0; index < 100; index++) { if (predicate()) return; await wait(); }
   throw new Error('Synthetic fixture did not reach ' + label);
 }
 async function fixture(t, saved = [], {provided = false} = {}) {
@@ -121,12 +122,37 @@ test('a closed occurrence retains exact release ownership and retires without to
   await f.backend.close();
 });
 
+test('an externally closed idle page converges without any later action or explicit release',async t=>{
+  const f=await fixture(t,[targetRecord('child'),targetRecord('parent')]);
+  const child=f.addPage('child'),parent=f.addPage('parent');
+  await f.backend.listTargets();child.closeFromOwner();
+  await until(()=>f.backend.getDiagnostics().trackedTargets===1 && !f.backend.getDiagnostics().pendingClosedReleases,'automatic closed-page retirement',ioTick);
+  assert(!((await f.journal()).some(item=>item.id===targetRecord('child').id)));
+  assert.deepEqual((await f.journal()).find(item=>item.id===targetRecord('parent').id)?.keys,['Shift']);assert.deepEqual(parent.ups,[]);
+  await f.backend.close();
+});
+
+test('failed automatic closed-page cleanup keeps its original record and debt for a verified retry',async t=>{
+  const f=await fixture(t,[targetRecord('child')]);const child=f.addPage('child');const [target]=await f.backend.listTargets();
+  const path=join(f.dataDir,'browser-inputs.json'),previous=path+'.previous';
+  await rename(path,previous);await mkdir(path);child.closeFromOwner();
+  await until(()=>!f.backend.getDiagnostics().pendingClosedReleases,'failed automatic cleanup settlement',ioTick);
+  assert.equal(f.backend.getDiagnostics().trackedTargets,1);assert.equal(f.backend.getDiagnostics().retainedRetirements,0);
+  assert(f.backend.getDiagnostics().backgroundErrors.some(error=>error.includes('release remains pending')));
+  await rm(path,{recursive:true});await rename(previous,path);
+  const released=await f.backend.releaseTarget(target);assert.equal(released.released,true);assert.equal(released.retired,true);
+  assert.equal(f.backend.getDiagnostics().trackedTargets,0);assert.deepEqual(await f.journal(),[]);
+  await f.backend.close();
+});
+
 test('frequent closed tabs bound duplicate-release history and evicted identities fail closed',async t=>{
   const f=await fixture(t);let first,last;
   for(let index=0;index<130;index++){
     const page=f.addPage('child-'+index);[last]=await f.backend.listTargets();first??=last;
-    page.closeFromOwner();assert.equal((await f.backend.releaseTarget(last)).retired,true);
+    page.closeFromOwner();await until(()=>!f.backend.getDiagnostics().trackedTargets && !f.backend.getDiagnostics().pendingClosedReleases,'automatic popup retirement',ioTick);
+    assert.equal((await f.backend.releaseTarget(last)).retired,true);
   }
+  assert.equal(f.backend.getDiagnostics().retainedRetirements,128);
   await assert.rejects(f.backend.releaseTarget(first),{code:'TARGET_IDENTITY_CHANGED'});
   assert.equal((await f.backend.releaseTarget(last)).retired,true);
   assert.deepEqual((await f.backend.release()).retiredTargetIds,[],'global cleanup does not repeat unrelated cached history');

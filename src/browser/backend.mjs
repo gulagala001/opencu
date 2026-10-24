@@ -31,6 +31,7 @@ export async function createBrowserBackend(options = {}) {
   const retired = new Map();
   const retirementLimit = 128;
   const recordReleases = new WeakMap();
+  const closedReleases = new Set();
   const pages = new Map();
   const downloads = new WeakMap();
   let browser;
@@ -177,6 +178,16 @@ export async function createBrowserBackend(options = {}) {
     }
     return work;
   }
+  function releaseClosedRecord(record) {
+    let work;
+    const settled = failures => {
+      releaseFailures = [...releaseFailures.filter(failure => failure.targetId !== record.id), ...failures];
+      if (failures.length) backgroundErrors.push(`Closed browser target release remains pending: ${record.id}`);
+    };
+    work = releaseRecord(record, {dismissDialogs:false}).then(settled, error => settled([{targetId:record.id,error:error.message}]))
+      .finally(() => { closedReleases.delete(work); });
+    closedReleases.add(work);
+  }
   async function releaseTarget(target, {dismissDialogs = false} = {}) {
     await initialize();
     const record = records.get(target.id);
@@ -210,6 +221,8 @@ export async function createBrowserBackend(options = {}) {
         else if (connected) await browser?.close();
         rootClosed = true;
       }
+      await Promise.all([...closedReleases]);
+      if (releaseFailures.length) fail('RELEASE_FAILED', 'Closed browser targets still require release', releaseFailures);
       for (const record of records.values()) await inputState.forget(record);
       for (const remove of listeners) remove();
       records.clear(); pages.clear();
@@ -280,8 +293,9 @@ export async function createBrowserBackend(options = {}) {
         for (const remove of attempt.removers) remove();
         pages.delete(page);
         // Keep the original occurrence until its in-flight input and context
-        // permission cleanup settle. The action which closed it still owns
-        // that release; a close event is not an input acknowledgement.
+        // permission cleanup settle. Automatic cleanup and an in-flight action
+        // share that release; a close event is not an input acknowledgement.
+        releaseClosedRecord(record);
       }));
       return record;
     })().catch(async error => {
@@ -583,10 +597,12 @@ export async function createBrowserBackend(options = {}) {
           else if (connected) await browser?.close();
           rootClosed = true;
         }
+        await Promise.all([...closedReleases]);
+        if (releaseFailures.length) fail('RELEASE_FAILED', 'Closed browser targets still require release', releaseFailures);
         for (const remove of listeners) remove();
         closed = true;
       })().finally(() => { closingWork = undefined; });
     },
-    getDiagnostics() { return {backgroundErrors: [...backgroundErrors]}; },
+    getDiagnostics() { return {backgroundErrors: [...backgroundErrors], trackedTargets:records.size, retainedRetirements:retired.size, pendingClosedReleases:closedReleases.size}; },
   };
 }
