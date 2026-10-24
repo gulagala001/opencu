@@ -118,6 +118,8 @@ export async function summarizeCalls({ input, output }) {
 
 export async function startSampler({ groups, output, summary, markers, intervalMs = 500 }) {
   groups = normalizeGroups(groups);
+  // In-process instrumentation must not subtract the explicitly measured runtime.
+  const includesSamplerProcess = Object.values(groups).some(roots => roots.includes(process.pid));
   if (!output) throw new Error('output is required');
   if (!Number.isSafeInteger(intervalMs) || intervalMs < 50) throw new Error('intervalMs must be an integer >= 50');
   if (markers && resolve(markers) === resolve(output)) throw new Error('markers and output must differ');
@@ -198,7 +200,7 @@ export async function startSampler({ groups, output, summary, markers, intervalM
       }
       if (!processes.size) throw Object.assign(new Error('Invalid ps output'), { code: 'PS_INVALID_OUTPUT' });
       const exclude = descendants(collectorPid ? [collectorPid] : [], children, processes);
-      exclude.add(process.pid);
+      if (!includesSamplerProcess) exclude.add(process.pid);
       const memberships = new Map(), nextPrevious = new Map();
       const groupValues = Object.create(null);
       for (const [name, roots] of Object.entries(groups)) {
@@ -244,7 +246,8 @@ export async function startSampler({ groups, output, summary, markers, intervalM
   }
   await append(output, { type: 'metadata', startedAt, platform: process.platform, intervalMs, groups, cpuNote, intervalCpuNote, summaryNote,
     markerNote: 'Incremental reads, at most 256 KiB/tick; lines above 4096 characters are discarded. Rotation and observed truncation reset the cursor; same-inode truncate-and-regrow between reads cannot be detected. Summary reports unread backlog and partial line.',
-    rssNote: 'Sum of ps RSS (KiB × 1024); shared pages may be counted more than once. Excludes sampler process and ps collector.',
+    includesSamplerProcess,
+    rssNote: 'Sum of ps RSS (KiB × 1024); shared pages may be counted more than once. Excludes ps collector. Excludes sampler process unless explicitly named as a measured root; in-process sampling overhead is then included in every overlapping group.',
     treeNote: 'Current root PID plus current descendants. Root identity is pinned on first observation by PID + lstart; reparented processes are excluded. Overlapping groups are reported separately.' });
   let nextTick = performance.now();
   await enqueue(sample);

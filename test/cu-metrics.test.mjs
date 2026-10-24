@@ -18,7 +18,7 @@ async function directory(t) {
 const psRow = (pid = 12345, ppid = 1, cpu = '0:01.00', identity = 'Sat Oct 24 01:00:00 2026') => `${pid} ${ppid} 100 75.0 ${cpu} ${identity}\n`;
 
 // Virtual time/ps only: real sampler queues and file I/O, with no wall-clock long run.
-async function harness(t, snapshot = () => psRow()) {
+async function harness(t, snapshot = () => psRow(), groups = { target: [12345] }) {
   const root = await directory(t), output = join(root, 'samples.jsonl'), markers = join(root, 'markers.jsonl');
   let now = 0, scheduled, source = snapshot, markerReadBytes = 0, failWrites = false;
   const fakeExecFile = () => {};
@@ -49,7 +49,7 @@ async function harness(t, snapshot = () => psRow()) {
     }, { context: mod.context });
   });
   await mod.evaluate();
-  const sampler = await mod.namespace.startSampler({ groups: { target: [12345] }, output, markers, intervalMs: 100 });
+  const sampler = await mod.namespace.startSampler({ groups, output, markers, intervalMs: 100 });
   return { root, output, markers, sampler, get markerReadBytes() { return markerReadBytes; }, failWrites: value => { failWrites = value; },
     trigger() { const fn = scheduled; scheduled = undefined; now += 100; fn(); }, snapshot: value => { source = value; },
     async tick() {
@@ -58,6 +58,20 @@ async function harness(t, snapshot = () => psRow()) {
       assert(scheduled, 'sampler must schedule its next observation');
     } };
 }
+
+test('explicit in-process roots include the runtime in overlapping groups while excluding collectors',async t => {
+  const snapshot = () => psRow(12345) + psRow(99999,12345) + psRow(12346,99999) + psRow(99998,99999) + psRow(99997,99998);
+  const embedded = await harness(t,snapshot,{target:[99999],outer:[12345]});
+  await embedded.sampler.stop();
+  const embeddedRows = await lines(embedded.output), measured = embeddedRows.find(row => row.type === 'sample');
+  assert.equal(embeddedRows[0].includesSamplerProcess,true);
+  assert.equal(measured.groups.target.processCount,2);assert.equal(measured.groups.target.rssBytes,200*1024);
+  assert.equal(measured.groups.outer.processCount,3);assert.equal(measured.overlappingProcessCount,2);
+  const external = await harness(t,snapshot);await external.sampler.stop();
+  const externalRows = await lines(external.output);
+  assert.equal(externalRows[0].includesSamplerProcess,false);
+  assert.equal(externalRows.find(row => row.type === 'sample').groups.target.processCount,2);
+});
 
 test('interval CPU uses cumulative deltas, excludes new/exited/reused identities and reports failures/root exit', async t => {
   const f = await harness(t);
