@@ -29,9 +29,10 @@ test('navigation state waits recognize existing state, same-document URL changes
   assert.equal(actions,2);
 });
 
-test('navigation timeout never replays its action and the same target remains usable',async () => {
+test('navigation timeout never replays its action and the same target remains usable',async t => {
+  t.mock.timers.enable({apis:['Date'],now:1000});
   const f = fixture();let actions = 0;
-  await assert.rejects(f.api.expectNavigation(async () => {actions++;},{timeoutMs:20}),{code:'NAVIGATION_TIMEOUT'});
+  await assert.rejects(f.api.expectNavigation(async () => {actions++;t.mock.timers.tick(20);},{timeoutMs:20}),{code:'NAVIGATION_TIMEOUT'});
   assert.equal(actions,1);
   await f.api.waitForURL(f.state.url,{timeoutMs:100});
 });
