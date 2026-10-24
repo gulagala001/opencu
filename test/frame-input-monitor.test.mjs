@@ -82,3 +82,18 @@ test('fresh documents report the first trusted edit and dispose removes every li
   listeners.get('input')({type:'input',isTrusted:true,target}); assert.equal(events.length, 1);
   monitor.dispose(); assert.equal(listeners.size, 0);
 });
+
+test('lost native frame contexts recover only after a confirmed occurrence change',async()=>{
+  const {inputFrameFailure}=await import('../extension/input-monitor.js');
+  const failure=()=>Object.assign(Error('Cannot find context with specified id'),{details:{inputDispatched:true}});
+  const source=failure();let validated=0;
+  const changed=await inputFrameFailure(source,{documentChanged:()=>true,validate:async()=>{validated++;}});
+  assert.equal(changed.code,'STALE_ELEMENT');assert.equal(changed.cause,source);assert.equal(changed.details.inputDispatched,true);assert.equal(validated,0);
+  const detached=await inputFrameFailure(failure(),{documentChanged:()=>false,validate:async()=>{validated++;throw Object.assign(Error('Frame document changed'),{code:'FRAME_DETACHED'});}});
+  assert.equal(detached.code,'FRAME_DETACHED');assert.equal(validated,1);
+  const live=failure();assert.equal(await inputFrameFailure(live,{documentChanged:()=>false,validate:async()=>{}}),live,'a live route cannot excuse the lost reply');
+  const ambiguous=failure();assert.equal(await inputFrameFailure(ambiguous,{validate:async()=>{throw Error('another untyped protocol failure');}}),ambiguous,'confirmation failure alone is not occurrence evidence');
+  for(const error of [Error('Transport disconnected'),Object.assign(failure(),{code:'CONTROL_STOPPED'}),Object.assign(failure(),{code:'EPIPE'})]) {
+    assert.equal(await inputFrameFailure(error,{documentChanged:()=>true,validate:async()=>{throw Object.assign(Error('Frame document changed'),{code:'FRAME_DETACHED'});}}),error,'unknown transport and explicit cancellation retain their original responsibility');
+  }
+});

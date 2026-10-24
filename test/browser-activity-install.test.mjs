@@ -129,10 +129,25 @@ test('standalone wheel uses the pointed frame and exact native deltas across foc
   f.session.send=(method,args)=>method==='Emulation.setFocusEmulationEnabled'?Promise.resolve({}):send(method,args);
   const monitor=await createUserActivityMonitor(f.session,{frameRouter:router});
   const wheel=()=>listeners.get('wheel')({type:'wheel',isTrusted:true,target:shadowHost,composedPath:()=>[control],clientX:4,clientY:5,deltaX:0,deltaY:75});
-  const record={session:f.session,page:{mouse:{wheel:async()=>wheel()}},pending:new Set(),keys:new Set(),buttons:new Set(),pointer:{x:30,y:40},frameRouter:router,documentGeneration:0};
-  await actOnPage(record,{action:'scroll',deltaY:75},{expectInput:events=>monitor.expect(events),finishInput:marker=>monitor.finish(marker)});
-  assert.equal(await monitor.read(),null);assert.equal(focusReads,0,'wheel must not consult keyboard focus');
+  const record={session:f.session,page:{mouse:{wheel:async()=>{}}},pending:new Set(),keys:new Set(),buttons:new Set(),pointer:{x:30,y:40},frameRouter:router,documentGeneration:0};
+  await actOnPage(record,{action:'scroll',deltaY:75},{expectInput:events=>monitor.expect(events),finishInput:(marker,dispatched)=>monitor.finish(marker,dispatched)});
+  wheel();assert.equal(await monitor.read(),null);assert.equal(focusReads,0,'an acknowledged delayed wheel must use the pointed frame');
   wheel();const manual=await monitor.read();assert.equal(manual.kind,'wheel');assert.equal(manual.sequence,1);assert(manual.frameDocumentId);
   retired=true;assert.equal((await monitor.read()).sequence,1,'retired frame activity cannot be replayed');
   assert.equal((await monitor.read()).sequence,1);await monitor.dispose();
+});
+
+
+test('acknowledged asynchronous wheels retain only their exact queued events and failed dispatch clears them',async()=>{
+  const f=protocol(),monitor=await createUserActivityMonitor(f.session);
+  for(const events of [[{type:'wheel',x:4,y:8,deltaX:0,deltaY:25}],[{type:'wheel',x:4,y:8,deltaX:35,deltaY:0}]]) {
+    const marker=await monitor.expect(events);await monitor.finish(marker,true);
+  }
+  f.event('wheel',{clientX:4,clientY:8,deltaX:0,deltaY:25});f.event('wheel',{clientX:4,clientY:8,deltaX:35,deltaY:0});assert.equal(await monitor.read(),null);
+  f.event('wheel',{clientX:4,clientY:8,deltaX:0,deltaY:25});assert.equal((await monitor.read()).sequence,1,'the next identical unmarked wheel is human input');
+  const failed=await monitor.expect([{type:'wheel',x:4,y:8,deltaX:0,deltaY:25}]);await monitor.finish(failed,false);
+  f.event('wheel',{clientX:4,clientY:8,deltaX:0,deltaY:25});assert.equal((await monitor.read()).sequence,2,'refused dispatch must remove its queued marker immediately');
+  const exact=await monitor.expect([{type:'wheel',x:4,y:8,deltaX:0,deltaY:25}]);await monitor.finish(exact,true);
+  f.event('wheel',{clientX:4,clientY:8,deltaX:0,deltaY:26});assert.equal((await monitor.read()).sequence,3,'a different delta is never exempted');
+  await monitor.dispose();
 });

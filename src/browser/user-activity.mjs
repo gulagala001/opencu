@@ -140,13 +140,13 @@ function installMonitor() {
           expected.push({...event,target,id,expires:performance.now()+500});
         } else expected.push({...event,id,expires:performance.now()+500});
       }
-      return events.length ? {documentId,id,pointerDown:events.some(event=>event.type==='pointerdown')} : undefined;
+      return events.length ? {documentId,id,pointerDown:events.some(event=>event.type==='pointerdown'),wheel:events.some(event=>event.type==='wheel')} : undefined;
     },
-    finish(marker) {
+    finish(marker,dispatched=false) {
       if (marker?.documentId !== documentId) return;
       if (pointerEffect?.id === marker.id) pointerEffect=undefined;
       if (textInput?.id === marker.id) textInput = undefined;
-      for (let i = expected.length - 1; i >= 0; i--) if (expected[i].id === marker.id && !(marker.pointerDown && expected[i].type === 'click')) expected.splice(i, 1);
+      for (let i = expected.length - 1; i >= 0; i--) if (expected[i].id === marker.id && !(marker.pointerDown && expected[i].type === 'click' || dispatched && marker.wheel && expected[i].type === 'wheel')) expected.splice(i, 1);
     },
     dispose() {
       for (const [type, listener] of listeners) removeEventListener(type, listener, true);
@@ -235,10 +235,10 @@ export async function createUserActivityMonitor(session, {onAcquire, frameRouter
       if(event.type==='pointerup')pointerRoute=undefined;
       return {markers};
     },
-    async finish(value){
+    async finish(value,dispatched=false){
       for(const {route,marker} of value?.markers??[])if(marker)try{
-        if(route)await routed(route,`globalThis.opencuActivity.finish(${JSON.stringify(marker)})`);
-        else await evaluate(`globalThis.opencuActivity.finish(${JSON.stringify(marker)})`);
+        if(route)await routed(route,`globalThis.opencuActivity.finish(${JSON.stringify(marker)},${dispatched})`);
+        else await evaluate(`globalThis.opencuActivity.finish(${JSON.stringify(marker)},${dispatched})`);
       }catch(error){if(!route||!stale(error))throw error;forgetRoute(route);}
     },
     dispose() {

@@ -1,3 +1,18 @@
+/** Require occurrence evidence before treating a lost CDP context as a changed view. */
+export async function inputFrameFailure(error, {documentChanged, validate} = {}) {
+  const protocol=error?.code===undefined || typeof error.code==='number' || error.details?.cdpError;
+  const unavailable=/Cannot find (?:execution )?context with (?:(?:the )?(?:given|specified) )?id|(?:No|Missing) execution context|Execution context (?:with (?:(?:the )?(?:given|specified) )?id )?(?:was )?(?:destroyed|not found)|Could not find object with given id|Cannot find object with (?:given|specified) id|No session with (?:(?:the )?(?:given|specified) )?id|Session closed(?:[.:]|$)|Target (?:closed|detached)|Inspected target navigated or closed/iu;
+  if (!protocol || !unavailable.test(error?.message ?? '')) return error;
+  let code;
+  if (documentChanged?.()) code='STALE_ELEMENT';
+  else if (validate) try { await validate(); }
+  catch (confirmation) {
+    if (['FRAME_DETACHED','STALE_ELEMENT','STALE_OBSERVATION'].includes(confirmation?.code)) code='FRAME_DETACHED';
+  }
+  if (!code) return error;
+  return Object.assign(new Error('The input document or frame changed; observe again before continuing', {cause:error}), {code,details:{...error.details}});
+}
+
 /** Exact trusted-input attribution shared by REA and native frame worlds. */
 export function createPageInputMonitor(enqueue) {
   const expected = [];

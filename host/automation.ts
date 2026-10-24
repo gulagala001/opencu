@@ -10,7 +10,7 @@ import { runCDPLocator } from './opencu-cdp-locator.js'
 import { selectOptionsFunction, selectOptionsResult } from './opencu-select-options.js'
 import { filePaths, validateFileInput, writeFileInput } from './opencu-file-input.js'
 import { guestKeySpec as inputKey, keyEventParameters, keyboardInputTypes } from './opencu-keyboard.js'
-import { createPageInputMonitor } from './opencu-input-monitor.js'
+import { createPageInputMonitor, inputFrameFailure } from './opencu-input-monitor.js'
 import { runTextEdit, validateTextEditRequest } from './opencu-text-edit.js'
 import { createCDPFrameRouter, hitTestViewport, readCDPFrameOwners, type CDPFrameRouter, type FrameElement, type FrameRoute } from './opencu-frame-router.js'
 import { captureAXTree, axElementKey } from './opencu-ax-tree.js'
@@ -309,7 +309,9 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
       },
     })
     const retiredFrame = (error: unknown): boolean => ['FRAME_DETACHED', 'STALE_OBSERVATION', 'STALE_ELEMENT', 'BROWSER_GUEST_CRASHED'].includes((error as {code?:string}).code ?? '') || /Cannot find context|Execution context was destroyed|No session with given id|Session with given id not found|Session closed|Target closed|No frame with given id/iu.test((error as Error).message);
+    const frameFailure=(error:unknown,route?:FrameRoute):Promise<Error & {code?:string|number;details?:Record<string,unknown>} >=>inputFrameFailure(error as Error & {code?:string|number;details?:Record<string,unknown>},{documentChanged:()=>current.documentGeneration!==documentGeneration,validate:route?()=>frameRouter().validate(route):undefined})
     const monitorRoute = async (route: FrameRoute, expression: string): Promise<any> => {
+      try {
       await frameRouter().validate(route)
       if (!current.monitorScripts.has(route.sessionId)) {
         const script = await route.send('Page.addScriptToEvaluateOnNewDocument', { source: inputMonitorSource, worldName: 'opencu-frame-locators' })
@@ -319,6 +321,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
       await frameRouter().validate(route)
       current.monitorRoutes.set(`${route.frameId}:${route.documentId}`, route)
       return result
+      }catch(error){throw await frameFailure(error,route)}
     }
     const finishMarker = async (marker: { route: FrameRoute; id: string } | undefined, dispatched: boolean): Promise<void> => {
       if (marker) await monitorRoute(marker.route, `globalThis.__opencuNativeInput.monitor.finishInput(${JSON.stringify(marker.id)},${dispatched})`)
@@ -336,6 +339,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
     }
     const markInput = async (route: FrameRoute, events: Record<string, unknown>[], node?: number, pending = false): Promise<{ route: FrameRoute; id: string } | undefined> => {
       if (!current.monitoringActive) return
+      try {
       await monitorRoute(route, 'null')
       if (node) {
         const objectId = await frameRouter().remoteElement(route, node)
@@ -347,6 +351,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
       }
       const id = await monitorRoute(route, `globalThis.__opencuNativeInput.monitor.expectInput(${JSON.stringify(events)},${pending})`)
       return typeof id === 'string' ? { route, id } : undefined
+      }catch(error){throw await frameFailure(error,route)}
     }
     let releaseSend = send
     let objectId: string | undefined
@@ -523,7 +528,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
         current.inputActive = true
         const generation = current.documentGeneration
         const checkOccurrence=async():Promise<void>=>{
-          if(args.inputDocumentId!==undefined && String(current.documentGeneration)!==args.inputDocumentId || args.inputActionId!==undefined && current.documentGeneration!==generation)throw Object.assign(new Error('The document changed during input; observe again'),{code:'STALE_DOCUMENT',details:{inputDispatched:false}})
+          if(args.inputDocumentId!==undefined && String(current.documentGeneration)!==args.inputDocumentId || args.inputActionId!==undefined && current.documentGeneration!==generation)throw Object.assign(new Error('The document changed during input; observe again'),{code:'STALE_ELEMENT',details:{inputDispatched:false}})
           if(typeof args.inputActionId==='string'){
             if(current.inputOccurrence?.id!==args.inputActionId)current.inputOccurrence={id:args.inputActionId,routes:new Map()}
             for(const route of current.inputOccurrence.routes.values())await frameRouter().validate(route)
@@ -822,11 +827,11 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
       live()
       return { ...detail, elementId }
     } catch (error) {
-      const failure = error as Error & {code?:string;details?:Record<string,unknown>}
+      const failure = await frameFailure(error)
       const code = /^(STALE_ELEMENT|STALE_OBSERVATION|FRAME_NOT_FOUND|FRAME_DETACHED):/u.exec(failure.message)?.[1]
       if (code) failure.code ??= code
       failure.details = {...failure.details,inputDispatched:context.inputDispatched || failure.details?.inputDispatched === true}
-      throw error
+      throw failure
     } finally {
       try {
         if (objectId && !signal.aborted && !context.fence.interrupted && !dialogs.pending() && !guest.isDestroyed() && !current.rendererExited && !guest.isCrashed() && guest.debugger.isAttached()) await releaseSend('Runtime.releaseObject', { objectId })

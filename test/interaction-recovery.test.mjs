@@ -6,6 +6,7 @@ import {createGuestDriver} from '../src/client/guest-driver.mjs';
 import {createComputerRepl} from '../src/dsh/computer-repl.mjs';
 import {createInputReleaseState} from '../src/dsh/input-release.mjs';
 import {createCompositeBrowserBackend} from '../src/browser/composite.mjs';
+import {inputFrameFailure} from '../extension/input-monitor.js';
 
 // Real controller, REPL and guest driver; DOM/CDP is the synthetic boundary.
 async function fixture(t) {
@@ -23,6 +24,7 @@ async function fixture(t) {
       viewport:{...viewport},ax:{nodes:[]}};
     if (operation==='pageState') return {documentId:'original',url:target.url,...viewport};
     if (operation==='getDialog') return {dialog:null};
+    if (operation==='navigationState') return {documentId:'0',url:target.url};
     if (operation==='inputMarker') return {};
     if (operation==='input') { events.push(args.type); return {dispatched:true}; }
     if (operation==='releaseInput') return {released:true};
@@ -264,4 +266,20 @@ test('proven queued and acknowledged native site tool cancellation preserve acti
   }
   f.hooks.error=undefined;await f.run('await tab.getScreenshot(); await tab.click([60,40]);');
   assert.deepEqual(f.events,['mouseMove','mouseDown','mouseUp']);
+});
+
+
+test('a confirmed lost input context preserves active bindings after acknowledged release',async t=>{
+  const f=await fixture(t);
+  f.hooks.error=await inputFrameFailure(Object.assign(Error('Cannot find context with specified id'),{details:{inputDispatched:true}}),{documentChanged:()=>true});
+  const result=await f.controller.act({targetId:'tab:original',action:'click'});
+  assert.equal(result.error.code,'STALE_ELEMENT');assert.equal(result.state.mode,'active');assert.equal(result.error.details.observationRequired,true);assert.equal(f.targetReleases,1);assert.equal(f.releases,0);
+  f.hooks.error=undefined;assert.equal((await f.controller.act({targetId:'tab:original',action:'click'})).error.code,'OBSERVATION_REQUIRED');
+  await f.run('await tab.getScreenshot();await tab.click([60,40]);');assert.deepEqual(f.events,['mouseMove','mouseDown','mouseUp']);
+});
+
+test('an unknown transport failure during navigation still faults the controller',async t=>{
+  const f=await fixture(t),failure=Object.assign(Error('Transport disconnected'),{details:{inputDispatched:true}});
+  f.hooks.error=await inputFrameFailure(failure,{documentChanged:()=>true});assert.equal(f.hooks.error,failure);
+  const result=await f.controller.act({targetId:'tab:original',action:'click'});assert.equal(result.state.mode,'faulted');assert.equal(f.releases,1);
 });

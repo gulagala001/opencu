@@ -49,7 +49,7 @@ export async function actOnPage(record, request, options) {
   const inputOccurrence = ['click','doubleClick','move','mouseDown','scroll','drag','type','keyDown','press','paste','selectText','fill','selectOption'].includes(request.action) ? record.documentGeneration : undefined;
   const inputRoutes=new Set();
   const check = () => { checkSignal(signal); options.actionGuard?.check();
-    if (inputOccurrence !== undefined && inputOccurrence !== record.documentGeneration) fail('STALE_DOCUMENT','The document changed during input; observe again before continuing');
+    if (inputOccurrence !== undefined && inputOccurrence !== record.documentGeneration) fail('STALE_ELEMENT','The document changed during input; observe again before continuing');
     if (request.action === 'fileChooserSetFiles' && request.deadline !== undefined && Date.now() >= request.deadline) fail('FILE_CHOOSER_TIMEOUT','Setting file chooser files timed out; observe before deciding another action');
   };
   const screenshotInput = request.elementId == null && ['screenshot', 'screenshot-pixels', 'physical-screenshot-pixels'].includes(request.coordinateSpace);
@@ -106,7 +106,7 @@ export async function actOnPage(record, request, options) {
       if(down && Number.isFinite(down.x) && Number.isFinite(down.y)) inputRoutes.add((await frameRouter.atPoint(down)).route);
     }
     const expected = await options.expectInput?.(events), marker = scopedInput ? expected : undefined;
-    let failure;
+    let failure,dispatched=false;
     try {
       check();
       if (elementGeneration !== undefined) {
@@ -119,10 +119,10 @@ export async function actOnPage(record, request, options) {
       if(record.frameRouter)for(const route of inputRoutes)await frameRouter.validate(route);
       check();
       record.inputDispatchSequence = (record.inputDispatchSequence ?? 0) + 1;
-      return await work();
+      const result=await work();dispatched=true;return result;
     } catch (error) { failure = error; throw error; }
     finally {
-      if (marker) try { await options.finishInput?.(marker); }
+      if (marker) try { await options.finishInput?.(marker,dispatched); }
       catch (error) { if (!failure) throw error; failure.details = {...failure.details,inputMarkerError:error.message}; }
     }
   });

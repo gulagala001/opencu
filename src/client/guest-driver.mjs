@@ -218,7 +218,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       const epoch = generation, occurrence = documentGeneration;
       const inputActionId=['click','doubleClick','move','mouseDown','scroll','drag','type','keyDown','press','paste','selectText','fill','selectOption'].includes(args.action) ? crypto.randomUUID() : undefined;
       const inputDocumentId=inputActionId ? (await evaluate('navigationState')).documentId : undefined;
-      const check=()=>{if(epoch!==generation)fail('CONTROL_STOPPED','Input sequence was cancelled');if(inputActionId&&occurrence!==documentGeneration)fail('STALE_DOCUMENT','The document changed during input; observe again');};
+      const check=()=>{if(epoch!==generation)fail('CONTROL_STOPPED','Input sequence was cancelled');if(inputActionId&&occurrence!==documentGeneration)fail('STALE_ELEMENT','The document changed during input; observe again');};
       check();
       const screenshot = args.elementId == null && args.coordinateSpace?.includes('screenshot') ? lastObservation : null;
       const sendInput = event => send({...event,keyboardEditable:args.keyboardEditable,inputDocumentId,inputActionId}, screenshot, args.elementId);
