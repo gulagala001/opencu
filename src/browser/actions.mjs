@@ -1,11 +1,11 @@
-import {stat} from 'node:fs/promises';
-import {isAbsolute} from 'node:path';
 import {checkSignal, fail, finite} from '../protocol.mjs';
 import {elementFor, elementPoint, focusElement} from './observation.mjs';
 import {hitTest, callElement, patchDOM, screenshotPoint, verifyScreenshot} from './dom.mjs';
 import {runCDPLocator} from '../../extension/cdp-locator.js';
 import {runTextEdit} from '../../extension/text-edit.js';
 import {selectOptionsFunction, selectOptionsResult} from '../../extension/select-options.js';
+import {validateFileInput,writeFileInput} from '../../extension/file-input.js';
+import {uploadFiles} from './upload-files.mjs';
 import {clickParameters, checkClickHeld, holdClick} from '../../extension/click-options.js';
 import {pressParameters, checkPressHeld} from '../../extension/key-options.js';
 import {playwrightKeyIdentity} from './playwright-keyboard.mjs';
@@ -43,7 +43,9 @@ export async function actOnPage(record, request, options) {
   request = normalizeBrowserAction(request);
   const {page} = record;
   const signal = request.signal;
-  const check = () => { checkSignal(signal); options.actionGuard?.check(); };
+  const check = () => { checkSignal(signal); options.actionGuard?.check();
+    if (request.action === 'fileChooserSetFiles' && request.deadline !== undefined && Date.now() >= request.deadline) fail('FILE_CHOOSER_TIMEOUT','Setting file chooser files timed out; observe before deciding another action');
+  };
   const screenshotInput = request.elementId == null && ['screenshot', 'screenshot-pixels', 'physical-screenshot-pixels'].includes(request.coordinateSpace);
   const inputScreenshot = record.screenshot;
   const checkScreenshot = async () => { if (screenshotInput) await verifyScreenshot(record, request, inputScreenshot); };
@@ -78,7 +80,7 @@ export async function actOnPage(record, request, options) {
   };
   const frameOptions = {check,guard:step,wrapSend:transport=>(method,params)=>method === 'Runtime.releaseObject' ? transport(method,params) : step(()=>{
     if (['DOM.focus','DOM.scrollIntoViewIfNeeded','DOM.setFileInputFiles'].includes(method) || method === 'Runtime.callFunctionOn' &&
-      (params?.arguments?.[0]?.value === 'patch' || params?.functionDeclaration?.includes('this.scrollIntoView('))) record.inputDispatchSequence = (record.inputDispatchSequence ?? 0)+1;
+      (params?.arguments?.[0]?.value === 'patch' || params?.functionDeclaration?.includes('this.scrollIntoView(') || params?.functionDeclaration?.includes('__opencuClearFileInput'))) record.inputDispatchSequence = (record.inputDispatchSequence ?? 0)+1;
     return transport(method,params);
   })};
   const frameRouter = withCDPFrameGuard(record.frameRouter,frameOptions.wrapSend,step);
@@ -344,13 +346,29 @@ export async function actOnPage(record, request, options) {
       } finally { await (entry.route?.send ?? ((method, params) => record.session.send(method, params)))('Runtime.releaseObject', {objectId: object.objectId}); }
       break;
     }
+    case 'fileChooserSetFiles':
     case 'upload': {
-      const {elementFor} = await import('./observation.mjs');
-      const entry = elementFor(record, request);
-      if (!Array.isArray(request.files) || !request.files.length || request.files.some(file => typeof file !== 'string' || !isAbsolute(file))) fail('INVALID_ARGUMENT', 'upload requires absolute file paths');
-      for (const file of request.files) if (!(await step(() => stat(file))).isFile()) fail('INVALID_ARGUMENT', 'Upload source must be a regular file');
-      await input([{type: 'input'}], () => (entry.route?.send ?? ((method, params) => record.session.send(method, params)))('DOM.setFileInputFiles', {backendNodeId: entry.backendNodeId, files: request.files}));
-      break;
+      const chooser = request.action === 'fileChooserSetFiles' ? await step(() => record.fileChoosers.entry(request.fileChooserId)) : undefined;
+      const entry = chooser ?? elementFor(record, request);
+      const send = frameOptions.wrapSend(entry.route?.send ?? ((method, params) => record.session.send(method, params)));
+      const files = await uploadFiles(request.files,{allowString:!!chooser,check,step});
+      const validate = async () => {
+        check();
+        if (entry.route) await frameRouter.validate(entry.route);
+        if (chooser) await record.fileChoosers.entry(request.fileChooserId);
+        else if (elementFor(record,request) !== entry) fail('STALE_ELEMENT','The file input changed; observe again');
+        return validateFileInput(send,{backendNodeId:entry.backendNodeId,contextId:entry.route?.contextId,files});
+      };
+      await validate();
+      let consumed = false,receipt;
+      try {
+        receipt = await input(files.length ? [{type:'input'}] : [],async () => {
+          if (chooser) {record.fileChoosers.consume(chooser);consumed=true;}
+          else await record.fileChoosers?.explicitUpload(entry);
+          return writeFileInput(send,{backendNodeId:entry.backendNodeId,contextId:entry.route?.contextId,files});
+        },validate);
+      } finally {if (consumed) await record.fileChoosers.finish(chooser);}
+      return {action:request.action,inputMode:'background',delivery:'target-cdp',effectVerified:receipt.cleared === true,...receipt};
     }
     case 'download': {
       const download = page.waitForEvent('download', {timeout: options.timeoutMs});

@@ -4,6 +4,7 @@ import { createCDPFrameRouter } from './frame-router.js';
 import { extensionKeySpec as keySpec, keyEventParameters, sequentialTextKey, checkSequentialDeadline } from './keyboard.js';
 import { clickParameters, checkClickHeld, holdClick } from './click-options.js';
 import { pressParameters, checkPressHeld } from './key-options.js';
+import {filePaths} from './file-input.js';
 const PATH = '/opencu-extension/v1';
 const attached = new Map(), observations = new Map(), documents = new Map(), releasing = new Set();
 let connection, connecting = false, reconnectDisabled = false, running = false, controlEpoch = 0, commandChain = Promise.resolve(), downloadChain = Promise.resolve(), status = { connected: false };
@@ -325,7 +326,7 @@ async function act(identity, action, epoch = controlToken(identity.tabId)) {
       }
       const operation = params?.arguments?.[0]?.value, phase = params?.arguments?.[1]?.value;
       const writing = method.startsWith('Input.') || ['DOM.focus','DOM.scrollIntoViewIfNeeded','DOM.setFileInputFiles'].includes(method) ||
-        method === 'Runtime.callFunctionOn' && (['selectAll','setValue','patchDOM','point'].includes(operation) || phase === 'focus' || action.type === 'selectOption');
+        method === 'Runtime.callFunctionOn' && (['selectAll','setValue','patchDOM','point'].includes(operation) || phase === 'focus' || action.type === 'selectOption' || params?.functionDeclaration?.includes('__opencuClearFileInput'));
       checkInput();
       const before = inputState.inputSequence ?? 0;
       if (writing) inputState.inputSequence = before+1;
@@ -411,9 +412,9 @@ async function act(identity, action, epoch = controlToken(identity.tabId)) {
       return done(result);
     }
     case 'upload': {
-      if (!Array.isArray(action.files) || !action.files.length || action.files.some(file => typeof file !== 'string')) fail('INVALID_ARGUMENT', 'upload requires file paths');
-      await element('upload');
-      invalidate(); return done({ uploaded: true, files: action.files });
+      action = {...action,files:filePaths(action.files)};
+      const receipt = await element('upload');
+      invalidate(); return done(receipt);
     }
     case 'fill': {
       await element('selectAll');

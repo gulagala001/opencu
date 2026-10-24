@@ -60,6 +60,7 @@ const recoverableActionErrors = new Set([
   'INVALID_BUTTON', 'INVALID_SCROLL', 'INVALID_TEXT', 'SCROLL_POINT_REQUIRED',
   'INPUT_ALREADY_HELD', 'RELEASE_REQUIRED', 'UNSUPPORTED_ACTION', 'UNSUPPORTED_OPERATION', 'UNSUPPORTED_COORDINATE_SPACE',
   'UNSUPPORTED_PINCH_ZOOM', 'UNSUPPORTED_URL', 'NO_HISTORY_ENTRY',
+  'STALE_FILE_CHOOSER', 'FILE_CHOOSER_BUSY', 'FILE_CHOOSER_NOT_READY', 'FILE_CHOOSER_TIMEOUT', 'UNSUPPORTED_UPLOAD_DIRECTORY', 'UPLOAD_SOURCE_UNAVAILABLE',
   'LOCATOR_NOT_FOUND', 'AMBIGUOUS_LOCATOR', 'UNSUPPORTED_LOCATOR', 'LOCATOR_NOT_ACTIONABLE', 'LOCATOR_NOT_STABLE',
   'ELEMENT_NOT_EDITABLE', 'ELEMENT_NOT_FOUND', 'ELEMENT_DISABLED', 'ELEMENT_NOT_VISIBLE', 'AMBIGUOUS_TEXT', 'TEXT_NOT_FOUND',
   'UNSUPPORTED_PASTE_FORMAT', 'BACKGROUND_SELECTION_UNAVAILABLE', 'BACKGROUND_ACTION_UNAVAILABLE',
@@ -74,7 +75,7 @@ export const changedViewError = error => changedViewErrors.has(error?.code);
 
 /** A changed view or rejected input is recoverable only with an explicit dispatch receipt. */
 export function recoverableActionError(error, action) {
-  const uploadFile = action === 'upload' && ['ENOENT', 'ENOTDIR', 'EISDIR', 'EACCES'].includes(error?.code);
+  const uploadFile = ['upload','fileChooserSetFiles'].includes(action) && ['ENOENT', 'ENOTDIR', 'EISDIR', 'EACCES'].includes(error?.code);
   return error?.details?.inputDispatched === false && (recoverableActionErrors.has(error.code) || uploadFile)
     && (error.details.release === undefined || inputReleased(error.details.release));
 }
