@@ -219,6 +219,7 @@ export function createComputerRepl(request, report = () => {}) {
     const navigation = createBrowserWaits({
       supported: () => target.backend === 'browser' && target.provider !== 'extension' && !String(target.browserId).startsWith('extension:'),
       track: trackWait,
+      fileChooser: {supported:() => target.capabilities?.includes('fileChooserEvents') === true,act:(action,args) => act(action,args)},
       state: async options => {
         const value = (await act('navigationState',options)).result?.value;
         if (!value || typeof value.url !== 'string' || typeof value.documentId !== 'string' || !['loading','interactive','complete'].includes(value.readyState))

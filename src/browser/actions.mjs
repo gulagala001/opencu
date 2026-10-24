@@ -9,6 +9,7 @@ import {uploadFiles} from './upload-files.mjs';
 import {clickParameters, checkClickHeld, holdClick} from '../../extension/click-options.js';
 import {pressParameters, checkPressHeld} from '../../extension/key-options.js';
 import {playwrightKeyIdentity} from './playwright-keyboard.mjs';
+import {actOnClipboard} from './clipboard.mjs';
 import {withCDPFrameGuard} from '../../extension/frame-router.js';
 import {sequentialTextKey, checkSequentialDeadline, guestKeySpec, keyEventParameters} from '../../extension/keyboard.js';
 
@@ -68,6 +69,8 @@ export async function actOnPage(record, request, options) {
       return value;
     } finally { signal?.removeEventListener('abort', listener); }
   };
+  if (['clipboardRead','clipboardReadText','clipboardWrite','clipboardWriteText'].includes(request.action))
+    return actOnClipboard(record,request,{step,check,onWrite:() => {record.inputDispatchSequence=(record.inputDispatchSequence??0)+1;}});
   const navigate = async work => {
     let stopping;
     const stop = () => {

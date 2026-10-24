@@ -227,6 +227,7 @@ export async function createBrowserBackend(options = {}) {
       const id = `tab:${createHash('sha256').update(`${browserId}\0${connectionId}\0${targetInfo.targetId}`).digest('hex').slice(0, 32)}`;
       const record = attempt.record = {
         id, page, session, dialogs: attempt.dialogs,
+        sessionClipboard: ownContext && (options.launchOptions?.headless ?? options.headless ?? true) === true,
         identity: {browserId, connectionId, targetId: targetInfo.targetId, contextId: targetInfo.browserContextId ?? 'default'},
         keys: new Set(), buttons: new Set(), pending: new Set(), elements: new Map(), nextElementId: 0, documentGeneration: 0,
       };
@@ -309,6 +310,7 @@ export async function createBrowserBackend(options = {}) {
     targetInfo ??= (await record.session.send('Target.getTargetInfo')).targetInfo;
     return {
       id: record.id, backend: 'browser', kind: 'tab', browserId,
+      sessionClipboard: record.sessionClipboard === true,
       title: targetInfo.title, url: targetInfo.url, identity: record.identity,
       capabilities: ['ax', 'screenshot', 'navigation', 'navigationWaits', 'tabs', 'focus', 'mouse', 'keyboard', 'uploads', 'fileChooserEvents', 'downloads', 'downloadEvents', 'hitTest', 'getDOM', 'designTweak', 'dialogs'],
     };
