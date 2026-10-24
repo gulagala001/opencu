@@ -62,3 +62,20 @@ test('capability arguments and malformed discovery fail explicitly',async()=>{
   await assert.rejects(f.capabilities.list({}),TypeError);f.state.tools=[{name:'save'}];
   await assert.rejects(f.capabilities.list(),{code:'INVALID_SITE_TOOLS'});
 });
+
+
+test('same-named frame tools advertise exact callable aliases and keep registration identity',async()=>{
+  const f=fixture();f.state.tools=[tool('echo','main-registration'),{...tool('echo','child-registration'),origin:'https://child.test',frameId:'child'},tool('echo__main-registration','collision-registration')];
+  const capability=await f.capabilities.get('webmcp'),collection=await capability.fetchTools(),description=JSON.parse(collection.description());
+  assert.equal(new Set(description.tools.map(tool=>tool.name)).size,3);
+  const main=description.tools.find(tool=>tool.registrationId==='main-registration'),child=description.tools.find(tool=>tool.registrationId==='child-registration');
+  assert.equal(main.nativeName,'echo');assert.equal(child.nativeName,'echo');assert.equal(child.origin,'https://child.test');assert.equal(child.frameId,'child');
+  for(const tool of [main,child]){
+    await collection.call(tool.name,{value:tool.frameId});
+    assert.equal(f.state.calls.at(-1).args.registrationId,tool.registrationId);
+  }
+  await assert.rejects(collection.call('echo',{}),{code:'AMBIGUOUS_SITE_TOOL'});
+  const newer=await capability.fetchTools();await assert.rejects(collection.call(main.name,{}),{code:'STALE_SITE_TOOL'});
+  assert.match(newer.description(),/nativeName/);
+  f.state.tools=[tool('echo','duplicate'),tool('other','duplicate')];await assert.rejects(capability.fetchTools(),{code:'INVALID_SITE_TOOLS'});
+});
