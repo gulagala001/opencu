@@ -43,6 +43,26 @@ for (const invalid of ['identity', 'closed-target']) test(`post-dispatch ${inval
   assert.equal((await controller.act({action: 'click'})).error.code, 'CONTROL_STOPPED');
 });
 
+for(const receipt of ['confirmed','unreleased','unconfirmed-close','changed-identity']) test(`browser self-close ${receipt} receipt preserves exact occurrence checks`,async t=>{
+  const dataDir=await mkdtemp(new URL('self-close-',scratch).pathname);
+  const parent={id:'parent',backend:'browser',identity:{occurrence:'parent'}},child={id:'child',backend:'browser',identity:{occurrence:'child'}};
+  const actions=[];
+  const backend={listTargets:async()=>[parent,child],select:async target=>target,verify:async target=>({valid:true,target}),observe:async()=>({}),
+    act:async target=>{actions.push(target.id);return target.id==='child'?{closedTargetId:'child',inputDispatched:true,
+      release:{released:receipt!=='unreleased',retired:receipt!=='unconfirmed-close'},
+      ...(receipt==='changed-identity'?{target:{...child,identity:{occurrence:'another'}}}:{})}:{};},
+    release:async()=>({released:true}),close:async()=>{}};
+  const controller=await createController({dataDir,browser:backend});
+  t.after(async()=>{await controller.close();await rm(dataDir,{recursive:true,force:true});});
+  checked(await controller.selectTarget(parent));checked(await controller.selectTarget(child));
+  const result=await controller.act({targetId:'child',action:'click'});
+  if(receipt==='confirmed'){
+    checked(result);const {state}=await controller.getState();assert.equal(state.mode,'active');assert.equal(state.activeTargetId,'parent');
+    assert.deepEqual(state.targets.map(target=>target.id),['parent']);checked(await controller.act({targetId:'parent',action:'click'}));
+    assert.deepEqual(actions,['child','parent']);
+  }else{assert.equal(result.error.code,'TARGET_IDENTITY_CHANGED');assert.equal(result.state.mode,'faulted');}
+});
+
 test('a failed action commit still releases input before returning', async t => {
   const {dataDir, state, controller} = await controllerFixture(t);
   await rename(join(dataDir, 'controller.json'), join(dataDir, 'before.json'));

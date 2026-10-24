@@ -101,6 +101,76 @@ test('targeted release leaves another page held and journals each acknowledgemen
   await f.backend.close();assert.deepEqual(b.ups,['Shift']);
 });
 
+test('a closed occurrence retains exact release ownership and retires without touching its sibling',async t=>{
+  const f=await fixture(t,[targetRecord('child'),targetRecord('parent')]);
+  const child=f.addPage('child'),parent=f.addPage('parent');
+  const targets=await f.backend.listTargets(),target=targets.find(item=>item.identity.targetId==='child');
+  child.closeFromOwner();
+  await assert.rejects(f.backend.releaseTarget({...target,identity:{...target.identity,targetId:'another'}}),{code:'TARGET_IDENTITY_CHANGED'});
+  const release=await f.backend.releaseTarget(target);
+  assert.equal(release.released,true);assert.equal(release.retired,true);
+  await assert.rejects(f.backend.releaseTarget({id:'unknown'}),{code:'TARGET_IDENTITY_CHANGED'});
+  assert.equal((await f.backend.releaseTarget(target)).retired,true,'repeat release uses the original occurrence receipt');
+  await assert.rejects(f.backend.releaseTarget({...target,identity:{...target.identity,connectionId:'another'}}),{code:'TARGET_IDENTITY_CHANGED'});
+  assert.deepEqual(parent.ups,[]);
+  assert(!((await f.journal()).some(item=>item.id===target.id)));
+  assert.deepEqual((await f.journal()).find(item=>item.id===targetRecord('parent').id)?.keys,['Shift']);
+  const all=await f.backend.release({targets:[target]});assert(all.retiredTargetIds.includes(target.id));
+  assert.deepEqual((await f.backend.release({targets:[]})).retiredTargetIds,[]);
+  await assert.rejects(f.backend.releaseTarget(target),{code:'TARGET_IDENTITY_CHANGED'},'a consumed historical receipt cannot invent a fresh verification');
+  await f.backend.close();
+});
+
+test('frequent closed tabs bound duplicate-release history and evicted identities fail closed',async t=>{
+  const f=await fixture(t);let first,last;
+  for(let index=0;index<130;index++){
+    const page=f.addPage('child-'+index);[last]=await f.backend.listTargets();first??=last;
+    page.closeFromOwner();assert.equal((await f.backend.releaseTarget(last)).retired,true);
+  }
+  await assert.rejects(f.backend.releaseTarget(first),{code:'TARGET_IDENTITY_CHANGED'});
+  assert.equal((await f.backend.releaseTarget(last)).retired,true);
+  assert.deepEqual((await f.backend.release()).retiredTargetIds,[],'global cleanup does not repeat unrelated cached history');
+  assert.deepEqual((await f.backend.release({targets:[first,last]})).retiredTargetIds,[last.id]);
+  await assert.rejects(f.backend.releaseTarget({...last,identity:first.identity}),{code:'TARGET_IDENTITY_CHANGED'});
+  await f.backend.close();
+});
+
+for(const action of ['keyDown','keyUp','mouseUp']) test(`${action} which closes its exact page returns a released closure receipt`,async t=>{
+  const f=await fixture(t,[targetRecord('child')]);
+  const child=f.addPage('child'),parent=f.addPage('parent');
+  const targets=await f.backend.listTargets(),target=targets.find(item=>item.identity.targetId==='child');
+  const close=async()=>{child.closeFromOwner();throw child.closedError;};
+  child.keyboard.down=close;child.keyboard.up=close;child.mouse.up=close;
+  const result=await f.backend.act(target,{action,key:'Enter'});
+  assert.equal(result.closedTargetId,target.id);assert.equal(result.inputDispatched,true);
+  assert.equal(result.release.released,true);assert.equal(result.release.retired,true);
+  assert.equal(result.target,undefined);assert.deepEqual(parent.ups,[]);
+  assert(!((await f.journal()).some(item=>item.id===target.id)));
+  await f.backend.close();
+});
+
+test('a crash during key-down remains an error and cannot produce a closed-page receipt',async t=>{
+  const f=await fixture(t);
+  const child=f.addPage('child');
+  const [target]=await f.backend.listTargets();
+  child.keyboard.down=async()=>{child.emit('crash');throw Object.assign(Error('renderer crashed'),{code:'TARGET_CRASHED'});};
+  await assert.rejects(f.backend.act(target,{action:'keyDown',key:'Enter'}),error=>{
+    assert.equal(error.code,'TARGET_CRASHED');assert.equal(error.details.release.released,true);
+    assert.notEqual(error.details.release.retired,true);return true;
+  });
+  await f.backend.close();
+});
+
+test('cancellation during a self-closing key action still rejects and retains the release receipt',async t=>{
+  const f=await fixture(t),aborter=new AbortController();
+  const child=f.addPage('child');const [target]=await f.backend.listTargets();
+  child.keyboard.down=async()=>{child.closeFromOwner();aborter.abort();};
+  await assert.rejects(f.backend.act(target,{action:'keyDown',key:'Enter',signal:aborter.signal}),error=>{
+    assert.equal(error.code,'CONTROL_STOPPED');assert.equal(error.details.release.released,true);assert.equal(error.details.release.retired,true);return true;
+  });
+  await f.backend.close();
+});
+
 test('initial CDP batch releases and persists an adopted healthy sibling before root teardown', async t => {
   const saved = targetRecord('healthy-held');
   const f = await fixture(t, [saved]);
