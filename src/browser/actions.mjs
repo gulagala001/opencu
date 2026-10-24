@@ -6,7 +6,7 @@ import {runTextEdit} from '../../extension/text-edit.js';
 import {selectOptionsFunction, selectOptionsResult} from '../../extension/select-options.js';
 import {validateFileInput,writeFileInput} from '../../extension/file-input.js';
 import {uploadFiles} from './upload-files.mjs';
-import {clickParameters, checkClickHeld, holdClick} from '../../extension/click-options.js';
+import {clickParameters, locatorClickParameters, checkClickHeld, holdClick} from '../../extension/click-options.js';
 import {pressParameters, checkPressHeld} from '../../extension/key-options.js';
 import {playwrightKeyIdentity} from './playwright-keyboard.mjs';
 import {actOnClipboard,restoreClipboardPermissions} from './clipboard.mjs';
@@ -221,6 +221,9 @@ export async function actOnPage(record, request, options) {
       return {action: request.action, ...result};
     }
     case 'locator': {
+      const args = request.args ?? {}, method = request.method;
+      const click = ['click','dblclick'].includes(method) ? locatorClickParameters(args, {mac:process.platform === 'darwin',count:method === 'dblclick' ? 2 : 1}) : undefined;
+      if (click) checkClickHeld(record, click);
       const generation = record.documentGeneration;
       const result = await step(() => runCDPLocator(frameSend, request, (backendNodeId, route) => {
         check();
@@ -232,12 +235,11 @@ export async function actOnPage(record, request, options) {
       }, frameRouter));
       if (generation !== record.documentGeneration) fail('STALE_ELEMENT', 'Document changed while resolving the locator');
       if (Object.hasOwn(result, 'value')) return {action: request.action, value: result.value};
-      const args = request.args ?? {}, method = request.method;
       const checking = ['check', 'uncheck', 'setChecked'].includes(method);
       const checked = method === 'setChecked' ? args.checked : method === 'check';
       if (!checking || result.checked !== checked) {
         await actOnPage(record, {action: checking ? 'click' : method === 'dblclick' ? 'doubleClick' : method === 'pressSequentially' ? 'type' : method,
-          elementId: result.elementId, locatorGeneration: generation, button: args.button, key: args.key, value: args.value,
+          elementId: result.elementId, locatorGeneration: generation, button: args.button, key: click?.keys.length ? click.keys.join('+') : args.key, value: args.value,
           sequential:method === 'pressSequentially', deadline:request.deadline,
           keyboardEditable:result.keyboardEditable,
           signal: request.signal, inputMode: request.inputMode}, options);

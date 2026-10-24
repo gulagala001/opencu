@@ -4,9 +4,10 @@ import { readFile } from 'node:fs/promises';
 import { observeAccessibility, elementOperation, locatorOperation, invalidateElements } from '../extension/accessibility.js';
 import { createCDPFrameRouter } from '../extension/frame-router.js';
 import { extensionKeySpec as keySpec, keyEventParameters, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes } from '../extension/keyboard.js';
-import { clickParameters, checkClickHeld, holdClick } from '../extension/click-options.js';
+import { clickParameters, locatorClickParameters, checkClickHeld, holdClick } from '../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../extension/key-options.js';
 import {installDocumentRuntime} from '../extension/content.js';
+import {locatorInputFixture} from './fixtures/locator-input.mjs';
 
 // Execute the production MV3 worker and its real AX/input helpers. Only Chrome
 // APIs and local bridge transport are simulated; no browser is started.
@@ -67,7 +68,7 @@ async function fixture(t) {
     return { ok: true, json: async () => ({ commands: next }) };
   };
   const imports = { observeAccessibility, elementOperation, locatorOperation, invalidateElements, createCDPFrameRouter, installDocumentRuntime, keySpec, keyEventParameters,
-    clickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes,
+    clickParameters, locatorClickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes,
     createPairingClient: () => ({ start: async () => {}, pause: async () => {} }) };
   const worker = new Function(...Object.keys(imports), 'chrome', 'navigator', 'fetch', 'setTimeout', `${source}\nreturn {
     ready: initialize(), observe, act, releaseTab, controlToken, attached, observations, loop,
@@ -84,6 +85,30 @@ async function fixture(t) {
   t.after(async () => { for (const key of Object.keys(hooks)) delete hooks[key]; worker.setConnection(null); queue(); await loop; invalidateElements(73); });
   return { worker, identity, hooks, events, seed, queue, message, result };
 }
+
+test('MV3 locator modifiers reach actual CDP mouse events and release once across double-click',async t => {
+  for (const [method,count] of [['click',1],['dblclick',2]]) {
+    const f = await fixture(t), dom = locatorInputFixture();f.seed([],[]);
+    f.worker.attached.get(73).frameRouter = dom.router;
+    await f.worker.act(f.identity,{type:'locator',locator:[{kind:'css',value:'#target'}],method,args:{modifiers:['Shift','Option']}});
+    const mouse = f.events.filter(([name,params]) => name === 'Input.dispatchMouseEvent' && ['mousePressed','mouseReleased'].includes(params.type));
+    assert.equal(mouse.length,count*2);
+    assert(mouse.every(([,params]) => params.modifiers === 9));
+    assert.deepEqual(mouse.filter(([,params]) => params.type === 'mousePressed').map(([,params]) => params.clickCount),Array.from({length:count},(_,index) => index+1));
+    assert.deepEqual(f.events.filter(([name]) => name === 'Input.dispatchKeyEvent').map(([,params]) => [params.type,params.key]),
+      [['rawKeyDown','Shift'],['rawKeyDown','Alt'],['keyUp','Alt'],['keyUp','Shift']]);
+    assert.equal(f.worker.attached.get(73).keys.size,0);assert.equal(f.worker.attached.get(73).buttons.size,0);
+  }
+});
+
+test('MV3 locator modifiers reject held inputs before DOM resolution or mouse dispatch',async t => {
+  const f = await fixture(t), dom = locatorInputFixture();f.seed(['Alt'],[]);
+  f.worker.attached.get(73).frameRouter = dom.router;
+  for (const modifiers of [[],['Shift']]) await assert.rejects(f.worker.act(f.identity,
+    {type:'locator',locator:[{kind:'css',value:'#target'}],method:'click',args:{modifiers}}),error => error.code === 'INPUT_ALREADY_HELD' && error.details.inputDispatched === false);
+  assert.deepEqual(dom.calls,[]);assert.equal(f.events.some(([name]) => name.startsWith('Input.')),false);
+  assert.deepEqual([...f.worker.attached.get(73).keys.keys()],['Alt']);
+});
 
 test('MV3 sequential text dispatches real printable keys and inserts Unicode by code point',async t=>{
   const f=await fixture(t);f.seed([],[]);

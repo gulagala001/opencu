@@ -1,5 +1,5 @@
 import { guestKeySpec, keyEventKey, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes } from '../../extension/keyboard.js';
-import { clickParameters, checkClickHeld, holdClick } from '../../extension/click-options.js';
+import { clickParameters, locatorClickParameters, checkClickHeld, holdClick } from '../../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../../extension/key-options.js';
 import { inputReleased } from '../protocol.mjs';
 
@@ -232,14 +232,16 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         case 'navigationState': return {action:args.action,value:await step(() => evaluate('navigationState',{downloadCursor:args.downloadCursor === true}))};
         case 'domSnapshot': return {action: args.action, ...await step(() => evaluate('domSnapshot', {locator:args.locator ?? [], args: args.args ?? {}}))};
         case 'locator': {
+          const options = args.args ?? {}, method = args.method;
+          const click = ['click','dblclick'].includes(method) ? locatorClickParameters(options, {mac:/Mac/u.test(navigator.platform),count:method === 'dblclick' ? 2 : 1}) : undefined;
+          if (click) checkClickHeld({keys,buttons}, click);
           const result = await step(() => evaluate('locator', args));
           if (Object.hasOwn(result, 'value')) return {action: args.action, value: result.value};
-          const options = args.args ?? {}, method = args.method;
           const checking = ['check', 'uncheck', 'setChecked'].includes(method);
           const checked = method === 'setChecked' ? options.checked : method === 'check';
           if (!checking || result.checked !== checked) {
             const performed = await this.act({action: checking ? 'click' : method === 'dblclick' ? 'doubleClick' : method === 'pressSequentially' ? 'type' : method,
-              elementId: result.elementId, button: options.button, key: options.key, value: options.value, text: options.value,
+              elementId: result.elementId, button: options.button, key: click?.keys.length ? click.keys.join('+') : options.key, value: options.value, text: options.value,
               sequential:method === 'pressSequentially', deadline:args.deadline, keyboardEditable:result.keyboardEditable, inputMode: args.inputMode});
             if (performed.pendingDialog) return performed;
             if (checking && (await step(() => evaluate('checked', {elementId: result.elementId}))).checked !== checked) fail('LOCATOR_ACTION_FAILED', 'Click did not produce the requested checked state');

@@ -2,7 +2,7 @@ import { observeAccessibility, elementOperation, locatorOperation, invalidateEle
 import { createPairingClient } from './pairing.js';
 import { createCDPFrameRouter } from './frame-router.js';
 import { extensionKeySpec as keySpec, keyEventParameters, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes } from './keyboard.js';
-import { clickParameters, checkClickHeld, holdClick } from './click-options.js';
+import { clickParameters, locatorClickParameters, checkClickHeld, holdClick } from './click-options.js';
 import { pressParameters, checkPressHeld } from './key-options.js';
 import {filePaths} from './file-input.js';
 import {installDocumentRuntime} from './content.js';
@@ -466,15 +466,17 @@ async function act(identity, action, epoch = controlToken(identity.tabId)) {
       return done(result);
     }
     case 'locator': {
+      const args = action.args ?? {}, method = action.method;
+      const click = ['click','dblclick'].includes(method) ? locatorClickParameters(args, {mac:/Mac/u.test(navigator.platform),count:method === 'dblclick' ? 2 : 1}) : undefined;
+      if (click) checkClickHeld(inputState, click);
       const result = await locatorOperation(tabId, send, action, identity.documentId, attached.get(tabId)?.frameRouter,elementOptions);
       await step(() => verify(identity, true));
       if (Object.hasOwn(result, 'value')) return done({value:result.value});
-      const args = action.args ?? {}, method = action.method;
       const checking = ['check','uncheck','setChecked'].includes(method);
       const checked = method === 'setChecked' ? args.checked : method === 'check';
       if (!checking || result.checked !== checked) {
         const type = checking ? 'click' : ({dblclick:'double_click',press:'press_key',type:'type_text',pressSequentially:'type_text'})[method] ?? method;
-        await act(identity, {type,elementId:result.elementId,button:args.button,key:args.key,value:args.value,text:args.value,
+        await act(identity, {type,elementId:result.elementId,button:args.button,key:click?.keys.length ? click.keys.join('+') : args.key,value:args.value,text:args.value,
           sequential:method === 'pressSequentially',deadline:action.deadline,keyboardEditable:result.keyboardEditable,inputMode:action.inputMode}, epoch);
         if (checking && (await element('checked', {elementId:result.elementId})).checked !== checked) fail('LOCATOR_ACTION_FAILED', 'Click did not produce the requested checked state.');
       }
