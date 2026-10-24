@@ -8,7 +8,7 @@ import build from '../src/client/host-target.mjs';
 import { createAppApprovals } from '../src/dsh/app-approvals.mjs';
 
 const capabilities = ['artifactDocuments', 'tabCloseGuards', 'browserSurfaces', 'presentationSessions',
-  'presentationHitRegions', 'backgroundInput', 'structuredErrors', 'initialNavigation'];
+  'presentationHitRegions', 'backgroundInput', 'structuredErrors', 'initialNavigation', 'frameInputMonitoring'];
 const methods = ['acquireOpenCU', 'release', 'onOpenRequested', 'downloads', 'permissions', 'automation',
   'extensions', 'profile', 'presentation', 'files', 'onPresentationEvent', 'onExtensionEvent', 'surface', 'onSurfaceEvent'];
 function install(t, browser) {

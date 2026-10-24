@@ -298,6 +298,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
     for (const record of registrations.values()) {
       const target = sessions.flatMap(session => session.targets).find(item => item.provider === 'dsh' &&
         item.identity?.rendererId === transport.rendererId && item.sidebarTabId === record.ids.browserTabId && item.sessionId === record.ids.conversationId);
+      record.annotations?.setInputMonitoring(connected && !!target);
       const active = connected && !!target && sessions.some(session => session.running.some(item => item.targetId === target.id));
       Initial.AW.setBrowserUseActive(record.ids.conversationId, record.ids.browserTabId, active);
       const siteCall = connected && target ? sessions.flatMap(session => session.running).find(item => item.targetId === target.id && item.action === 'invokeSiteTool') ?? null : null;
@@ -644,7 +645,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       };
       record.annotations = createAnnotationHost({ element, capture: record.capture, ids, target: () => transport.targetFor(ids.conversationId, ids.browserTabId), state: () => record.state,
         changed: patch => { record.state = { ...record.state, ...patch }; update(record); }, deliver: deliverAnnotations,
-        settings, intl: reaIntl, saveImage: async image => (await client.request('image/save', image)).image,
+        settings, intl: reaIntl, inputMonitor: args => desktop.automation(lease.lease, 'inputMonitor', args), saveImage: async image => (await client.request('image/save', image)).image,
         userActivity: async kind => {
           const target = transport.targetFor(ids.conversationId, ids.browserTabId);
           try { await client.request('userActivity', { targetId: target.id, kind }); }
@@ -752,6 +753,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
             if (!tool) throw Object.assign(new Error('The site tool changed; discover the current tools again'), { code: 'STALE_SITE_TOOL' });
             if (!siteToolsAllowed(policy, element.getURL()) || !siteToolsAllowed(policy, tool.origin)) throw Object.assign(new Error('Site tools are disabled for this website in browser settings'), { code: 'SITE_TOOLS_DISABLED' });
           }
+          if (!['releaseInput', 'cancelUpload', 'cancelSiteTool'].includes(operation)) await record.annotations.ensureInputMonitoring();
           return desktop.automation(lease.lease, operation, payload);
         } : undefined,
         capture: record.capture,

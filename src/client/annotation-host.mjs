@@ -1,3 +1,4 @@
+import { createFrameInputMonitoring } from './frame-input-monitor.mjs';
 let pageSource;
 /** The page runtime is large and only needed once a page is annotated; fetch it on first install. */
 const loadPageSource = () => pageSource ??= fetch(new URL('/api/opencu/page-annotations.js', document.baseURI))
@@ -5,13 +6,14 @@ const loadPageSource = () => pageSource ??= fetch(new URL('/api/opencu/page-anno
   .catch(error => { pageSource = undefined; throw error; });
 
 /** Owns the REA page runtime and editor data for one real guest occurrence. */
-export function createAnnotationHost({ element, capture, ids, target, state, changed, deliver, settings, saveImage, intl, userActivity }) {
+export function createAnnotationHost({ element, capture, ids, target, state, changed, deliver, settings, saveImage, intl, userActivity, inputMonitor }) {
   const key = `opencu:annotations:${ids.conversationId}:${ids.browserTabId}`;
   const siteKey = () => `opencu:site-annotations:${new URL(element.getURL()).origin}`;
   const readComments = () => JSON.parse(localStorage.getItem(key) || '[]').map(comment =>
     comment.designChange && (!comment.status || comment.status === 'pending')
       ? { ...comment, designChange: { ...comment.designChange, status: 'queued' } } : comment);
   let editor = null, timer, disposed = false, generation = 0, enabled = false, sending, saving;
+  const monitoring = inputMonitor ? createFrameInputMonitoring({ invoke: inputMonitor, userActivity, changed }) : undefined;
   const drafts = JSON.parse(localStorage.getItem(key + ':drafts') || '{}');
   const draftKey = anchor => JSON.stringify([anchor?.pageUrl, anchor?.kind, anchor?.framePath, anchor?.selector,
     anchor?.selector ? null : anchor?.elementPath, anchor?.textLocator, anchor?.kind === 'region' ? anchor.rect : null]);
@@ -23,7 +25,7 @@ export function createAnnotationHost({ element, capture, ids, target, state, cha
   const snapshot = () => ({ ...state(), comments: pending(), canUseTweaks: true, canUseAnnotationMultiSelect: true,
     canUseSiteAnnotationApi: true, siteAnnotationFeaturesEnabled: state().siteAnnotationFeaturesEnabled !== false,
     areAnnotationMarkersVisible: state().annotationMarkersVisible !== false,
-    intlConfig: intl() });
+    intlConfig: intl(), nativeInputMonitoring: !!monitoring });
   async function sync(patch = {}) {
     changed({ ...patch, comments: pending() });
     if (enabled) await dispatch({ type: 'browser-sidebar-runtime-sync', ...snapshot() });
@@ -89,7 +91,7 @@ export function createAnnotationHost({ element, capture, ids, target, state, cha
     if (!disposed && epoch === generation) timer = setTimeout(() => void drain(epoch), 80);
   }
   function invalidate() {
-    generation++; clearTimeout(timer);
+    generation++; clearTimeout(timer); monitoring?.invalidate();
     if (enabled && !element.isCrashed?.()) void element.executeJavaScript('globalThis.__opencuAnnotations?.cancelWait()').catch(() => {});
     enabled = false;
     editor = null; publish();
@@ -112,6 +114,8 @@ export function createAnnotationHost({ element, capture, ids, target, state, cha
     getSnapshot: () => editor,
     focus() { if (editor) { editor = { ...editor, focusRevision: (editor.focusRevision ?? 0) + 1 }; publish(); } },
     install, invalidate, sync, dispatch, close,
+    setInputMonitoring: enabled => monitoring?.setEnabled(enabled),
+    ensureInputMonitoring: () => monitoring?.ensure(),
     async annotateAt(point, flow, selectedText) {
       await sync({ interactionMode: 'comment', annotationCreateSubmitMode: flow === 'quick' ? 'direct' : 'saved' });
       await dispatch(selectedText
@@ -188,6 +192,7 @@ export function createAnnotationHost({ element, capture, ids, target, state, cha
     },
     async dispose() {
       disposed = true; generation++; clearTimeout(timer); listeners.clear();
+      await monitoring?.dispose();
       if (enabled && !element.isCrashed?.()) await element.executeJavaScript('globalThis.__opencuAnnotations?.dispose()');
     },
   };

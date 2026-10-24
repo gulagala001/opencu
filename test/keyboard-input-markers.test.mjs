@@ -37,7 +37,7 @@ async function fixture(route) {
     const module=new SourceTextModule(await readFile(new URL('../src/client/page-annotations.mjs',import.meta.url),'utf8'),{context});
     const exports={mountBrowserCommentRuntime:()=>({dispose(){},setSiteAnnotationPreview(){}}),createAnnotationControls:()=>({getTargets(){},getControls(){},dispose(){}}),
       createAnnotationRequests:()=>({subscribe(){},clear(){},dispose(){}}),observeAnnotationFeatures:()=>({recordUse(){},dispose(){}}),installSiteAnnotationApi:()=>null};
-    await module.link(specifier=>{assert.equal(specifier,'./rea-page-runtime.js');return new SyntheticModule(Object.keys(exports),function(){for(const[name,value]of Object.entries(exports))this.setExport(name,value);},{context});});
+    await module.link(async specifier=>{if(specifier==='../../extension/input-monitor.js')return new SourceTextModule(await readFile(new URL('../extension/input-monitor.js',import.meta.url),'utf8'),{context});assert.equal(specifier,'./rea-page-runtime.js');return new SyntheticModule(Object.keys(exports),function(){for(const[name,value]of Object.entries(exports))this.setExport(name,value);},{context});});
     await module.evaluate();module.namespace.install({});
     const bridge=context.__opencuAnnotations;
     api={expect:events=>bridge.expectInput(events),finish:id=>bridge.finishInput(id,true),read:()=>{count+=bridge.drain().filter(item=>item.type==='opencu-user-activity').length;return count;}};

@@ -23,7 +23,7 @@ export function desktopBrowserHost() {
   if (desktop.openCU?.revision !== 2 || desktop.openCU.hostVersion !== build.version) {
     throw new DesktopBrowserCompatibilityError(`OpenCU ${build.version} requires the matching desktop host adapter (revision 2)`);
   }
-  for (const name of ['artifactDocuments', 'tabCloseGuards', 'browserSurfaces', 'presentationSessions', 'presentationHitRegions', 'backgroundInput', 'structuredErrors', 'initialNavigation']) {
+  for (const name of ['artifactDocuments', 'tabCloseGuards', 'browserSurfaces', 'presentationSessions', 'presentationHitRegions', 'backgroundInput', 'structuredErrors', 'initialNavigation', 'frameInputMonitoring']) {
     if (!desktop.openCU.capabilities?.includes(name)) throw new DesktopBrowserCompatibilityError(`OpenCU requires the updated matching desktop adapter: ${name}`);
   }
   for (const name of ['acquireOpenCU', 'release', 'onOpenRequested', 'downloads', 'permissions', 'automation', 'extensions', 'profile', 'presentation', 'files', 'onPresentationEvent', 'onExtensionEvent', 'surface', 'onSurfaceEvent']) {
