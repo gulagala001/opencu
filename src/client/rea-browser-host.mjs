@@ -753,7 +753,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
             if (!tool) throw Object.assign(new Error('The site tool changed; discover the current tools again'), { code: 'STALE_SITE_TOOL' });
             if (!siteToolsAllowed(policy, element.getURL()) || !siteToolsAllowed(policy, tool.origin)) throw Object.assign(new Error('Site tools are disabled for this website in browser settings'), { code: 'SITE_TOOLS_DISABLED' });
           }
-          if (!['releaseInput', 'cancelUpload', 'cancelSiteTool'].includes(operation)) await record.annotations.ensureInputMonitoring();
+          if (!['closedState', 'releaseInput', 'cancelUpload', 'cancelSiteTool'].includes(operation)) await record.annotations.ensureInputMonitoring();
           return desktop.automation(lease.lease, operation, payload);
         } : undefined,
         capture: record.capture,

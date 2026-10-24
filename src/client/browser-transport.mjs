@@ -3,7 +3,7 @@ import { inputReleased, sameIdentity } from '../protocol.mjs';
 import { restorePresentationImages } from '../presentation-images.mjs';
 
 export function createBrowserTransport(client, desktop) {
-  const guests = new Map(), executing = new Set();
+  const guests = new Map(), executing = new Set(), targetExecutions = new Map();
   let openTab, closeTab, sessions = () => [];
   let rendererId, connectionId, aborter, loop, closing = false, connectionEpoch = 0, pendingPublish = Promise.resolve(), pendingSessions = Promise.resolve();
   let presentationFrames = [], presentationGeneration = 0, presentationSessions;
@@ -166,6 +166,13 @@ export function createBrowserTransport(client, desktop) {
       return { get target() { return target; },
         update(value) { if (suspended) return; target = { ...target, url: value.url, title: value.title, isDetached: value.isDetached === true }; guest.target = target; guest.ready = true; void publish(); },
         suspend() { suspended = true; guest.ready = false; void publish(); },
+        async retire(release) {
+          if (release?.closed !== true || !inputReleased(release) || release.retired !== true) throw new Error('The original guest destruction and input release must be acknowledged');
+          suspended = true; guest.ready = false;
+          rememberClosed(guest, release); await publish();
+          // An inner surface reply must reach the controller before its shell is destroyed.
+          await Promise.allSettled([...(targetExecutions.get(target.id) ?? [])]);
+        },
         dispose({ closed = false } = {}) {
           if (disposal) return disposal;
           suspended = true; guest.ready = false;
@@ -220,10 +227,14 @@ export function createBrowserTransport(client, desktop) {
             if (!response.connected) throw new Error('OpenCU sidebar transport disconnected');
             // Release must be able to interrupt an in-flight input sequence.
             for (const command of response.commands) {
+              const targetId = command.params?.target?.id;
+              const pending = targetId && (targetExecutions.get(targetId) ?? new Set());
+              if (pending) targetExecutions.set(targetId, pending);
               const work = execute(command).catch(error => {
                 if (!aborter.signal.aborted) console.error('OpenCU sidebar command delivery', error);
-              }).finally(() => executing.delete(work));
+              }).finally(() => { executing.delete(work); if (pending) { pending.delete(work); if (!pending.size && targetExecutions.get(targetId) === pending) targetExecutions.delete(targetId); } });
               executing.add(work);
+              pending?.add(work);
             }
           } catch (error) {
             connectionEpoch++;

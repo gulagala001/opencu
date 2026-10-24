@@ -5,6 +5,28 @@ import { inputReleased } from '../protocol.mjs';
 
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 
+/** A native close signal starts verification; only the original host receipt permits retirement. */
+export function watchGuestClosure(element, driver, closed, report) {
+  let disposed = false, confirmed = false, requested = false, work;
+  const check = () => {
+    if (disposed || confirmed) return;
+    requested = true;
+    if (work) return;
+    work = (async () => {
+      while (requested && !disposed) {
+        requested = false;
+        const release = await driver.closedRelease({ waitForClose: true });
+        if (!release) continue;
+        if (!inputReleased(release) || release.retired !== true) fail('RELEASE_FAILED', 'The closed guest has not acknowledged input release');
+        if (!disposed) { await closed(release); confirmed = true; requested = false; }
+        return;
+      }
+    })().catch(report).finally(() => { work = undefined; if (requested && !disposed && !confirmed) check(); });
+  };
+  for (const event of ['close', 'destroyed']) element.addEventListener(event, check);
+  return () => { disposed = true; for (const event of ['close', 'destroyed']) element.removeEventListener(event, check); };
+}
+
 export function createGuestDriver(element, target, changed, focus, cursor, capture = () => element.capturePage(), automate) {
   const keys = new Set(), buttons = new Set(), pending = new Set();
   let inputSequence = 0, position = { x: 0, y: 0 }, lastObservation, generation = 0, moveSequence = 0, cancelNavigation;
@@ -50,8 +72,8 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     }
   };
   const metadata = () => ({ ...target, url: element.getURL(), title: element.getTitle() });
-  const closedRelease = async () => {
-    const receipt = await evaluate('closedState');
+  const closedRelease = async ({ waitForClose = false } = {}) => {
+    const receipt = await evaluate('closedState', { waitForClose });
     if (receipt?.closed !== true) return null;
     if (!inputReleased(receipt) || receipt.retired !== true) fail('RELEASE_FAILED', 'The destroyed guest has not acknowledged input release');
     generation++; capture.cancel?.(); lastObservation = null;

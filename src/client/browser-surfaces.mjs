@@ -2,6 +2,7 @@ import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import * as Initial from './rea/app-initial-c468e3fd7f91.js';
 import { reaIntl } from './rea-locale.mjs';
 import { services } from './rea-services.mjs';
+import { inputReleased } from '../protocol.mjs';
 
 /** The owning conversation keeps one tool identity while its native view changes windows. */
 export function createBrowserSurfaces({ desktop, transport, client, sidebar, openSession, settings, deliverAnnotations, deliverScreenshot }) {
@@ -209,6 +210,15 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
         record.remote.update({ ...value.snapshot, isDetached: record.detached });
         Shared.Ff.dispatchHostMessage({ type: 'browser-sidebar-state', conversationId: record.ids.sessionId, browserTabId: record.ids.tabId, snapshot: { ...value.snapshot, isDetached: record.detached } });
       } else if (value.type === 'error') report(record, new Error(value.message));
+      else if (value.type === 'closed') {
+        if (value.release?.closed !== true || !inputReleased(value.release) || value.release.retired !== true) {
+          report(record, new Error('The original guest destruction and input release must be acknowledged')); return;
+        }
+        record.retiring ??= (async () => {
+          await record.remote.retire(value.release);
+          await close(record); sidebar.closeIn(record.ids.sessionId, record.ids.tabId);
+        })().catch(error => { record.retiring = undefined; report(record, error); });
+      }
     }
   });
   transport.setTabOwner(args => newTab({ ...args, active: false }), async args => { const record = get(args); await close(record); sidebar.closeIn(record.ids.sessionId, record.ids.tabId); });

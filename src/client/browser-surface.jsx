@@ -7,7 +7,7 @@ import { adoptReaStyles, createReaPortal, guestPortalStyles } from './portal-hos
 import { installReaServices } from './rea-services.mjs';
 import { createCoreClient } from './core-client.mjs';
 import { createReaBrowserHost } from './rea-browser-host.mjs';
-import { createGuestDriver } from './guest-driver.mjs';
+import { createGuestDriver, watchGuestClosure } from './guest-driver.mjs';
 import { createBrowserHistoryHost } from './browser-history.mjs';
 import { createBrowserSettings } from './browser-settings.mjs';
 import { createDownloadsHost } from './downloads-host.mjs';
@@ -135,7 +135,9 @@ async function mount() {
     rendererId: target.identity.rendererId, targetFor: () => driver?.metadata() ?? target, setTabOwner() {},
     async attach(element, options) {
       driver = createGuestDriver(element, target, () => {}, () => owner('focusPage'), options.cursor, options.capture, options.automate);
-      return () => driver.release();
+      const unwatch = watchGuestClosure(element, driver,
+        release => bridge.call('publish', { event: { type: 'closed', release } }), report);
+      return () => { unwatch(); return driver.release(); };
     },
   };
   const history = createBrowserHistoryHost(client, desktop);

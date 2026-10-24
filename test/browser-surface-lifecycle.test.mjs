@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 import {createBrowserTransport} from '../src/client/browser-transport.mjs';
+import {inputReleased} from '../src/protocol.mjs';
 
 async function fixture() {
   const calls = [], notices = [], tabs = [], lifetimes = new Map();
@@ -15,6 +16,7 @@ async function fixture() {
     './rea/app-initial-c468e3fd7f91.js': {AW: {removeTab() {}, setBrowserUseActive() {}}},
     './rea-locale.mjs': {reaIntl: () => ({locale:'en'})},
     './rea-services.mjs': {services: {}},
+    '../protocol.mjs': {inputReleased},
   };
   const source = new vm.SourceTextModule(await readFile(new URL('../src/client/browser-surfaces.mjs', import.meta.url), 'utf8'), {context});
   await source.link(name => {
@@ -78,4 +80,15 @@ test('a faulted surface can still be closed and a late snapshot cannot revive it
   f.event({type:'page',...tab,event:{type:'snapshot',snapshot:{url:'about:blank',title:'late'}}});
   await f.surfaces.dispose();await f.transport.dispose();
   assert.equal(f.live.size,0);
+});
+
+test('an idle remote guest closes its shell only after exact destruction and release proof', async () => {
+  const f=await fixture();const tab=await f.surfaces.service.newTab({url:'about:blank'});
+  const event=release=>f.event({type:'page',...tab,event:{type:'closed',release}});
+  event({closed:true,released:false,retired:true});await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(f.live.size,1);
+  event({closed:true,released:true,retired:true,leaseId:'original',webContentsId:9});
+  for(let attempt=0;attempt<20&&f.live.size;attempt++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(f.live.size,0);assert.equal(f.tabs.length,0);
+  await f.surfaces.dispose();await f.transport.dispose();
 });

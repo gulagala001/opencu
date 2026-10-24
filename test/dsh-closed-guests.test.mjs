@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGuestDriver} from '../src/client/guest-driver.mjs';
+import {createGuestDriver,watchGuestClosure} from '../src/client/guest-driver.mjs';
 import {createBrowserHost} from '../src/dsh/browser-host.mjs';
 import {createBrowserTransport} from '../src/client/browser-transport.mjs';
 
@@ -63,4 +63,44 @@ test('DSH transport retires a timer/external close without another action and pr
   assert.equal((await host.backend.releaseTarget(target)).retired,true);
   await assert.rejects(host.backend.releaseTarget({...target,identity:{...target.identity,guestId:'replacement'}}),{code:'TARGET_IDENTITY_CHANGED'});
   assert.deepEqual(f.events,['keyDown']);await detach();
+});
+
+test('remote closure waits for the actual controller reply, then preserves the exact retired occurrence',async t=>{
+  const oldDocument=globalThis.document;globalThis.document={documentElement:{lang:'en'}};
+  const host=createBrowserHost(),input=Promise.withResolvers(),entered=Promise.withResolvers(),delivered=Promise.withResolvers();
+  let actionId;
+  const client={request:async(method,args,signal)=>{
+    if(method==='browser/result'&&args.result?.closedTargetId){actionId=args.id;await delivered.promise;}
+    return host.handle(method,args,signal);
+  }};
+  const transport=createBrowserTransport(client);await transport.start();await new Promise(resolve=>setImmediate(resolve));
+  const release={closed:true,released:true,retired:true,leaseId:'original',webContentsId:9};
+  const remote=transport.attachRemote({sessionId:'s',tabId:'t',request:async(method)=>{
+    if(method==='act'){entered.resolve();await input.promise;return {action:'click',closedTargetId:remote.target.id,inputDispatched:true,release};}
+    if(method==='release')return release;
+    throw Error(method);
+  }});
+  remote.update({url:'https://fixture.invalid/',title:'Child'});const target=remote.target;
+  t.after(async()=>{input.resolve();delivered.resolve();await transport.dispose();host.close();globalThis.document=oldDocument;});
+  await new Promise(resolve=>setImmediate(resolve));
+  await host.backend.select(target);const action=host.backend.act(target,{action:'click'});await entered.promise;
+  let retired=false;const retirement=remote.retire(release).then(()=>{retired=true;});
+  input.resolve();for(let count=0;count<10&&!actionId;count++)await new Promise(resolve=>setImmediate(resolve));
+  assert(actionId);assert.equal(retired,false,'sending the inner reply cannot destroy its shell before delivery');
+  delivered.resolve();assert.equal((await action).closedTargetId,target.id);await retirement;
+  assert.equal(retired,true);assert.deepEqual(await host.backend.listTargets(),[]);
+  assert.equal((await host.backend.releaseTarget(target)).retired,true);
+  await assert.rejects(host.backend.releaseTarget({...target,identity:{...target.identity,guestId:'replacement'}}),{code:'TARGET_IDENTITY_CHANGED'});
+});
+
+test('native close signals coalesce and a later destruction signal still requires host proof',async()=>{
+  const element=new EventTarget(),first=Promise.withResolvers(),entered=Promise.withResolvers(),calls=[],errors=[];
+  let probes=0;
+  const release={closed:true,released:true,retired:true};
+  const unwatch=watchGuestClosure(element,{closedRelease:async options=>{assert.deepEqual(options,{waitForClose:true});if(++probes===1){entered.resolve();return first.promise;}return release;}},value=>calls.push(value),error=>errors.push(error));
+  element.dispatchEvent(new Event('close'));await entered.promise;
+  element.dispatchEvent(new Event('destroyed'));first.resolve(null);
+  for(let attempt=0;attempt<10&&!calls.length;attempt++)await new Promise(resolve=>setImmediate(resolve));
+  element.dispatchEvent(new Event('close'));await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(calls,[release]);assert.equal(probes,2);assert.deepEqual(errors,[]);unwatch();
 });
