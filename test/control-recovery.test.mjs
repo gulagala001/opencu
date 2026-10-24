@@ -144,6 +144,7 @@ test('reconnected sidebar input requires selection and releases through the actu
   await connect();
   const stale = await reply(host.backend.act(target, {action: 'type', text: 'must not dispatch'}), {accepted: true});
   assert.equal(stale.error?.code, 'RECOVERY_REQUIRED');
+  assert.equal(stale.error?.details.inputDispatched, false);
   assert.equal((await reply(host.backend.release(), {released: true})).value.released, true);
   await reply(host.backend.select(target), target);
   assert.deepEqual((await reply(host.backend.act(target, {action: 'type', text: 'after selection'}), {accepted: true})).value, {accepted: true});

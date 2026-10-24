@@ -45,6 +45,21 @@ async function fixture(t, createSession = createComputerSession) {
 }
 
 for (const [name, createSession] of [['worker', createComputerSession], ['REPL', createComputerRepl]]) {
+  test(`${name}: concurrent rejected key-down attempts do not leave a false stop obligation`,async t=>{
+    const f=await fixture(t,createSession);
+    await assert.rejects(f.run('await Promise.all([tab.act({action:"keyDown",key:"Shift",text:"reject"}),tab.act({action:"keyDown",key:"Shift",text:"reject"})]);'),{code:'STALE_OBSERVATION'});
+    await f.computer.close();
+    assert.equal(f.events.some(([kind])=>kind==='release'),false);
+  });
+
+  test(`${name}: rejected input cannot forget a previously held key`,async t=>{
+    const f=await fixture(t,createSession);f.gate.resolve();
+    await f.run('await tab.keyDown("Shift");');
+    await assert.rejects(f.run('await tab.act({action:"keyDown",key:"Shift",text:"reject"});'),{code:'STALE_OBSERVATION'});
+    await f.computer.close();
+    assert.equal(f.events.filter(([kind])=>kind==='release').length,1);
+  });
+
   test(`${name}: acknowledged manual input clears only the released key and button`, async t => {
     const f = await fixture(t, createSession); f.gate.resolve();
     await f.run('await tab.keyDown("Shift"); await tab.act({action: "mouseDown"}); await tab.keyUp("Shift");');

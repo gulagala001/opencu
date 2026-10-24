@@ -64,7 +64,7 @@ Windows 原生 helper 由系统 Windows PowerShell 编译随包 C#，需要 Wind
 - Windows 控件按所选窗口的实时 UIA 祖先链核验归属，允许 WebView2 跨进程子树，仍拒绝同进程的其他窗口。辅助功能读取在 MTA 线程执行，最多等待 5 秒；超时保留绑定，不发布迟到元素，仍可读取窗口截图。旧读取尚未结束时返回 `AX_BUSY`，不会反复创建线程。
 - macOS 的直接赋值、AXPress、元素坐标与指定元素输入均复核当前窗口归属；X11／Wayland 的元素坐标和前台命中测试同样按当前窗口祖先链核验，允许窗口内的跨进程控件，拒绝已移到同进程另一窗口的旧元素。
 - X11／Wayland 读树达到节点、深度或时间上限后停止枚举子节点并报告截断；Windows／Linux 后台滚动的祖先搜索有固定上限，执行前复核滚动控件仍属于所选窗口。
-- `APP_APPROVAL_TIMEOUT` 表示总执行时限内仍在等待用户授予应用访问权，不等于 helper 卡死；重选原目标后需响应授权请求。其他 `COMPUTER_TIMEOUT` 通过 `details.stage`／`pendingRequests` 标明挂起的后端调用或 JavaScript 阶段。取消和输入释放语义保持一致，不能据此重放可能已派发的输入。
+- 应用与浏览器授权的人工作答时间不消耗 JavaScript 执行预算；取消仍可立即结束等待。`COMPUTER_TIMEOUT` 通过 `details.stage`／`pendingRequests` 标明挂起的后端调用或 JavaScript 阶段。窗口／页面变化时保留绑定；若输入已开始，须确认该目标输入已释放，并在成功重新观察前阻止继续派发，不重放可能已生效的动作。浏览器按页面释放；原生 helper 释放其硬件输入流。`details.control` 给出实际控制状态和恢复方式，`releasedTargetIds` 明确释放范围。未知派发、身份变化与释放失败仍保留停止保护。
 - X11 使用 AT-SPI 动作与 XComposite 窗口像素；Wayland 使用 AT-SPI 动作，portal 仍只共享显示器，不提供被遮挡应用的独立像素，非活跃应用截图明确不可用。Windows／Linux 的后台滚动是应用定义的步长，不是精确像素。
 
 不支持的后台操作返回 `FOREGROUND_REQUIRED` 或具体 `BACKGROUND_*_UNAVAILABLE`。经用户同意后才能显式聚焦并传 `inputMode: 'foreground'`；原有焦点、身份、权限和取消保护仍在。Windows SendInput、X11 XTest、Wayland portal 键鼠不会作为隐式兜底。内置浏览器需要重新构建匹配的宿主、双 preload 和侧栏，并声明 `backgroundInput`；只更新插件会明确拒绝旧宿主。
@@ -133,5 +133,15 @@ OPENCU_DSH_SMOKE=1 node --test test/dsh.test.mjs
 ```
 
 该检查通过真实 DSH profile launcher、ToolRuntime 和 LocalAttachmentStore 调用插件；不连接预先启动的 OpenCU 服务，不修改当前工作 DSH。本仓库不执行公开发布或日常部署。
+
+源码 checkout 还可用 `scripts/cu-direct.mjs` 直接调用生产 runtime 和持久 Worker REPL。先安装开发依赖并运行 `npm run build:client`，再显式指定隔离数据和附件目录；默认只启用独立无头浏览器，应用许可不会自动批准。该开发入口不启动 DSH 页面，不覆盖宿主工具调度、附件规范化或浮窗交互验证。
+
+```sh
+node scripts/cu-direct.mjs --data-dir /absolute/isolated/cu/data --output-dir /absolute/isolated/cu/output --metrics-output /absolute/isolated/cu/calls.jsonl
+```
+
+标准输入每行一个 JSON，例如 `{"id":"inventory","code":"await cua.getState()","title":"Inspect targets"}`；后续行复用同一 REPL。`method` 可取 `run`（默认）、`request`、`reset`、`readImage`、`close`。脚本也导出 `createDirectSession(options)`，返回 `pid` 与同名异步方法；`run` 保留生产结果并附 `timing.totalMs`。缺少浏览器构建资产时提前返回 `BUILD_REQUIRED`；指标写入失败单独报告 `metricsError`，成功输入不会因此变成执行失败。正常结束必须调用 `close()`，取消或失败后应先观察状态，再决定是否继续。
+
+`scripts/cu-metrics.mjs` 可独立采样指定进程树：`node scripts/cu-metrics.mjs sample --root PID --output /absolute/isolated/cu/process.jsonl --summary /absolute/isolated/cu/summary.json --interval 500 --duration 30000`。记录 RSS、进程数、系统平滑 CPU、连续快照间实际观察到的 CPU 时间差、阶段与采样错误；调用记录只保留固定标签、耗时、字节数和状态，不保存代码、标题或正文。RSS 可能重复计入共享页；CPU 差值会遗漏新生、退出及采样间短命进程，不能据此比较不同宿主的 CU 独占开销。汇总的峰值、计数和总和精确，中位数在超过 1,024 个值后由固定容量样本估算；原始采样仍写入 JSONL。SIGINT／SIGTERM 只停止采样器并刷新汇总，不终止测量目标。
 
 隔离发行目录通过 `OPENCU_SOURCE_ROOT` 指向真实源码目录；文档检查从该目录读取 Git 清单，并核对当前构建目录的文档内容。

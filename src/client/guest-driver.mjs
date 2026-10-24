@@ -158,6 +158,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     },
     async act(args) {
       const inputStart = inputSequence;
+      const heldKeys = new Set(keys), heldButtons = new Set(buttons);
       try {
       if (!['background', 'foreground'].includes(args.inputMode ?? 'background')) fail('INVALID_ARGUMENT', 'inputMode must be background or foreground');
       if (args.action === 'getDialog' || args.action === 'handleDialog') {
@@ -293,6 +294,10 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       return { action: args.action, target: metadata(), inputMode: 'background', delivery: 'target-cdp', effectVerified: false };
       } catch (error) {
         error.details = {...error.details,inputDispatched:error.details?.inputDispatched === true || inputSequence !== inputStart};
+        if (error.details.inputDispatched === false) {
+          for (const key of keys) if (!heldKeys.has(key)) keys.delete(key);
+          for (const button of buttons) if (!heldButtons.has(button)) buttons.delete(button);
+        }
         if (error.code === 'JS_DIALOG_OPEN' && error.details.inputDispatched && error.details.dialog) {
           lastObservation = null; changed();
           return { action: args.action, pendingDialog: error.details.dialog, inputDispatched: true, effectVerified: false };
