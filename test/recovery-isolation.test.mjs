@@ -135,6 +135,15 @@ test('sidebar partial release publishes successful target receipts',async t=>{
   assert.equal(result.released,false);assert.deepEqual(result.releasedTargetIds,['a']);
 });
 
+test('a failed scoped release of a previously idle binding remains an obligation',async t=>{
+  const {host,targets:[a],reply}=await hostFixture(t);
+  await reply(host.backend.select(a),()=>({result:a}));
+  assert.equal((await reply(host.backend.releaseTarget(a),()=>({result:{released:false}}))).released,false);
+  let attempts=0;
+  const result=await reply(host.backend.release({targets:[a]}),()=>{attempts++;return {result:{released:false}};});
+  assert.equal(result.released,false);assert.equal(attempts,1);assert.deepEqual(result.releasedTargetIds,[]);
+});
+
 test('a page marker cleanup failure cannot undo the host input-release receipt',async()=>{
   const element={addEventListener(){},getURL:()=> 'file:///missing.html',getTitle:()=>'',isCrashed:()=>false};
   const driver=createGuestDriver(element,tab('guest'),()=>{},()=>{},()=>{},undefined,async operation=>{

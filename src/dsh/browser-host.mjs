@@ -157,6 +157,7 @@ export function createBrowserHost() {
       if (binding?.client && binding.client !== client && !client.targets.some(current => current.id === target.id && sameIdentity(current.identity,target.identity)))
         fail('STALE_TARGET','The original sidebar guest has not reconnected');
       if (!binding) {binding={target:json(target),client,needsRelease:true};bindings.set(target.id,binding);}
+      binding.needsRelease = true;
       const result = await request(client, 'release', {target, dismissDialogs});
       if (inputReleased(result) && binding) binding.needsRelease = false;
       return result;
