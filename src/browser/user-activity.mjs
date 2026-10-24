@@ -18,6 +18,33 @@ function installMonitor() {
     target = editTarget(target);
     return target?.nodeType === 1 ? target : null;
   };
+  // Native value controls emit plain input Events rather than text InputEvents.
+  // Bind only controls selected by this confirmed physical key; radio navigation
+  // may move to another enabled member of the same tree/form/name group.
+  const keyboardControlInput = (control,event,inputTypes = []) => {
+    if (!control || control.isConnected === false || control.matches?.(':disabled')) return {targets:[],inputTypes:[]};
+    const code = event.code ?? '', navigation = /^(?:Arrow(?:Up|Down|Left|Right)|Home|End|PageUp|PageDown|Space|Enter|NumpadEnter)$/u.test(code);
+    const textKey = inputTypes.includes('insertText');
+    if (control.tagName === 'SELECT') {
+      const selectAll = control.multiple && code === 'KeyA' && (event.ctrlKey || event.metaKey);
+      return {targets:navigation || textKey || selectAll ? [control] : [],inputTypes:[null]};
+    }
+    if (control.tagName !== 'INPUT') return;
+    const type = control.type;
+    if (type === 'radio' && /^Arrow(?:Up|Down|Left|Right)$/u.test(code)) {
+      const root = control.getRootNode?.();
+      const targets = !control.name || !root?.querySelectorAll ? [control] : [...root.querySelectorAll('input[type="radio"]')].filter(candidate =>
+        candidate.type === 'radio' && candidate.name === control.name && candidate.form === control.form &&
+        candidate.getRootNode() === root && candidate.isConnected !== false && !candidate.matches(':disabled'));
+      return {targets,inputTypes:[null]};
+    }
+    const nativeTypes = ['range','number','date','datetime-local','month','time','week'];
+    if (!nativeTypes.includes(type)) return;
+    const changesValue = type === 'range' ? navigation : type === 'number' ? /^(?:ArrowUp|ArrowDown)$/u.test(code) || inputTypes.length > 0 : navigation || inputTypes.length > 0;
+    // Native steppers may pair text beforeinput with a plain input Event.
+    return {targets:changesValue ? [control] : [],inputTypes:[...inputTypes,...(type !== 'range' && navigation ? ['insertText'] : []),null]};
+  };
+
   const checkable = target => {
     const control = target?.closest?.('label')?.control ?? target;
     return control?.tagName === 'INPUT' && ['checkbox', 'radio'].includes(control.type) ? control : null;
@@ -47,20 +74,23 @@ function installMonitor() {
       }
       if (type === 'pointerdown' || type === 'keydown' || type === 'wheel') cancelTextInput();
       if (type === 'input' && textInput) {
-        if (textInput.target === editTarget(target) && textInput.inputType === event.inputType) return;
+        if (textInput.target === editTarget(target) && (textInput.inputType === event.inputType || textInput.controlInput && textInput.inputTypes.includes(event.inputType ?? null))) {if (textInput.controlInput) textInput = undefined;return;}
         cancelTextInput();
       }
       const index = expected.findIndex(item => matches(item, event));
       if (index >= 0) {
         const [input] = expected.splice(index, 1);
-        if (event.type === 'keydown' && input.inputTypes?.length) {
+        if (event.type === 'keydown') {
           const editor = textInputTarget();
-          if (checkable(editor)) {
+          const native = keyboardControlInput(editor,event,input.inputTypes);
+          if (native) {
+            for (const target of native.targets) expected.push({type:'input',target,id:input.id,keyboardInput:true,controlInput:true,inputTypes:native.inputTypes,expires:input.expires});
+          } else if (input.inputTypes?.length && checkable(editor)) {
             // Space activation completes on keyup; the existing click transaction
             // owns only that control's later default input, never arbitrary text.
             if ([' ','Enter'].includes(event.key)) expected.push({type:'click',target:editor,expires:input.expires});
-          } else if (editor) expected.push({type:'input',target:editor,id:input.id,keyboardInput:true,
-            inputTypes:editor.tagName === 'SELECT' ? [null] : input.inputTypes,expires:input.expires});
+          } else if (editor && input.inputTypes?.length) expected.push({type:'input',target:editor,id:input.id,keyboardInput:true,
+            inputTypes:input.inputTypes,expires:input.expires});
         } else if (event.type === 'pointerdown' && event.button === 0) {
           const control = checkable(target);
           if (control) expected.push({type:'click', target:control, expires:input.expires});

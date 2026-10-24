@@ -105,3 +105,33 @@ test('guest driver sends the same narrow marker and finishes it even when native
   calls.length=0;rejected=true;await assert.rejects(driver.act({action:'press',key:'v'}),/native key refused/);
   const finish=calls.find(row=>row.operation==='inputMarker'&&row.args.method==='finish');assert.equal(finish.args.marker,'exact-marker');assert.equal(finish.args.dispatched,false);
 });
+
+
+for(const route of ['standalone','extension','dsh']) {
+  test(`${route}: native value control navigation is exact, cleaned and never exempts text navigation`,async()=>{
+    for(const [tagName,type,code] of [['SELECT',undefined,'ArrowDown'],['SELECT',undefined,'Home'],['SELECT',undefined,'End'],['SELECT',undefined,'PageUp'],['SELECT',undefined,'PageDown'],['SELECT',undefined,'Space'],['INPUT','range','ArrowRight'],['INPUT','number','ArrowUp'],['INPUT','date','ArrowUp'],['INPUT','time','Digit1']]) {
+      const f=await fixture(route),control={nodeType:1,tagName,type,isConnected:true,matches:()=>false,closest:()=>null};f.active(control);
+      const marker=await f.expect([{type:'keydown',key:code,...code==='Digit1'?{inputTypes:['insertText']}: {}}]);f.event('keydown',{target:control,key:code,code});
+      if (['number','date','time'].includes(type)) f.event('beforeinput',{target:control,inputType:'insertText',data:'4'});
+      f.event('input',{target:control});assert.equal(await f.read(),0,`${tagName}/${type}/${code}`);await f.finish(marker);
+      f.event('input',{target:control});assert.equal(await f.read(),1,'finished control marker must not mask manual value changes');
+    }
+    const stepped=await fixture(route),number={nodeType:1,tagName:'INPUT',type:'number',matches:()=>false,closest:()=>null};stepped.active(number);const transaction=await stepped.expect([{type:'keydown',key:'ArrowUp'}]);stepped.event('keydown',{target:number,key:'ArrowUp',code:'ArrowUp'});stepped.event('beforeinput',{target:number,inputType:'insertText',data:'4'});stepped.event('input',{target:number});assert.equal(await stepped.read(),0);stepped.event('input',{target:number});assert.equal(await stepped.read(),1,'one step cannot exempt a second plain input');await stepped.finish(transaction);
+    for(const [tagName,type,code]of [['TEXTAREA',undefined,'ArrowDown'],['SELECT',undefined,'F1'],['INPUT','number','Home']]) {
+      const f=await fixture(route),control={nodeType:1,tagName,type,matches:()=>false,closest:()=>null};f.active(control);
+      await f.expect([{type:'keydown',key:code}]);f.event('keydown',{target:control,key:code,code});f.event('input',{target:control});assert.equal(await f.read(),1,'no native effect must not leave a generic allowance');
+    }
+  });
+  test(`${route}: radio navigation allows only enabled same-tree/form/name members`,async()=>{
+    const makeGroup=()=>{
+      const root={querySelectorAll:()=>members},otherRoot={},form={},members=[];
+      const radio=(extra={})=>({nodeType:1,tagName:'INPUT',type:'radio',name:'group',form,isConnected:true,matches:()=>false,getRootNode:()=>root,closest:()=>null,...extra});
+      const source=radio(),next=radio(),differentName=radio({name:'other'}),differentForm=radio({form:{}}),differentRoot=radio({getRootNode:()=>otherRoot}),disabled=radio({matches:()=>true});members.push(source,next,differentName,differentForm,differentRoot,disabled);return {source,next,differentName,differentForm,differentRoot,disabled};
+    };
+    const group=makeGroup(),f=await fixture(route);f.active(group.source);const marker=await f.expect([{type:'keydown',key:'ArrowRight'}]);f.event('keydown',{target:group.source,key:'ArrowRight',code:'ArrowRight'});f.event('input',{target:group.next});assert.equal(await f.read(),0);await f.finish(marker);f.event('input',{target:group.next});assert.equal(await f.read(),1);
+    for(const mismatch of ['differentName','differentForm','differentRoot','disabled']) {
+      const group=makeGroup(),f=await fixture(route);f.active(group.source);await f.expect([{type:'keydown',key:'ArrowRight'}]);f.event('keydown',{target:group.source,key:'ArrowRight',code:'ArrowRight'});f.event('input',{target:group[mismatch]});assert.equal(await f.read(),1,mismatch);
+    }
+    const disabled=makeGroup(),blocked=await fixture(route);disabled.source.matches=()=>true;blocked.active(disabled.source);await blocked.expect([{type:'keydown',key:'ArrowRight'}]);blocked.event('keydown',{target:disabled.source,key:'ArrowRight',code:'ArrowRight'});blocked.event('input',{target:disabled.next});assert.equal(await blocked.read(),1,'disabled source cannot authorize its group');
+  });
+}

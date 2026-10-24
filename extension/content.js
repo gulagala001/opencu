@@ -17,6 +17,33 @@
     target = editTarget(target);
     return target?.nodeType === 1 ? target : null;
   };
+  // Native value controls emit plain input Events rather than text InputEvents.
+  // Bind only controls selected by this confirmed physical key; radio navigation
+  // may move to another enabled member of the same tree/form/name group.
+  const keyboardControlInput = (control,event,inputTypes = []) => {
+    if (!control || control.isConnected === false || control.matches?.(':disabled')) return {targets:[],inputTypes:[]};
+    const code = event.code ?? '', navigation = /^(?:Arrow(?:Up|Down|Left|Right)|Home|End|PageUp|PageDown|Space|Enter|NumpadEnter)$/u.test(code);
+    const textKey = inputTypes.includes('insertText');
+    if (control.tagName === 'SELECT') {
+      const selectAll = control.multiple && code === 'KeyA' && (event.ctrlKey || event.metaKey);
+      return {targets:navigation || textKey || selectAll ? [control] : [],inputTypes:[null]};
+    }
+    if (control.tagName !== 'INPUT') return;
+    const type = control.type;
+    if (type === 'radio' && /^Arrow(?:Up|Down|Left|Right)$/u.test(code)) {
+      const root = control.getRootNode?.();
+      const targets = !control.name || !root?.querySelectorAll ? [control] : [...root.querySelectorAll('input[type="radio"]')].filter(candidate =>
+        candidate.type === 'radio' && candidate.name === control.name && candidate.form === control.form &&
+        candidate.getRootNode() === root && candidate.isConnected !== false && !candidate.matches(':disabled'));
+      return {targets,inputTypes:[null]};
+    }
+    const nativeTypes = ['range','number','date','datetime-local','month','time','week'];
+    if (!nativeTypes.includes(type)) return;
+    const changesValue = type === 'range' ? navigation : type === 'number' ? /^(?:ArrowUp|ArrowDown)$/u.test(code) || inputTypes.length > 0 : navigation || inputTypes.length > 0;
+    // Native steppers may pair text beforeinput with a plain input Event.
+    return {targets:changesValue ? [control] : [],inputTypes:[...inputTypes,...(type !== 'range' && navigation ? ['insertText'] : []),null]};
+  };
+
   const automated = event => {
     const now = performance.now();
     for (let i = expected.length - 1; i >= 0; i--) if (expected[i].expires < now) expected.splice(i, 1);
@@ -35,7 +62,7 @@
     }
     if (event.type === 'pointerdown' || event.type === 'keydown' || event.type === 'wheel') cancelTextInput();
     if (event.type === 'input' && textInput) {
-      if (textInput.target === editTarget(target) && textInput.inputType === event.inputType) return true;
+      if (textInput.target === editTarget(target) && (textInput.inputType === event.inputType || textInput.controlInput && textInput.inputTypes.includes(event.inputType ?? null))) {if (textInput.controlInput) textInput = undefined;return true;}
       cancelTextInput();
     }
     const index = expected.findIndex(item => item.type === event.type &&
@@ -48,12 +75,15 @@
       return event.type === 'click';
     }
     const [input] = expected.splice(index,1);
-    if (event.type === 'keydown' && input.inputTypes?.length) {
+    if (event.type === 'keydown') {
       const editor = textInputTarget();
-      if (editor?.tagName === 'INPUT' && ['checkbox','radio'].includes(editor.type)) {
+      const native = keyboardControlInput(editor,event,input.inputTypes);
+      if (native) {
+        for (const target of native.targets) expected.push({type:'input',target,markerId:input.markerId,keyboardInput:true,controlInput:true,inputTypes:native.inputTypes,expires:input.expires});
+      } else if (input.inputTypes?.length && editor?.tagName === 'INPUT' && ['checkbox','radio'].includes(editor.type)) {
         if ([' ','Enter'].includes(event.key)) expected.push({type:'click',target:editor,expires:input.expires});
-      } else if (editor) expected.push({type:'input',target:editor,markerId:input.markerId,keyboardInput:true,
-        inputTypes:editor.tagName === 'SELECT' ? [null] : input.inputTypes,expires:input.expires});
+      } else if (editor && input.inputTypes?.length) expected.push({type:'input',target:editor,markerId:input.markerId,keyboardInput:true,
+        inputTypes:input.inputTypes,expires:input.expires});
     } else if (event.type === 'click') {
       const marker = {type:'input',target,expires:input.expires};expected.push(marker);
       setTimeout(() => {const index=expected.indexOf(marker);if(index!==-1)expected.splice(index,1);},0);
