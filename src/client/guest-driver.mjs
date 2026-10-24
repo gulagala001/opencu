@@ -1,6 +1,7 @@
 import { guestKeySpec, keyEventKey } from '../../extension/keyboard.js';
 import { clickParameters, checkClickHeld, holdClick } from '../../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../../extension/key-options.js';
+import { inputReleased } from '../protocol.mjs';
 
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 
@@ -103,6 +104,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     // callback. Resolve those before waiting for page JS or the client's pending work.
     if (!rendererExited()) {
       const result = await evaluate('releaseInput', { dismissDialogs });
+      if (!inputReleased(result)) throw Object.assign(new Error('Host input release was not acknowledged'),{code:'RELEASE_FAILED',details:result});
       keys.clear(); buttons.clear();
       if (result?.deferredFocus) return { released: true };
     }
@@ -110,7 +112,8 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     cursor?.({ ...position, visible: false });
     const cancelled = await Promise.allSettled(['cancelSiteTool', 'cancelUpload'].map(operation => Promise.resolve().then(() => evaluate(operation))));
     await Promise.allSettled([...pending]);
-    if (!rendererExited()) try { await evaluate('inputMarker', { method: 'clear' }); } catch (error) { failures.push(error); }
+    const cleanupErrors = [];
+    if (!rendererExited()) try { await evaluate('inputMarker', { method: 'clear' }); } catch (error) { cleanupErrors.push({code:error.code,message:error.message}); }
     else { keys.clear(); buttons.clear(); lastObservation = null; }
     failures.push(...cancelled.filter(result => result.status === 'rejected').map(result => result.reason));
     for (const key of [...keys].reverse()) {
@@ -121,7 +124,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     }
     cursor?.({ ...position, visible: false });
     if (failures.length) throw new AggregateError(failures, 'Sidebar input release could not be fully acknowledged');
-    return { released: true };
+    return { released: true, ...(cleanupErrors.length ? {cleanupErrors} : {}) };
   };
   const point = async args => {
     if (args.elementId != null) return evaluate('point', args);
@@ -291,7 +294,8 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         default: fail('UNSUPPORTED_ACTION', `Sidebar guest does not support ${args.action}`);
       }
       lastObservation = null; changed();
-      return { action: args.action, target: metadata(), inputMode: 'background', delivery: 'target-cdp', effectVerified: false };
+      return { action: args.action, target: metadata(), inputMode: 'background', delivery: 'target-cdp', effectVerified: false,
+        ...(!keys.size && !buttons.size ? {release:{released:true}} : {}) };
       } catch (error) {
         error.details = {...error.details,inputDispatched:error.details?.inputDispatched === true || inputSequence !== inputStart};
         if (error.details.inputDispatched === false) {

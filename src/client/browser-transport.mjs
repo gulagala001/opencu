@@ -1,5 +1,5 @@
 import { createGuestDriver } from './guest-driver.mjs';
-import { inputReleased } from '../protocol.mjs';
+import { inputReleased, sameIdentity } from '../protocol.mjs';
 import { restorePresentationImages } from '../presentation-images.mjs';
 
 export function createBrowserTransport(client, desktop) {
@@ -73,6 +73,8 @@ export function createBrowserTransport(client, desktop) {
         const target = command.params.target;
         const values = target ? [guests.get(target.identity?.guestId)].filter(Boolean) : [...guests.values()];
         if (target && !values.length) throw new Error('The cancelled sidebar guest is no longer available');
+        if (target && values.some(guest => guest.target.id !== target.id || !sameIdentity(guest.target.identity,target.identity)))
+          throw Object.assign(new Error('Release refers to another sidebar occurrence'),{code:'TARGET_IDENTITY_CHANGED'});
         const releases = await Promise.allSettled(values.map(guest => guest.driver.release({ dismissDialogs: command.params.dismissDialogs !== false })));
         const failures = releases.flatMap(value => value.status === 'rejected'
           ? [{message: value.reason.message, code: value.reason.code, details: value.reason.details}]
@@ -81,6 +83,8 @@ export function createBrowserTransport(client, desktop) {
       } else {
         const guest = guests.get(command.params.target?.identity?.guestId);
         if (!guest?.ready) throw Object.assign(new Error('The original sidebar guest is no longer available'), { code: 'TARGET_IDENTITY_CHANGED' });
+        if (guest.target.id !== command.params.target.id || !sameIdentity(guest.target.identity,command.params.target.identity))
+          throw Object.assign(new Error('Command refers to another sidebar occurrence'),{code:'TARGET_IDENTITY_CHANGED'});
         switch (command.method) {
           case 'select': case 'verify': result = guest.driver.metadata(); break;
           case 'focus': result = { ...await guest.focus(), focused: true, target: guest.driver.metadata() }; break;
@@ -95,7 +99,8 @@ export function createBrowserTransport(client, desktop) {
               result = { action: 'newTab', target: next.driver.metadata() };
             } else if (command.params.action.action === 'closeTab') {
               const target = guest.driver.metadata();
-              await guest.driver.release();
+              const release = await guest.driver.release();
+              if (!inputReleased(release)) throw Object.assign(new Error('Cannot close before input release is acknowledged'),{code:'RELEASE_FAILED'});
               await closeTab({ sessionId: target.sessionId, tabId: target.sidebarTabId });
               result = { action: 'closeTab', closedTargetId: target.id };
             } else result = await guest.driver.act(command.params.action);
@@ -220,7 +225,9 @@ export function createBrowserTransport(client, desktop) {
         guest.ready = false;
         const result = await guest.driver.release();
         if (!inputReleased(result)) throw new Error('Sidebar guest input release was not acknowledged');
-        retired.set(guest.target.id, guest.driver.metadata());
+        // A successful release remains authoritative even if the destroyed
+        // Electron element can no longer supply its title or URL.
+        retired.set(guest.target.id, guest.target);
         guests.delete(guestId); await publish();
       };
     },

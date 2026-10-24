@@ -151,7 +151,8 @@ test('reconnected sidebar input requires selection and releases through the actu
 });
 
 test('nested release failures stay failures in the sidebar bridge', async t => {
-  const {host, reply} = await hostFixture(t);
+  const {host, target, reply} = await hostFixture(t);
+  await reply(host.backend.act(target,{action:'keyDown',key:'Shift'}),{accepted:true});
   const result = await reply(host.backend.release(), {released: true, tabs: [{released: false, failures: [{key: 'Shift'}]}]});
   assert.equal(result.value.released, false);
 });
