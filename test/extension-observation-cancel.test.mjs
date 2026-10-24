@@ -6,6 +6,7 @@ import { createCDPFrameRouter } from '../extension/frame-router.js';
 import { extensionKeySpec as keySpec, keyEventParameters, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes } from '../extension/keyboard.js';
 import { clickParameters, checkClickHeld, holdClick } from '../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../extension/key-options.js';
+import {installDocumentRuntime} from '../extension/content.js';
 
 // Execute the production MV3 worker and its real AX/input helpers. Only Chrome
 // APIs and local bridge transport are simulated; no browser is started.
@@ -65,7 +66,7 @@ async function fixture(t) {
     const next = commands.length ? commands.shift() : await new Promise(resolve => polls.push(resolve));
     return { ok: true, json: async () => ({ commands: next }) };
   };
-  const imports = { observeAccessibility, elementOperation, locatorOperation, invalidateElements, createCDPFrameRouter, keySpec, keyEventParameters,
+  const imports = { observeAccessibility, elementOperation, locatorOperation, invalidateElements, createCDPFrameRouter, installDocumentRuntime, keySpec, keyEventParameters,
     clickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes,
     createPairingClient: () => ({ start: async () => {}, pause: async () => {} }) };
   const worker = new Function(...Object.keys(imports), 'chrome', 'navigator', 'fetch', 'setTimeout', `${source}\nreturn {

@@ -183,3 +183,40 @@ test('root hit testing never reuses an OOPIF backend number for another element'
   assert.equal(result.url,'https://root.invalid/');assert.equal(result.elementId,9);assert.equal(childReads,0);
   assert.equal(record.elements.get(8).route,route);
 });
+
+test('flat debugger sessions recursively attach OOPIFs and route only through their real session IDs',async()=>{
+  let listener,unsubscribed=false;const calls=[],discarded=[],tokens={top:'doc-top',outer:'doc-outer',inner:'doc-inner'};
+  const contexts={top:1,outer:2,inner:3},ids={outer:'session-outer',inner:'session-inner'};
+  const send=frame=>async(method,args={})=>{
+    calls.push([frame,method,args]);
+    if(method==='Target.setAutoAttach'){
+      assert.equal(args.flatten,true);assert.equal(args.waitForDebuggerOnStart,false);
+      if(args.autoAttach){assert.deepEqual(args.filter,[{type:'iframe',exclude:false}]);const next={top:'outer',outer:'inner'}[frame];if(next)listener('Target.attachedToTarget',{sessionId:ids[next],targetInfo:{targetId:next,type:'iframe'}},ids[frame]);}
+      else assert.equal(args.filter,undefined,'Chrome rejects a filter when disabling auto-attach');
+      return {};
+    }
+    assert(!method.startsWith('Target.'),'restricted legacy target commands must not be used by chrome.debugger');
+    if(method==='Page.enable')return {};
+    if(method==='Page.getFrameTree')return {frameTree:{frame:{id:frame}}};
+    if(method==='Page.getLayoutMetrics')return {cssLayoutViewport:{pageX:0,pageY:0}};
+    if(method==='DOM.getNodeForLocation')return {backendNodeId:frame==='inner'?42:9,frameId:frame};
+    if(method==='DOM.getBoxModel')return {model:{content:frame==='top'?[10,10,210,10,210,210,10,210]:[20,20,180,20,180,180,20,180]}};
+    if(method==='Page.createIsolatedWorld'){
+      if(args.frameId!==frame)throw Object.assign(Error('No frame for given id found'),{code:-32602});
+      return {executionContextId:contexts[frame]};
+    }
+    if(method==='Runtime.evaluate')return {result:{value:args.expression==='({width:innerWidth,height:innerHeight})'?{width:frame==='outer'?200:160,height:frame==='outer'?200:160}:tokens[frame]}};
+    if(method==='DOM.describeNode')return {node:{nodeName:frame==='inner'?'INPUT':'IFRAME',backendNodeId:args.backendNodeId,frameId:{top:'outer',outer:'inner'}[frame]}};
+    throw Error(`Unexpected ${frame} ${method}`);
+  };
+  const router=createCDPFrameRouter(send('top'),fn=>{listener=fn;return()=>{unsubscribed=true;};},{sendSession:(id,method,args)=>send(id==='session-outer'?'outer':'inner')(method,args),discardRoute:route=>discarded.push(route.frameId)});
+  const root=await router.main(),outer=await router.child(root,9,'outer'),inner=await router.child(outer,9,'inner');
+  assert.equal(outer.sessionId,'session-outer');assert.equal(inner.sessionId,'session-inner');
+  assert.deepEqual(calls.filter(([,method,args])=>method==='Target.setAutoAttach'&&args.autoAttach).map(([frame])=>frame),['top','outer','inner']);
+  const pointer=await router.atPoint({x:100,y:100});assert.equal(pointer.route.frameId,'inner');assert.equal(pointer.backendNodeId,42);
+  assert.deepEqual(calls.filter(([,method])=>method==='DOM.getNodeForLocation').map(([frame,,args])=>[frame,args.x,args.y]),[['top',100,100],['outer',90,90],['inner',70,70]]);
+  await router.validate(inner);tokens.inner='new-document';await assert.rejects(router.validate(inner),{code:'FRAME_DETACHED'});
+  listener('Target.detachedFromTarget',{sessionId:'session-outer'});await assert.rejects(router.validate(outer),{code:'FRAME_DETACHED'});
+  assert(discarded.includes('inner'));assert(discarded.includes('outer'));
+  await router.close();assert.equal(unsubscribed,true);assert.equal(calls.at(-1)[1],'Target.setAutoAttach');assert.equal(calls.at(-1)[2].autoAttach,false);
+});

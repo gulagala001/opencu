@@ -26,6 +26,7 @@ with zipfile.ZipFile(sys.argv[1]) as z:
  print(json.dumps({n:hashlib.sha256(z.read(n)).hexdigest() for n in z.namelist()}))`, join(directory, 'extension.zip')], { encoding: 'utf8' }));
   assert.deepEqual(listing, distribution.files); assert.equal(Object.keys(listing).length, Object.keys(distribution.files).length); assert(listing['manifest.json']);
   assert.equal(JSON.parse(await readFile(join(directory, 'extension/manifest.json'))).key, JSON.parse(await readFile(new URL('extension/manifest.json', root))).key);
+  assert(Number(JSON.parse(await readFile(join(directory, 'extension/manifest.json'))).minimum_chrome_version) >= 125, 'Flat debugger child sessions require Chromium 125 or newer');
 });
 test('synthetic dataDir, profile and pairing secrets cannot enter the archive', async t => {
   const directory = await fixture(t); const before = await buildExtensionZip(directory);

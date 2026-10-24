@@ -7,6 +7,7 @@ import {createUserActivityMonitor} from '../src/browser/user-activity.mjs';
 import {keyboardInputTypes} from '../extension/keyboard.js';
 import {actOnPage} from '../src/browser/actions.mjs';
 import {createGuestDriver} from '../src/client/guest-driver.mjs';
+import {installDocumentRuntime} from '../extension/content.js';
 
 async function fixture(route) {
   const listeners=new Map(),plain={nodeType:1,tagName:'TEXTAREA',closest:()=>null},other={nodeType:1,tagName:'TEXTAREA',closest:()=>null};
@@ -29,7 +30,7 @@ async function fixture(route) {
     }};
     const monitor=await createUserActivityMonitor(session);api={expect:events=>monitor.expect(events),finish:id=>monitor.finish(id),read:async()=>(await monitor.read())?.sequence??0};
   }else if(route==='extension'){
-    runInContext(await readFile(new URL('../extension/content.js',import.meta.url),'utf8'),context);
+    runInContext(`(${installDocumentRuntime.toString()})()`,context);
     const invoke=(name,args)=>context.__opencuDocument.run(name,args);
     api={expect:events=>invoke('expectInput',{events}),finish:marker=>invoke('finishInput',{...marker,dispatched:true}),read:()=>invoke('identity').userActivity?.sequence??0};
   }else{
@@ -135,3 +136,11 @@ for(const route of ['standalone','extension','dsh']) {
     const disabled=makeGroup(),blocked=await fixture(route);disabled.source.matches=()=>true;blocked.active(disabled.source);await blocked.expect([{type:'keydown',key:'ArrowRight'}]);blocked.event('keydown',{target:disabled.source,key:'ArrowRight',code:'ArrowRight'});blocked.event('input',{target:disabled.next});assert.equal(await blocked.read(),1,'disabled source cannot authorize its group');
   });
 }
+
+test('extension pointer checkbox input belongs only to the confirmed clicked control',async()=>{
+  const f=await fixture('extension'),control={nodeType:1,tagName:'INPUT',type:'checkbox',closest:()=>null};
+  const marker=await f.expect([{type:'pointerdown',target:control}]);
+  f.event('pointerdown',{target:control,button:0});f.event('click',{target:control});f.event('input',{target:control});assert.equal(await f.read(),0);
+  await f.finish(marker);f.event('input',{target:control});assert.equal(await f.read(),1,'completed click cannot hide a later manual value change');
+  const separate=await fixture('extension');await separate.expect([{type:'pointerdown',target:control}]);separate.event('pointerdown',{target:control,button:0});separate.event('click',{target:control});separate.event('input',{target:separate.other});assert.equal(await separate.read(),1,'another control is never exempted');
+});
