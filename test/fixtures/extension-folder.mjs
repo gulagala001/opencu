@@ -9,7 +9,7 @@ const hostVersion = JSON.parse(await readFile(new URL('../../package.json', impo
 export const tick = () => new Promise(resolve => setImmediate(resolve));
 export function deferred() { return Promise.withResolvers(); }
 export function desktopBridge(files) {
-  return { openCU: { revision: 2, hostVersion, capabilities: ['artifactDocuments', 'tabCloseGuards', 'browserSurfaces', 'presentationSessions', 'presentationHitRegions', 'backgroundInput', 'structuredErrors', 'initialNavigation'] },
+  return { openCU: { revision: 2, hostVersion, capabilities: ['artifactDocuments', 'tabCloseGuards', 'browserSurfaces', 'presentationSessions', 'presentationHitRegions', 'backgroundInput', 'structuredErrors', 'initialNavigation', 'frameInputMonitoring'] },
     ...Object.fromEntries(['acquireOpenCU', 'release', 'onOpenRequested', 'downloads', 'permissions', 'automation', 'extensions', 'profile', 'presentation', 'files', 'onPresentationEvent', 'onExtensionEvent', 'surface', 'onSurfaceEvent'].map(name => [name, noop])), files };
 }
 // Production index, registry, HTTP client and compatibility probe are real.

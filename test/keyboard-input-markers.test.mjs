@@ -83,7 +83,7 @@ test('one physical key mapping covers platform edit commands and never marks cop
 test('standalone modifier/key aliases and failed dispatch clean exact keyboard markers',async()=>{
   const events=[],finished=[],record={page:{keyboard:{down:async()=>{},up:async()=>{}}},session:{send:async()=>({})},pending:new Set(),keys:new Set(),buttons:new Set()};
   const options={persistInputs:async()=>{},expectInput:async value=>{events.push(value);return {id:events.length};},finishInput:async marker=>finished.push(marker.id)};
-  await actOnPage(record,{action:'press',key:'MetaLeft+KeyV'},options);
+  await actOnPage(record,{action:'press',key:process.platform==='darwin'?'MetaLeft+KeyV':'ControlLeft+KeyV'},options);
   assert.deepEqual(events[1],[key('KeyV',['insertFromPaste','insertFromPasteAsQuotation'])]);assert.deepEqual(finished,[1,2]);
   record.page.keyboard.down=async()=>{throw Object.assign(Error('rejected'),{details:{inputDispatched:false}});};
   await assert.rejects(actOnPage(record,{action:'keyDown',key:'ShiftRight'},options),/rejected/);assert.equal(finished.at(-1),3);
