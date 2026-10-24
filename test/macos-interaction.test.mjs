@@ -29,7 +29,7 @@ test('macOS normal clicks, modal scopes and visible AX geometry use the live int
   }
   const binary = join(directory, 'interaction-checks');
   await exec('/usr/bin/xcrun', [...args, '-framework', 'AppKit', '-framework', 'ApplicationServices', '-framework', 'Carbon',
-    ...['Protocol.swift', 'Targets.swift', 'Accessibility.swift'].map(name => join(native, name)), join(root, 'test/fixtures/macos-interaction.swift'), '-o', binary], {timeout: 120000, maxBuffer: 4 * 1024 * 1024});
+    ...['Protocol.swift', 'Targets.swift', 'Accessibility.swift', 'Capture.swift'].map(name => join(native, name)), join(root, 'test/fixtures/macos-interaction.swift'), '-o', binary], {timeout: 120000, maxBuffer: 4 * 1024 * 1024});
   const {stdout} = await exec(binary, [], {timeout: 10000});
   assert.match(stdout, /macOS interaction checks passed/);
 });

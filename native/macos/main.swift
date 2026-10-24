@@ -102,7 +102,7 @@ final class NativeService {
                 }
                 try checkpoint()
                 if format != "ax" {
-                    do { result["screenshot"] = try capture.capture(target, targets: targets, options: options, checkpoint: checkpoint) }
+                    do { result["screenshot"] = try capture.capture(target, targets: targets, options: options, expectedRoot: result["ax"] == nil ? nil : ax.observationRoot, checkpoint: checkpoint) }
                     catch let failure as NativeFailure { if failure.code == "CONTROL_STOPPED" { throw failure }; failures.append(failure.json) }
                 }
                 if result["ax"] == nil && result["screenshot"] == nil {
@@ -155,7 +155,7 @@ final class NativeService {
 
     func point(_ action: [String: Any], _ target: [String: Any]) throws -> CGPoint {
         if let elementID = action["elementId"] as? Int { return try ax.center(elementID, target: target, targets: targets) }
-        return try capture.point(action, target: target)
+        return try capture.point(action, target: target, targets: targets)
     }
 
     func mouseButton(_ action: [String: Any]) throws -> Int {
@@ -181,7 +181,7 @@ final class NativeService {
         if type == "activate" { return ["focused": true, "target": try targets.focus(target)] }
         if type == "hit_test" {
             try requireAX()
-            return ["element": try ax.hitTest(capture.point(action, target: target), target: target, targets: targets)]
+            return ["element": try ax.hitTest(capture.point(action, target: target, targets: targets), target: target, targets: targets)]
         }
         guard ["set_value", "ax_press", "select_text", "paste", "perform_secondary_action", "move", "click", "double_click", "right_click", "mouse_down", "mouse_up", "drag", "scroll", "key_down", "key_up", "press_key", "type_text"].contains(type) else {
             throw NativeFailure("UNSUPPORTED_ACTION", "Unsupported native action: \(type).")
@@ -197,7 +197,7 @@ final class NativeService {
             let id: Int?
             if let selected = action["elementId"] as? Int { id = selected }
             else if AXIsProcessTrusted() {
-                let at = try capture.point(action, target: target)
+                let at = try capture.point(action, target: target, targets: targets)
                 do { id = try ax.hitTest(at, target: target, targets: targets)["elementId"] as? Int }
                 catch let failure as NativeFailure where ["ELEMENT_NOT_FOUND", "AX_OPERATION_FAILED", "WINDOW_AX_MAPPING_FAILED"].contains(failure.code) { id = nil }
             } else { id = nil }

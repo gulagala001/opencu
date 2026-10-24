@@ -67,6 +67,15 @@ struct InteractionChecks {
         failure("ELEMENT_NOT_VISIBLE") { _ = try visible() }
         hidden.removeAll();rects.removeValue(forKey:31)
         failure("ELEMENT_NOT_VISIBLE") { _ = try visible() }
+
+        let dialog = CGRect(x: 400, y: 300, width: 400, height: 180)
+        let own = WindowRecord(id: 101, pid: 123, title: "", bounds: dialog)
+        let foreign = WindowRecord(id: 201, pid: 456, title: "", bounds: dialog)
+        try expect(accessibilityCaptureWindow(dialog, pid: 123, candidates: [foreign, own]).id == 101)
+        failure("MODAL_CAPTURE_UNAVAILABLE") { _ = try accessibilityCaptureWindow(dialog, pid: 123, candidates: [foreign]) }
+        failure("MODAL_CAPTURE_UNAVAILABLE") { _ = try accessibilityCaptureWindow(dialog, pid: 123, candidates: [own, WindowRecord(id: 102, pid: 123, title: "duplicate", bounds: dialog)]) }
+        let mapping = ScreenshotMapping(bounds: dialog, width: 800, height: 360, token: "sheet", windowId: 101)
+        try expect(mapping.point(400, 180) == CGPoint(x: 600, y: 390))
         print("macOS interaction checks passed: menu actions/descendants/disabled items, sheet ownership/nesting/closure, clipped and hidden geometry")
     }
 }

@@ -9,6 +9,22 @@ struct WindowRecord {
     let bounds: CGRect
 }
 
+struct NativeCaptureSurface {
+    let root: AXUIElement
+    let window: WindowRecord?
+}
+
+func accessibilityCaptureWindow(_ bounds: CGRect, pid: pid_t, candidates: [WindowRecord]) throws -> WindowRecord {
+    let matches = candidates.filter { candidate in
+        candidate.pid == pid && abs(candidate.bounds.minX - bounds.minX) < 2 && abs(candidate.bounds.minY - bounds.minY) < 2 &&
+            abs(candidate.bounds.width - bounds.width) < 2 && abs(candidate.bounds.height - bounds.height) < 2
+    }
+    guard !bounds.isNull, !bounds.isInfinite, bounds.width > 0, bounds.height > 0, matches.count == 1 else {
+        throw NativeFailure("MODAL_CAPTURE_UNAVAILABLE", "Could not uniquely map the active dialog to its application's capture window; no other window or display was captured.", ["matches": matches.count])
+    }
+    return matches[0]
+}
+
 func accessibilityContains<Node>(_ root: Node, _ element: Node, parent: (Node) -> Node?, equal: (Node, Node) -> Bool) -> Bool {
     var node = element
     for _ in 0..<80 {
@@ -119,6 +135,20 @@ final class TargetStore {
         let window = try axWindow(target)
         if let modal = try modalRoot(target, window: axString(window, kAXRoleAttribute) == kAXApplicationRole ? nil : window) { return modal }
         return target["windowId"] == nil ? appRoot : window
+    }
+
+    func captureSurface(_ target: [String: Any]) throws -> NativeCaptureSurface {
+        let current = try validated(target), root = try observationRoot(current)
+        let role = try modalRole(root)
+        if role == kAXApplicationRole { return NativeCaptureSurface(root: root, window: nil) }
+        if role == kAXWindowRole, let id = current["windowId"] as? Int,
+           let selected = window(id), Int(selected.pid) == current["pid"] as? Int {
+            return NativeCaptureSurface(root: root, window: selected)
+        }
+        guard let bounds = axRect(root) else {
+            throw NativeFailure("MODAL_CAPTURE_UNAVAILABLE", "The active dialog has no verifiable capture bounds; no other window or display was captured.")
+        }
+        return NativeCaptureSurface(root: root, window: try accessibilityCaptureWindow(bounds, pid: pid_t(current["pid"] as? Int ?? 0), candidates: windows()))
     }
 
     func requireInteraction(_ element: AXUIElement, target: [String: Any]) throws {

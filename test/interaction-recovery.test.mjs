@@ -180,7 +180,7 @@ test('native modal rejection preserves the binding for sheet dismissal and docum
   const controller=await createController({dataDir,browser:false,native:backend});
   t.after(async()=>{await controller.close();await rm(dataDir,{recursive:true,force:true});});
   assert.equal((await controller.selectTarget(target)).ok,true);
-  for(const code of ['MODAL_BLOCKED','MODAL_STATE_UNAVAILABLE','MODAL_POINTER_UNAVAILABLE']){
+  for(const code of ['MODAL_BLOCKED','MODAL_STATE_UNAVAILABLE','MODAL_POINTER_UNAVAILABLE','MODAL_CAPTURE_UNAVAILABLE']){
     sheetOpen=true;rejection=code;
     const rejected=await controller.act({targetId:target.id,action:'click',elementId:1});
     assert.equal(rejected.error.code,code);assert.equal(rejected.state.mode,'active');
@@ -190,7 +190,7 @@ test('native modal rejection preserves the binding for sheet dismissal and docum
     assert.equal((await controller.observe({targetId:target.id,format:'ax'})).ok,true);
     assert.equal((await controller.act({targetId:target.id,action:'click',elementId:1})).ok,true);
   }
-  assert.deepEqual(events,['cancel','save','cancel','save','cancel','save']);
+  assert.deepEqual(events,['cancel','save','cancel','save','cancel','save','cancel','save']);
 });
 
 for(const code of ['MODAL_BLOCKED','MODAL_STATE_UNAVAILABLE','MODAL_POINTER_UNAVAILABLE']){

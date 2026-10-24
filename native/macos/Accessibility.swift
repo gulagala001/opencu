@@ -76,11 +76,13 @@ final class AccessibilityStore {
     var elements: [Int: ElementRecord] = [:]
     var nextID = 1
     var generation = 0
+    private(set) var observationRoot: AXUIElement?
     private let identityScope: String
     init(copying previous: AccessibilityStore? = nil) {
         identityScope = previous?.identityScope ?? UUID().uuidString
         if let previous = previous {
             elements = previous.elements; nextID = previous.nextID; generation = previous.generation
+            observationRoot = previous.observationRoot
         }
     }
 
@@ -146,6 +148,7 @@ final class AccessibilityStore {
         }
         try visit(root, depth: 0, parentID: nil)
         try checkpoint()
+        observationRoot = root
         return ["text": lines.joined(separator: "\n"), "nodes": nodes, "generation": current, "truncated": truncated,
                 "stableIds": true, "identityScope": identityScope + ":" + id,
                 "numericIds": "stable while the same element remains in this target; removed elements and helper restart invalidate IDs"]
