@@ -9,7 +9,7 @@ const ts = require('typescript');
 try { await access(join(root, 'node_modules')); } catch (error) { if (error.code !== 'ENOENT') throw error; await symlink(join(sdk, 'node_modules'), join(root, 'node_modules'), 'dir'); }
 const config = {
   compilerOptions: {
-    target: 'ES2024', module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, noEmit: true,
+    target: 'ES2024', module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, exactOptionalPropertyTypes: true, noEmit: true,
     allowImportingTsExtensions: true, skipLibCheck: true, types: ['node'],
     paths: {
       '@deepseek-ai/dsh-client-ui-sidebar-browser/types': ['./packages/client/ui-sidebar-browser/src/types.ts'],
