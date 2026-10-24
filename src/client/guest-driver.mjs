@@ -1,6 +1,7 @@
 import { guestKeySpec, keyEventKey, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes } from '../../extension/keyboard.js';
 import { clickParameters, locatorClickParameters, checkClickHeld, holdClick } from '../../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../../extension/key-options.js';
+import {scrollDeltas} from '../../extension/scroll.js';
 import { inputReleased } from '../protocol.mjs';
 import { dragPath } from '../../extension/pointer-path.js';
 
@@ -272,7 +273,13 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         }
         case 'mouseDown': if (args.x != null || args.elementId != null) await move(args); await down(args.button ?? 'left'); break;
         case 'mouseUp': await up(args.button ?? 'left'); break;
-        case 'scroll': if (args.x != null || args.elementId != null) await move(args); await step(() => sendInput({ type: 'mouseWheel', ...position, deltaX: args.deltaX ?? 0, deltaY: args.deltaY ?? 0 })); break;
+        case 'scroll': {
+          let deltas = scrollDeltas(args), geometry;
+          if (args.x != null || args.elementId != null) await move(args);
+          if (!deltas) {geometry = await step(() => evaluate('scrollGeometry',args));deltas = scrollDeltas(args,geometry);}
+          await step(() => sendInput({type:'mouseWheel',...position,...deltas,...(geometry ? {scrollPages:args.scrollPages,scrollDirection:args.scrollDirection,scrollGeometry:geometry,observationId:args.observationId} : {})}));
+          break;
+        }
         case 'drag': {
           const plan=dragPath(args.path,args.durationMs),waypoints=[],button=args.button ?? 'left';
           if (!['left','middle','right'].includes(button)) fail('INVALID_ARGUMENT','Drag button must be left, middle, or right');

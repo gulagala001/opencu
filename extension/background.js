@@ -6,6 +6,7 @@ import { clickParameters, locatorClickParameters, checkClickHeld, holdClick } fr
 import { pressParameters, checkPressHeld } from './key-options.js';
 import { dragPath } from './pointer-path.js';
 import {filePaths} from './file-input.js';
+import {scrollDeltas,checkScrollGeometry} from './scroll.js';
 import {installDocumentRuntime} from './content.js';
 const PATH = '/opencu-extension/v1';
 const attached = new Map(), observations = new Map(), documents = new Map(), releasing = new Set();
@@ -262,7 +263,7 @@ async function mouse(tabId, type, point, button = 'none', count = 0, extra = {},
       }
     }
     checkControl(epoch);
-    if (type === 'mousePressed' && beforeDispatch) { await beforeDispatch(); checkControl(epoch); }
+    if ((type === 'mousePressed' || type === 'mouseWheel') && beforeDispatch) { await beforeDispatch(); checkControl(epoch); }
     submitted = true;
     await cdp(tabId, 'Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button, buttons: buttonMask(state), clickCount: count, modifiers: modifiers(state), ...extra });
     if(type==='mousePressed'&&marker)(state.pointerMarkers??=new Map()).set(button,marker);
@@ -438,8 +439,12 @@ async function act(identity, action, epoch = controlToken(identity.tabId)) {
     }
   };
   const inputKey = (spec, down) => keyEvent(tabId, spec, down, epoch, action.elementId != null ? verifyInputElement : undefined,action.keyboardEditable);
+  let scrollGeometry;
   const pointer = (type, point, button = 'none', count = 0, extra = {}) => mouse(tabId, type, point, button, count, extra, epoch,
-    action.elementId != null ? () => element('checkPoint', {...action,...point}) : undefined);
+    action.elementId != null ? async () => {
+      await element('checkPoint', {...action,...point});
+      if (type === 'mouseWheel' && scrollGeometry) checkScrollGeometry(scrollGeometry,await element('scrollGeometry'));
+    } : undefined);
   const step = async work => { checkControl(epoch); const result = await work(); checkControl(epoch); return result; };
   const elementOptions = {check:checkInput,wrapSend:(transport,route)=>(method,params)=>send(method,params,transport,route),guard:work=>textInputGuard ? textInputGuard(work) : step(work)};
   const element = (operation, args = action) => elementOperation(tabId, send, operation, args, attached.get(tabId)?.frameRouter,elementOptions);
@@ -586,12 +591,12 @@ async function act(identity, action, epoch = controlToken(identity.tabId)) {
       return step(() => content(tabId, 'cursor', point, current.browserDocumentId));
     }
     case 'click': case 'double_click': case 'right_click': case 'move': case 'mouse_down': case 'mouse_up': case 'scroll': case 'drag': {
+      let wheel = action.type === 'scroll' ? scrollDeltas(action) : undefined;
       const held = attached.get(tabId);
       const point = action.type === 'drag' ? undefined : action.type === 'mouse_up' && action.x === undefined && action.elementId === undefined
         ? { x: held.x, y: held.y } : await step(() => actionPoint(identity, action, current,false,elementOptions));
       const button = click?.button ?? (action.type === 'right_click' ? 'right' : action.button || 'left');
       if (!['left', 'middle', 'right'].includes(button)) fail('INVALID_BUTTON', 'Use left, middle or right mouse button.');
-      if (action.type === 'scroll' && (!Number.isFinite(action.deltaX ?? 0) || !Number.isFinite(action.deltaY ?? 0))) fail('INVALID_SCROLL', 'Finite wheel deltas are required.');
       let path, intervalMs;
       if (action.type === 'drag') {
         const samples = dragPath(action.path ?? [{ x: action.fromX, y: action.fromY }, { x: action.x, y: action.y }],action.durationMs);
@@ -606,8 +611,9 @@ async function act(identity, action, epoch = controlToken(identity.tabId)) {
         return step(() => content(tabId, 'cursor', held.cursor, current.browserDocumentId));
       };
       await showCursor(path?.[0] ?? point);
+      if (action.type === 'scroll' && !wheel) {scrollGeometry = await step(() => element('scrollGeometry'));wheel = scrollDeltas(action,scrollGeometry);}
       if (action.type === 'move') await pointer('mouseMoved', point);
-      else if (action.type === 'scroll') await pointer('mouseWheel', point, 'none', 0, { deltaX: action.deltaX || 0, deltaY: action.deltaY || 0 });
+      else if (action.type === 'scroll') await pointer('mouseWheel', point, 'none', 0, wheel);
       else if (action.type === 'mouse_down') await pointer('mousePressed', point, button, 1);
       else if (action.type === 'mouse_up') await pointer('mouseReleased', point, button, 1);
       else if (path) {

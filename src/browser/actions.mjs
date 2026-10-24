@@ -9,6 +9,7 @@ import {uploadFiles} from './upload-files.mjs';
 import {clickParameters, locatorClickParameters, checkClickHeld, holdClick} from '../../extension/click-options.js';
 import {pressParameters, checkPressHeld} from '../../extension/key-options.js';
 import {dragPath} from '../../extension/pointer-path.js';
+import {scrollDeltas,readElementScrollGeometry,checkScrollGeometry} from '../../extension/scroll.js';
 import {playwrightKeyIdentity} from './playwright-keyboard.mjs';
 import {actOnClipboard,restoreClipboardPermissions} from './clipboard.mjs';
 import {withCDPFrameGuard} from '../../extension/frame-router.js';
@@ -275,10 +276,21 @@ export async function actOnPage(record, request, options) {
     case 'doubleClick': await click(2); break;
     case 'mouseDown': if (request.x !== undefined || request.elementId !== undefined) await move(request); await mouseDown(request.button); break;
     case 'mouseUp': await mouseUp(request.button); break;
-    case 'scroll':
+    case 'scroll': {
+      let deltas = scrollDeltas(request), geometry;
       if (request.x !== undefined || request.elementId !== undefined) await move(request);
-      await input([{type: 'wheel'}], () => page.mouse.wheel(finite(request.deltaX ?? 0, 'deltaX'), finite(request.deltaY ?? 0, 'deltaY')), checkPointer);
+      const dimensions = async () => {
+        const entry = elementFor(record,request);
+        if (entry.route) await frameRouter.validate(entry.route);
+        return readElementScrollGeometry(entry.route ? frameRouter.route(entry.route).send : frameSend,{backendNodeId:entry.backendNodeId,contextId:entry.route?.contextId});
+      };
+      if (!deltas) {geometry = await step(dimensions);deltas = scrollDeltas(request,geometry);}
+      await input([{type: 'wheel'}], () => page.mouse.wheel(deltas.deltaX,deltas.deltaY), async () => {
+        await checkPointer();
+        if (geometry) checkScrollGeometry(geometry,await dimensions());
+      });
       break;
+    }
     case 'drag': {
       const plan=dragPath(request.path,request.durationMs), waypoints=[];
       const button = buttonName(request.button);

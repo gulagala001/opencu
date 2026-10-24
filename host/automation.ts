@@ -14,6 +14,7 @@ import { createPageInputMonitor } from './opencu-input-monitor.js'
 import { runTextEdit, validateTextEditRequest } from './opencu-text-edit.js'
 import { createCDPFrameRouter, hitTestViewport, readCDPFrameOwners, type CDPFrameRouter, type FrameElement, type FrameRoute } from './opencu-frame-router.js'
 import { captureAXTree, axElementKey } from './opencu-ax-tree.js'
+import { readElementScrollGeometry, scrollDeltas, checkScrollGeometry, type ScrollGeometry } from './opencu-scroll.js'
 import { openCUDialogs, type DialogFence } from './opencu-dialogs.ts'
 
 type RemoteResult = { result: { value?: unknown }; exceptionDetails?: { text: string; exception?: { description?: string } } }
@@ -136,7 +137,7 @@ export function resolveOpenCUNavigation(input: unknown, allowedNavigation: (url:
 
 /** Run fixed accessibility and DOM operations on the caller's already verified guest. */
 export function openCUAutomation(guest: WebContents, operation: unknown, input: unknown, allowedNavigation: (url: string) => boolean): Promise<unknown> {
-  if (typeof operation !== 'string' || !['getDialog', 'handleDialog', 'pageState', 'navigationState', 'inputMarker', 'inputMonitor', 'observe', 'locator', 'domSnapshot', 'checked', 'point', 'verifyElement', 'focus', 'selectAll', 'selectOption', 'selectText', 'paste', 'describe', 'patch', 'hitTest', 'upload', 'navigationSnapshot', 'restoreNavigation', 'siteTools', 'invokeSiteTool', 'cancelSiteTool', 'cancelUpload', 'capture', 'readPageImage', 'input', 'insertText', 'releaseInput'].includes(operation)) throw new Error('Unsupported guest automation operation')
+  if (typeof operation !== 'string' || !['getDialog', 'handleDialog', 'pageState', 'navigationState', 'inputMarker', 'inputMonitor', 'observe', 'locator', 'domSnapshot', 'checked', 'point', 'scrollGeometry', 'verifyElement', 'focus', 'selectAll', 'selectOption', 'selectText', 'paste', 'describe', 'patch', 'hitTest', 'upload', 'navigationSnapshot', 'restoreNavigation', 'siteTools', 'invokeSiteTool', 'cancelSiteTool', 'cancelUpload', 'capture', 'readPageImage', 'input', 'insertText', 'releaseInput'].includes(operation)) throw new Error('Unsupported guest automation operation')
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid guest automation arguments')
   const args = { ...input as Record<string, unknown> }
   if (typeof args.elementId === 'number' && Number.isSafeInteger(args.elementId) && args.elementId >= 0) args.elementId = String(args.elementId)
@@ -557,21 +558,30 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
           } else {
             const types: Record<string, string> = { mouseMove: 'mouseMoved', mouseDown: 'mousePressed', mouseUp: 'mouseReleased', mouseWheel: 'mouseWheel' }
             const type = types[String(args.type)]
+            const scrollRequest = args.scrollGeometry ? {...args,deltaX:undefined,deltaY:undefined} : args
+            let wheel = type === 'mouseWheel' ? scrollDeltas(scrollRequest) : undefined
             if (!type || !Number.isFinite(args.x) || !Number.isFinite(args.y)) throw new Error('Input requires a mouse event and finite coordinates')
             if (!['none', 'left', 'middle', 'right'].includes(String(args.button ?? 'none'))) throw new Error('Invalid mouse button')
             current.inputPosition = { x: Number(args.x), y: Number(args.y) }
             if (type === 'mousePressed' && inputElement?.route) await current.frameRouter!.checkPoint(inputElement as FrameElement & {route:NonNullable<FrameElement['route']>}, current.inputPosition)
+            if (type === 'mouseWheel' && inputElement?.route) await current.frameRouter!.checkPoint(inputElement as FrameElement & {route:NonNullable<FrameElement['route']>}, current.inputPosition)
+            if (type === 'mouseWheel' && !wheel) {
+              await verifyElement()
+              const geometry = await readElementScrollGeometry(inputElement?.route?.send ?? send,{backendNodeId:inputElement!.backendNodeId,contextId:inputElement?.route?.contextId})
+              if (args.scrollGeometry) checkScrollGeometry(args.scrollGeometry as ScrollGeometry,geometry)
+              wheel = scrollDeltas(scrollRequest,geometry)
+            }
             signal.throwIfAborted()
             let marker: { route: FrameRoute; id: string } | undefined
             if (current.monitoringActive && ['mousePressed', 'mouseWheel'].includes(type)) {
               const hit = await frameRouter().atPoint(current.inputPosition)
               marker = await markInput(hit.route, [{type:type === 'mousePressed' ? 'pointerdown' : 'wheel',
-                ...(type === 'mouseWheel' ? {deltaX:args.deltaX ?? 0,deltaY:args.deltaY ?? 0} : {})}], hit.backendNodeId, true)
+                ...(type === 'mouseWheel' ? wheel : {})}], hit.backendNodeId, true)
             }
             await dispatchMarked(marker, async () => {
               if (type === 'mousePressed') current.inputButtons.add(String(args.button))
               return send('Input.dispatchMouseEvent', { type, x: args.x, y: args.y, button: args.button ?? 'none', buttons: args.buttons ?? 0, clickCount: args.clickCount ?? 0, modifiers,
-                ...(type === 'mouseWheel' ? { deltaX: args.deltaX ?? 0, deltaY: args.deltaY ?? 0 } : {}) })
+                ...(type === 'mouseWheel' ? wheel : {}) })
             })
             if (type === 'mouseReleased') current.inputButtons.delete(String(args.button))
           }
@@ -703,6 +713,13 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
       }))
       releaseSend = elementSend
       if (entry?.route) await current.frameRouter!.validate(entry.route)
+      if (operation === 'scrollGeometry') {
+        const geometry = await readElementScrollGeometry(elementSend,{backendNodeId,contextId:entry?.route?.contextId})
+        live()
+        if (current.elements.get(String(args.elementId)) !== entry) throw Object.assign(new Error('The selected scroll element changed'),{code:'STALE_ELEMENT',details:{inputDispatched:false}})
+        if (entry?.route) await current.frameRouter!.validate(entry.route)
+        return geometry
+      }
       if (operation === 'point' && entry?.route) return current.frameRouter!.point(entry as FrameElement & {route:NonNullable<FrameElement['route']>})
       if (operation === 'focus' && entry?.route) {await current.frameRouter!.focus(entry as FrameElement & {route:NonNullable<FrameElement['route']>}); live(); return {focused:true}}
       if (operation === 'point') {

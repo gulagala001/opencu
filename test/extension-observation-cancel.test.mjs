@@ -6,6 +6,7 @@ import { createCDPFrameRouter } from '../extension/frame-router.js';
 import { extensionKeySpec as keySpec, keyEventParameters, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes } from '../extension/keyboard.js';
 import { clickParameters, locatorClickParameters, checkClickHeld, holdClick } from '../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../extension/key-options.js';
+import {scrollDeltas,checkScrollGeometry} from '../extension/scroll.js';
 import {installDocumentRuntime} from '../extension/content.js';
 import {locatorInputFixture} from './fixtures/locator-input.mjs';
 import {dragPath} from '../extension/pointer-path.js';
@@ -69,7 +70,7 @@ async function fixture(t) {
     return { ok: true, json: async () => ({ commands: next }) };
   };
   const imports = { observeAccessibility, elementOperation, locatorOperation, invalidateElements, createCDPFrameRouter, installDocumentRuntime, dragPath, keySpec, keyEventParameters,
-    clickParameters, locatorClickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes,
+    clickParameters, locatorClickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes, scrollDeltas, checkScrollGeometry,
     createPairingClient: () => ({ start: async () => {}, pause: async () => {} }) };
   const worker = new Function(...Object.keys(imports), 'chrome', 'navigator', 'fetch', 'setTimeout', `${source}\nreturn {
     ready: initialize(), observe, act, releaseTab, controlToken, attached, observations, loop,
@@ -138,6 +139,29 @@ test('MV3 screenshot format captures pixels without reading AX and keeps fresh o
   assert.equal(shot.screenshot.width, 100);
   assert.equal(f.events.some(([method]) => method === 'Accessibility.getFullAXTree'), false);
   assert.equal(f.events.filter(([method]) => method === 'Page.captureScreenshot').length, 1);
+});
+
+test('MV3 element pages use live geometry without a screenshot and fence resize before wheel',async t=>{
+  const f=await fixture(t);f.seed([],[]);const geometry={width:434,height:114};
+  const send=async(method,args={})=>{
+    if(method==='Runtime.evaluate')return {result:{objectId:'document'}};
+    if(method==='DOM.describeNode')return {node:{nodeType:9,children:[]}};
+    if(method==='Accessibility.getFullAXTree')return {nodes:[{nodeId:'0',role:{value:'RootWebArea'},frameId:'top',childIds:['1']},{nodeId:'1',backendDOMNodeId:13,role:{value:'region'}}]};
+    if(method==='DOM.resolveNode')return {object:{objectId:'scroll'}};
+    if(method==='Runtime.callFunctionOn')return {result:{value:{...geometry}}};
+    return {};
+  };
+  const route={frameId:'top',contextId:7,send,owners:[]};
+  const router={main:async()=>route,validate:async()=>{},point:async()=>({x:50,y:40}),checkPoint:async()=>{},atPoint:async()=>undefined,focused:async()=>undefined};
+  f.worker.attached.get(73).frameRouter=router;
+  const observed=await observeAccessibility(73,send,'doc',()=>{},{},router);
+  const action={type:'scroll',elementId:observed.ax.nodes.find(node=>node.role==='region').elementId,observationId:observed.observationId,scrollDirection:'down',scrollPages:.25};
+  await f.worker.act(f.identity,action);
+  const wheel=()=>f.events.filter(([method,args])=>method==='Input.dispatchMouseEvent'&&args.type==='mouseWheel');
+  assert.equal(wheel().length,1);assert.equal(wheel()[0][1].deltaY,28.5);
+  f.hooks.content=method=>{if(method==='expectInput')geometry.height=214;};
+  await assert.rejects(f.worker.act(f.identity,action),{code:'LOCATOR_NOT_STABLE'});
+  assert.equal(wheel().length,1);
 });
 
 async function routedFixture(t) {
