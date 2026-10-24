@@ -3,6 +3,10 @@ import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import { PresentationCompletion } from './presentation-completion.jsx';
 import { Bw as PresentationFrame, Lw as NativeVideo, Vw as writeVideoFrame, zw as closeVideoStream } from './rea/local-conversation-thread-6508b6dc26ad.js';
 
+// This component also mounts in the standalone presentation window, where
+// the main browser root has not initialized REA's button runtime.
+Shared.a5();
+
 const MAX_DECODE_RETRIES = 4;
 
 /** The existing REA close asset and monitor control style, bound to this exact frame. */
