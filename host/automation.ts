@@ -273,16 +273,17 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
       }
       if (operation === 'verifyElement') return await verifyElement()
       if (operation === 'navigationState') {
+        const cursor = (): {downloadIds?: string[]} => args.downloadCursor === true ? {downloadIds:openCUDownloadIds(guest.id)} : {}
         let result
         try { result = value(await send('Runtime.evaluate', {expression:'({url:location.href,readyState:document.readyState})',returnByValue:true})) }
         catch (error) {
           signal.throwIfAborted()
           if (current.documentGeneration !== documentGeneration || /Cannot find context|Execution context was destroyed|Inspected target navigated/u.test((error as Error).message))
-            return {url:guest.getURL(),documentId:String(current.documentGeneration),readyState:'loading',webContentsId:guest.id}
+            return {url:guest.getURL(),documentId:String(current.documentGeneration),readyState:'loading',webContentsId:guest.id,...cursor()}
           throw error
         }
-        if (current.documentGeneration !== documentGeneration) return {url:guest.getURL(),documentId:String(current.documentGeneration),readyState:'loading',webContentsId:guest.id}
-        return {...result,documentId:String(current.documentGeneration),webContentsId:guest.id,downloadIds:openCUDownloadIds(guest.id)}
+        if (current.documentGeneration !== documentGeneration) return {url:guest.getURL(),documentId:String(current.documentGeneration),readyState:'loading',webContentsId:guest.id,...cursor()}
+        return {...result,documentId:String(current.documentGeneration),webContentsId:guest.id,...cursor()}
       }
       if (operation === 'pageState') return value(await send('Runtime.evaluate', { expression:
         '({ documentId: globalThis.__opencuDocument?.id, url: location.href, width: innerWidth, height: innerHeight, scrollX, scrollY, focused: document.hasFocus() })', returnByValue: true }))

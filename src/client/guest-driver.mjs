@@ -189,7 +189,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       const down = async button => { buttons.add(button); await step(() => sendInput({ type: 'mouseDown', ...position, button, clickCount: 1 })); };
       const up = async button => { await step(() => sendInput({ type: 'mouseUp', ...position, button, clickCount: 1 })); buttons.delete(button); };
       switch (args.action) {
-        case 'navigationState': return {action:args.action,value:await step(() => evaluate('navigationState'))};
+        case 'navigationState': return {action:args.action,value:await step(() => evaluate('navigationState',{downloadCursor:args.downloadCursor === true}))};
         case 'domSnapshot': return {action: args.action, ...await step(() => evaluate('domSnapshot', {locator:args.locator ?? [], args: args.args ?? {}}))};
         case 'locator': {
           const result = await step(() => evaluate('locator', args));

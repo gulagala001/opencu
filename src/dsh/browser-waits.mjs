@@ -89,9 +89,14 @@ export function createBrowserWaits(context) {
         // Start this cursor read synchronously, before a following click can be
         // queued. Durable records retain even downloads completed between polls.
         const startedAt = Date.now();
-        const baselineWork = context.downloads(false), scopeWork = context.state();
+        const baselineWork = context.downloads(false), scopeWork = context.state({downloadCursor:true});
         const [baseline,scope] = await Promise.all([baselineWork,scopeWork]);
-        const seen = new Set([...baseline.map(item => item.id),...(scope.downloadIds ?? [])]);
+        // History projection can finish after a queued click. Only the
+        // target-owner cursor is a pre-action snapshot; a later history result
+        // must not classify newly completed downloads as historical IDs.
+        if (!Array.isArray(scope.downloadIds) || scope.downloadIds.some(id => typeof id !== 'string'))
+          throw failure('UNSUPPORTED_ACTION','This browser adapter cannot establish a target-owned download cursor. Update the matching adapter; do not repeat a dispatched download trigger.',{inputDispatched:false});
+        const seen = new Set([...baseline.filter(item => (item.startedAtMs ?? Date.parse(item.createdAt)) < startedAt).map(item => item.id),...scope.downloadIds]);
         control.check();
         let selected;
         for (;;) {

@@ -217,8 +217,8 @@ export function createComputerRepl(request, report = () => {}) {
     const navigation = createBrowserWaits({
       supported: () => target.backend === 'browser' && target.provider !== 'extension' && !String(target.browserId).startsWith('extension:'),
       track: trackWait,
-      state: async () => {
-        const value = (await act('navigationState')).result?.value;
+      state: async options => {
+        const value = (await act('navigationState',options)).result?.value;
         if (!value || typeof value.url !== 'string' || typeof value.documentId !== 'string' || !['loading','interactive','complete'].includes(value.readyState))
           throw Object.assign(new Error('The browser returned invalid navigation state'),{code:'INVALID_NAVIGATION_STATE'});
         return value;
