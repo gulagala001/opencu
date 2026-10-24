@@ -120,7 +120,7 @@ export function createBrowserTransport(client, desktop) {
       const guestId = crypto.randomUUID();
       let target = { id: `dsh:${rendererId}:${guestId}`, identity: { rendererId, guestId, sessionId, tabId },
         sessionId, sidebarTabId: tabId, backend: 'browser', provider: 'dsh', kind: 'tab', browserId: `dsh:${rendererId}`,
-        capabilities: ['ax', 'screenshot', 'navigation', 'tabs', 'focus', 'mouse', 'keyboard', 'uploads', 'downloads', 'hitTest', 'getDOM', 'designTweak'] };
+        capabilities: ['ax', 'screenshot', 'navigation', 'navigationWaits', 'tabs', 'focus', 'mouse', 'keyboard', 'uploads', 'downloads', 'downloadEvents', 'hitTest', 'getDOM', 'designTweak'] };
       const guest = { element: { isConnected: true }, target, ready: false, focus: () => request('focus'), driver: {
         metadata: () => target, release: options => request('release', options), preview: () => request('preview'),
         observe: options => request('observe', options), act: action => request('act', action),
@@ -213,7 +213,7 @@ export function createBrowserTransport(client, desktop) {
       const guestId = crypto.randomUUID();
       const target = { id: `dsh:${rendererId}:${guestId}`, identity: { rendererId, guestId, sessionId, tabId },
         sessionId, sidebarTabId: tabId, backend: 'browser', provider: 'dsh', kind: 'tab', browserId: `dsh:${rendererId}`,
-        capabilities: ['ax', 'screenshot', 'navigation', 'tabs', 'focus', 'mouse', 'keyboard', 'uploads', 'downloads', 'hitTest', 'getDOM', 'designTweak'] };
+        capabilities: ['ax', 'screenshot', 'navigation', 'navigationWaits', 'tabs', 'focus', 'mouse', 'keyboard', 'uploads', 'downloads', 'downloadEvents', 'hitTest', 'getDOM', 'designTweak'] };
       const guest = { element, target, focus, ready: false, driver: createGuestDriver(element, target, publish, focus, cursor, capture, automate) };
       guests.set(guestId, guest);
       const update = () => { guest.ready = true; void publish(); };

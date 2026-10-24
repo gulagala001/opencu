@@ -193,6 +193,21 @@ export async function actOnPage(record, request, options) {
   };
   const invalidate = () => { record.elements.clear(); record.screenshot = undefined; };
   switch (request.action) {
+    case 'navigationState': {
+      const generation = record.documentGeneration;
+      let result;
+      try { result = await step(() => record.session.send('Runtime.evaluate', {
+        expression:'({url:location.href,readyState:document.readyState})',returnByValue:true,
+      })); }
+      catch (error) {
+        check();
+        if (generation !== record.documentGeneration || /Cannot find context|Execution context was destroyed|Inspected target navigated/u.test(error.message))
+          return {action:request.action,value:{url:page.url(),documentId:String(record.documentGeneration),readyState:'loading'}};
+        throw error;
+      }
+      if (generation !== record.documentGeneration) return {action:request.action,value:{url:page.url(),documentId:String(record.documentGeneration),readyState:'loading'}};
+      return {action:request.action,value:{...result.result.value,documentId:String(generation)}};
+    }
     case 'domSnapshot': {
       const generation = record.documentGeneration;
       const result = await step(() => runCDPLocator(frameSend, {operation: 'domSnapshot', locator:request.locator ?? [], args: request.args ?? {}}, () => {}, frameRouter));

@@ -300,7 +300,7 @@ export async function createBrowserBackend(options = {}) {
     return {
       id: record.id, backend: 'browser', kind: 'tab', browserId,
       title: targetInfo.title, url: targetInfo.url, identity: record.identity,
-      capabilities: ['ax', 'screenshot', 'navigation', 'tabs', 'focus', 'mouse', 'keyboard', 'uploads', 'downloads', 'hitTest', 'getDOM', 'designTweak', 'dialogs'],
+      capabilities: ['ax', 'screenshot', 'navigation', 'navigationWaits', 'tabs', 'focus', 'mouse', 'keyboard', 'uploads', 'downloads', 'downloadEvents', 'hitTest', 'getDOM', 'designTweak', 'dialogs'],
     };
   }
   async function recordFor(target) {

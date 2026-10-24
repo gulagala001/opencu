@@ -42,6 +42,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     const writing = ['input', 'insertText', 'focus', 'selectAll', 'selectOption', 'upload', 'selectText', 'paste'].includes(operation);
     try {const result = await automate(operation, args); if (writing) inputSequence++; return result;}
     catch (error) {
+      if (operation === 'navigationState' && /Unsupported guest automation operation/u.test(error.message)) throw Object.assign(new Error('This DSH host lacks navigation waits and download attribution; build the matching OpenCU host adapter'),{code:'UNSUPPORTED_ACTION',details:{inputDispatched:false}});
       if (['selectText','paste'].includes(operation) && /Unsupported guest automation operation/u.test(error.message)) throw Object.assign(new Error('This DSH host lacks text selection and source paste; build the matching OpenCU host adapter'),{code:'UNSUPPORTED_ACTION',details:{inputDispatched:false}});
       if (writing && error.details?.inputDispatched !== false) {inputSequence++; error.details = {...error.details,inputDispatched:true};}
       if (['locator', 'domSnapshot'].includes(operation) && /Unsupported guest automation operation/u.test(error.message)) fail('UNSUPPORTED_LOCATOR', 'This DSH host lacks locator and DOM snapshot automation; build the matching OpenCU host adapter');
@@ -188,6 +189,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       const down = async button => { buttons.add(button); await step(() => sendInput({ type: 'mouseDown', ...position, button, clickCount: 1 })); };
       const up = async button => { await step(() => sendInput({ type: 'mouseUp', ...position, button, clickCount: 1 })); buttons.delete(button); };
       switch (args.action) {
+        case 'navigationState': return {action:args.action,value:await step(() => evaluate('navigationState'))};
         case 'domSnapshot': return {action: args.action, ...await step(() => evaluate('domSnapshot', {locator:args.locator ?? [], args: args.args ?? {}}))};
         case 'locator': {
           const result = await step(() => evaluate('locator', args));
