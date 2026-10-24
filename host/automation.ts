@@ -266,7 +266,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
         }
         const captured = await captureAXTree(send, frameRouter(), live)
         const elements = new Map(current.elements)
-        for (const {node, route, key} of captured.nodes) if (node.backendDOMNodeId) elements.set(`${current.identityScope}:${key}`, {backendNodeId:node.backendDOMNodeId, route})
+        for (const {node, route, key} of captured.nodes) if (node.backendDOMNodeId) elements.set(`${current.identityScope}:${key}`, {backendNodeId:node.backendDOMNodeId, ...(route ? {route} : {})})
         await captured.validate()
         live()
         current.elements = elements
@@ -284,7 +284,9 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
           throw error
         }
         if (current.documentGeneration !== documentGeneration) return {url:guest.getURL(),documentId:String(current.documentGeneration),readyState:'loading',webContentsId:guest.id,...cursor()}
-        return {...result,documentId:String(current.documentGeneration),webContentsId:guest.id,...cursor()}
+        if (!result || typeof result !== 'object' || !('url' in result) || typeof result.url !== 'string'
+          || !('readyState' in result) || typeof result.readyState !== 'string') throw new Error('Invalid browser navigation state')
+        return {url:result.url,readyState:result.readyState,documentId:String(current.documentGeneration),webContentsId:guest.id,...cursor()}
       }
       if (operation === 'pageState') return value(await send('Runtime.evaluate', { expression:
         '({ documentId: globalThis.__opencuDocument?.id, url: location.href, width: innerWidth, height: innerHeight, scrollX, scrollY, focused: document.hasFocus() })', returnByValue: true }))
@@ -308,7 +310,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
         }
         const elementSend = (method:string,params:object={}):Promise<any> => context.guard(() => context.fence.guard(() => (entry?.route?.send ?? send)(method,params)))
         return await runTextEdit(elementSend,operation,args,{
-          backendNodeId:entry?.backendNodeId,contextId:entry?.route?.contextId,validate,
+          ...(entry ? {backendNodeId:entry.backendNodeId} : {}),...(entry?.route ? {contextId:entry.route.contextId} : {}),validate,
           onFocus:()=>{signal.throwIfAborted();context.inputDispatched=true;current.inputActive=true},
           beforeFocus:async()=>{
             await guest.hostWebContents?.executeJavaScript(`(() => { const view=[...document.querySelectorAll('webview')].find(item=>item.getWebContentsId()===${guest.id});if(!view)throw new Error('Browser input guest is detached');if(document.activeElement===view)view.blur();view.focus(); })()`)
@@ -441,7 +443,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
         const elements = new Map<string, FrameElement>()
         const nodes = captured.nodes.map(({node,route,key}) => {
           const elementId = node.backendDOMNodeId ? `${current.identityScope}:${key}` : undefined
-          if (elementId && node.backendDOMNodeId) elements.set(elementId, {backendNodeId:node.backendDOMNodeId,route})
+          if (elementId && node.backendDOMNodeId) elements.set(elementId, {backendNodeId:node.backendDOMNodeId,...(route ? {route} : {})})
           return { ...(elementId ? { elementId } : {}), nodeId: node.nodeId, role: node.role?.value ?? '', name: node.name?.value ?? '',
             ...(node.value ? { value: node.value.value } : {}), children: node.childIds ?? [],
             properties: Object.fromEntries((node.properties ?? []).map(item => [item.name, item.value.value ?? item.value.relatedNodes?.map(related => related.text ?? related.idref) ?? null])) }

@@ -16,7 +16,7 @@ export async function checkDesktopBuild(directory) {
   const client = (await readFile(new URL('../src/client/host-compat.mjs', import.meta.url), 'utf8'))
     .replace("import { unwrapOpenCU } from './ipc-result.mjs';", unwrap)
     .replace("import build from './host-target.mjs';", `const build = ${JSON.stringify({ version })};`)
-    .replace('export function desktopBrowserHost()', 'function desktopBrowserHost()');
+    .replace(/^export (?=(?:class|function|const)\b)/gm, '');
   for (const name of ['preload-app', 'preload-opencu-surface']) {
     const preload = await readFile(join(root, 'lib', name + '.cjs'), 'utf8');
     const ast = parse(preload, { ecmaVersion: 'latest', sourceType: 'script' });

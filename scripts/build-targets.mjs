@@ -27,7 +27,7 @@ const frontendInputs = await installFrontendInputs(frontend, manifest);
 run(frontend, [pnpm, 'install', '--frozen-lockfile', '--ignore-scripts']);
 await checkFrozenInputs(frontend, frontendInputs.files, ['package.json', 'pnpm-lock.yaml']);
 await access(join(frontend, 'node_modules/react-compiler-runtime'));
-for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ['rc1', '021rc2']) {
+for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ['rc1', '021rc2', '021rc3']) {
   const target = hostTargets[id];
   if (!target) throw new Error(`Unknown target ${id}`);
   const output = join(packageRoot, id);
