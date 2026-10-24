@@ -9,7 +9,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
   const keys = new Set(), buttons = new Set(), pending = new Set();
   let inputSequence = 0, position = { x: 0, y: 0 }, lastObservation, generation = 0, moveSequence = 0, cancelNavigation;
   let exited = false;
-  const rendererExited = () => exited || element.isCrashed?.() === true;
+  const rendererExited = () => { if (exited) return true; try { return element.isCrashed?.() === true; } catch { return false; } };
   const live = () => { if (rendererExited()) fail('BROWSER_GUEST_CRASHED', 'The browser page process exited; reload the page before observing or sending input'); };
   const invalidate = () => { exited = true; generation++; lastObservation = null; keys.clear(); buttons.clear(); cancelNavigation?.(); };
   element.addEventListener('render-process-gone', invalidate);
@@ -50,6 +50,15 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     }
   };
   const metadata = () => ({ ...target, url: element.getURL(), title: element.getTitle() });
+  const closedRelease = async () => {
+    const receipt = await evaluate('closedState');
+    if (receipt?.closed !== true) return null;
+    if (!inputReleased(receipt) || receipt.retired !== true) fail('RELEASE_FAILED', 'The destroyed guest has not acknowledged input release');
+    generation++; capture.cancel?.(); lastObservation = null;
+    await Promise.allSettled([...pending]);
+    keys.clear(); buttons.clear();
+    return receipt;
+  };
   let dialogSupported;
   const assertNoDialog = async () => {
     if (dialogSupported === false) return;
@@ -108,9 +117,14 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     // The host owns the authoritative held-input journal and the synchronous dialog
     // callback. Resolve those before waiting for page JS or the client's pending work.
     if (!rendererExited()) {
-      const result = await evaluate('releaseInput', { dismissDialogs });
+      let result;
+      try { result = await evaluate('releaseInput', { dismissDialogs }); }
+      catch (error) { const closed = await closedRelease().catch(() => null); if (closed) return closed; throw error; }
       if (!inputReleased(result)) throw Object.assign(new Error('Host input release was not acknowledged'),{code:'RELEASE_FAILED',details:result});
       keys.clear(); buttons.clear();
+      if (result.closed === true && result.retired === true) {
+        await Promise.allSettled([...pending]); lastObservation = null; return result;
+      }
       if (result?.deferredFocus) return { released: true };
     }
     try { cancelNavigation?.(); } catch (error) { failures.push(error); }
@@ -144,7 +158,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     return { x: args.x, y: args.y };
   };
   return {
-    metadata, release,
+    metadata, release, closedRelease,
     async preview() {
       live();
       await assertNoDialog();
@@ -320,6 +334,10 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         ...(!keys.size && !buttons.size ? {release:{released:true}} : {}) };
       } catch (error) {
         error.details = {...error.details,inputDispatched:error.details?.inputDispatched === true || inputSequence !== inputStart};
+        if (error.details.inputDispatched) {
+          const closed = await closedRelease().catch(() => null);
+          if (closed) return {action:args.action,closedTargetId:target.id,inputDispatched:true,effectVerified:false,release:closed};
+        }
         if (error.details.inputDispatched === false) {
           for (const key of keys) if (!heldKeys.has(key)) keys.delete(key);
           for (const button of buttons) if (!heldButtons.has(button)) buttons.delete(button);

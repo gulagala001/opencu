@@ -16,20 +16,45 @@ export function createBrowserTransport(client, desktop) {
   const request = (method, args = {}, signal = aborter?.signal) => client.request(`browser/${method}`, { ...args, rendererId, connectionId }, signal);
   const quiesce = () => { closing = true; connectionEpoch++; resetPresentationImages(); aborter?.abort(); };
   async function releaseGuests(options) {
-    const results = await Promise.allSettled([...guests.values()].map(guest => guest.driver.release(options)));
+    const values=[...guests.values()],results = await Promise.allSettled(values.map(guest => guest.driver.release(options)));
+    results.forEach((result,index)=>{if(result.status==='fulfilled' && inputReleased(result.value) && result.value.retired===true)rememberClosed(values[index],result.value);});
     const failures = results.flatMap(result => result.status === 'rejected' ? [result.reason]
       : inputReleased(result.value) ? [] : [Object.assign(new Error('Sidebar guest input release was not acknowledged'), {details: result.value})]);
     if (failures.length) throw new AggregateError(failures, 'OpenCU sidebar cleanup failed');
     return {released: true};
   }
   const retired = new Map();
+  const closedReceipts = new Map();
+  function rememberClosed(guest,release) {
+    closedReceipts.set(guest.target.id,{identity:guest.target.identity,release});
+    if(closedReceipts.size>128)closedReceipts.delete(closedReceipts.keys().next().value);
+    retired.set(guest.target.id,guest.target);
+    if(guests.get(guest.target.identity.guestId)===guest)guests.delete(guest.target.identity.guestId);
+  }
+  const closingGuests = new WeakMap();
+  const retireClosed = guest => {
+    let work = closingGuests.get(guest);
+    if (!work) {
+      work = (async () => {
+        const release = await guest.driver.closedRelease?.();
+        if (!release || !inputReleased(release) || release.retired !== true) return false;
+        if (guests.get(guest.target.identity.guestId) !== guest) return false;
+        rememberClosed(guest,release);
+        void publish().catch(error => console.error('OpenCU closed guest publication',error));
+        return true;
+      })().finally(() => closingGuests.delete(guest));
+      closingGuests.set(guest,work);
+    }
+    return work;
+  };
   const publish = () => {
     if (closing) return Promise.resolve();
     const work = pendingPublish.then(async () => {
       const targets = [...guests.values()].flatMap(guest => {
-        if (!guest.ready || !guest.element.isConnected) return [];
+        if (!guest.ready) return [];
+        if (!guest.element.isConnected) { void retireClosed(guest).catch(() => {}); return []; }
         try { return [guest.driver.metadata()]; }
-        catch { return []; /* A detached Electron guest must not poison other live targets. */ }
+        catch { void retireClosed(guest).catch(() => {}); return []; /* Native closure still requires its exact host receipt. */ }
       });
       const retiredTargets = [...retired.values()];
       await request('publish', { targets, retiredTargets });
@@ -72,6 +97,11 @@ export function createBrowserTransport(client, desktop) {
       } else if (command.method === 'release') {
         const target = command.params.target;
         const values = target ? [guests.get(target.identity?.guestId)].filter(Boolean) : [...guests.values()];
+        const closed=target&&closedReceipts.get(target.id);
+        if(closed&&!sameIdentity(closed.identity,target.identity))throw Object.assign(new Error('Release refers to another retired sidebar occurrence'),{code:'TARGET_IDENTITY_CHANGED'});
+        if(target && !values.length && closed && sameIdentity(closed.identity,target.identity)) {
+          await deliver({id:command.id,result:closed.release});return;
+        }
         if (target && !values.length) throw new Error('The cancelled sidebar guest is no longer available');
         if (target && values.some(guest => guest.target.id !== target.id || !sameIdentity(guest.target.identity,target.identity)))
           throw Object.assign(new Error('Release refers to another sidebar occurrence'),{code:'TARGET_IDENTITY_CHANGED'});
@@ -79,7 +109,8 @@ export function createBrowserTransport(client, desktop) {
         const failures = releases.flatMap(value => value.status === 'rejected'
           ? [{message: value.reason.message, code: value.reason.code, details: value.reason.details}]
           : inputReleased(value.value) ? [] : [value.value]);
-        result = {released: failures.length === 0, failures};
+        releases.forEach((release,index)=>{if(release.status==='fulfilled'&&inputReleased(release.value)&&release.value.retired===true)rememberClosed(values[index],release.value);});
+        result = {released: failures.length === 0, failures,...(target&&releases[0]?.status==='fulfilled'&&releases[0].value.retired===true?{retired:true}:{})};
       } else {
         const guest = guests.get(command.params.target?.identity?.guestId);
         if (!guest?.ready) throw Object.assign(new Error('The original sidebar guest is no longer available'), { code: 'TARGET_IDENTITY_CHANGED' });
@@ -103,7 +134,12 @@ export function createBrowserTransport(client, desktop) {
               if (!inputReleased(release)) throw Object.assign(new Error('Cannot close before input release is acknowledged'),{code:'RELEASE_FAILED'});
               await closeTab({ sessionId: target.sessionId, tabId: target.sidebarTabId });
               result = { action: 'closeTab', closedTargetId: target.id };
-            } else result = await guest.driver.act(command.params.action);
+            } else {
+              result = await guest.driver.act(command.params.action);
+              if (result?.closedTargetId === guest.target.id && inputReleased(result.release) && result.release.retired === true) {
+                rememberClosed(guest,result.release);void publish().catch(error=>console.error('OpenCU closed guest publication',error));
+              }
+            }
             break;
           default: throw new Error(`Unknown sidebar command ${command.method}`);
         }
@@ -219,9 +255,12 @@ export function createBrowserTransport(client, desktop) {
       const update = () => { guest.ready = true; void publish(); };
       const events = ['dom-ready', 'did-navigate', 'did-navigate-in-page', 'page-title-updated'];
       for (const event of events) element.addEventListener(event, update);
+      const closed = () => { void retireClosed(guest).catch(error => console.error('OpenCU closed guest release',error)); };
+      for (const event of ['close','destroyed']) element.addEventListener(event,closed);
       if (element.isConnected) { try { element.getURL(); update(); } catch { /* Electron has not attached the guest yet. */ } }
       return async () => {
         for (const event of events) element.removeEventListener(event, update);
+        for (const event of ['close','destroyed']) element.removeEventListener(event,closed);
         guest.ready = false;
         const result = await guest.driver.release();
         if (!inputReleased(result)) throw new Error('Sidebar guest input release was not acknowledged');
