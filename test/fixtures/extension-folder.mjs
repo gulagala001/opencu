@@ -5,10 +5,11 @@ import { transform } from 'esbuild';
 import { approvalFeedbackFixture } from './app-approval-feedback.mjs';
 
 const noop = () => {};
+const hostVersion = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')).engines.dsh;
 export const tick = () => new Promise(resolve => setImmediate(resolve));
 export function deferred() { return Promise.withResolvers(); }
 export function desktopBridge(files) {
-  return { openCU: { revision: 2, hostVersion: '0.2.1-rc.2', capabilities: ['artifactDocuments', 'tabCloseGuards', 'browserSurfaces', 'presentationSessions', 'presentationHitRegions', 'backgroundInput', 'structuredErrors', 'initialNavigation'] },
+  return { openCU: { revision: 2, hostVersion, capabilities: ['artifactDocuments', 'tabCloseGuards', 'browserSurfaces', 'presentationSessions', 'presentationHitRegions', 'backgroundInput', 'structuredErrors', 'initialNavigation'] },
     ...Object.fromEntries(['acquireOpenCU', 'release', 'onOpenRequested', 'downloads', 'permissions', 'automation', 'extensions', 'profile', 'presentation', 'files', 'onPresentationEvent', 'onExtensionEvent', 'surface', 'onSurfaceEvent'].map(name => [name, noop])), files };
 }
 // Production index, registry, HTTP client and compatibility probe are real.
