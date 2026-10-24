@@ -41,6 +41,7 @@ test('installation and read failures remain visible, reject input readiness and 
     } });
   await assert.rejects(monitor.ensure(), /native frame unavailable/); assert.equal(status.at(-1).available, false); assert.match(status.at(-1).error, /unavailable/);
   failInstall = false; await monitor.ensure(); assert.equal(status.at(-1).available, true);
+  const published = status.length; await monitor.ensure(); assert.equal(status.length, published, 'unchanged poll status must not redraw the REA host');
   failRead = true; await assert.rejects(monitor.ensure(), /native frame unavailable/); assert.equal(status.at(-1).available, false);
   failRead = false; await monitor.ensure(); assert.equal(status.at(-1).available, true); await monitor.dispose();
 });

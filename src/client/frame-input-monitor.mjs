@@ -2,9 +2,13 @@
 export function createFrameInputMonitoring({ invoke, userActivity, changed, interval = 250 }) {
   const owner = crypto.randomUUID();
   let epoch = 0, enabled = false, disposed = false, timer, flight, installed;
-  let queue = Promise.resolve();
+  let queue = Promise.resolve(), lastStatus;
   const enqueue = task => queue = queue.catch(() => {}).then(task);
-  const publish = value => changed({ userActivityMonitoring: value });
+  const publish = value => {
+    const serialized = JSON.stringify(value);
+    if (serialized === lastStatus) return;
+    lastStatus = serialized; changed({ userActivityMonitoring: value });
+  };
   const current = version => !disposed && enabled && epoch === version;
   function read(version) {
     if (flight?.epoch === version) return flight.promise;
