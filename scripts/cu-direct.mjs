@@ -19,6 +19,7 @@ import { serializeReplError } from '../src/dsh/repl-output.mjs';
 import { recordCall } from './cu-metrics.mjs';
 
 const failure = (code, message) => Object.assign(new Error(message), {code});
+const approvalControls = new Set(['appApprovals/pending', 'appApprovals/respond']);
 function explicitPath(value, name) {
   if (typeof value !== 'string' || !isAbsolute(value)) throw failure('ISOLATED_PATH_REQUIRED', `${name} must be an explicit absolute local path`);
   const path = resolve(value), home = homedir();
@@ -95,11 +96,15 @@ export async function createDirectSession({dataDir, outputDir, config = {}, metr
   for (const key of ['browser', 'native', 'extension', 'getConfig', 'dshBrowser']) if (key in config) throw failure('INVALID_CONFIG', `${key} is not a direct-session option`);
   if (config.browserOptions?.context || config.browserOptions?.playwright) throw failure('INVALID_CONFIG', 'Injected browser contexts/providers are not supported');
   if (metricsOutput) metricsOutput = explicitPath(metricsOutput, 'metricsOutput');
-  if (config.browserEnabled !== false) {
-    const asset = new URL('../lib/page-cursor.js', import.meta.url);
+  const assets = [
+    ...(config.browserEnabled !== false ? ['page-cursor.js'] : []),
+    ...(config.nativeEnabled === true && process.platform === 'darwin' ? ['cursor.html'] : []),
+  ];
+  for (const name of assets) {
+    const asset = new URL(`../lib/${name}`, import.meta.url);
     try { await readFile(asset); }
     catch (cause) {
-      throw Object.assign(failure('BUILD_REQUIRED', 'OpenCU browser assets are missing or unreadable. Run npm run build:client before creating a direct session.'),
+      throw Object.assign(failure('BUILD_REQUIRED', 'OpenCU runtime assets are missing or unreadable. Run npm run build:client before creating a direct session.'),
         {cause, details: {asset: asset.pathname, command: 'npm run build:client'}});
     }
   }
@@ -133,6 +138,11 @@ export async function createDirectSession({dataDir, outputDir, config = {}, metr
     return result;
   }
   function dispatch(endpoint, args, context = {}) {
+    if (approvalControls.has(endpoint) && args && typeof args === 'object' && !Array.isArray(args)) {
+      if (args.conversationId !== undefined && args.conversationId !== sessionKey)
+        throw failure('APP_SESSION_MISMATCH', 'Application approval controls are limited to this direct session');
+      args = {...args, conversationId: sessionKey};
+    }
     const work = runtime.request(endpoint, args, {attachments, sessionKey, ...context});
     pending.add(work); void work.finally(() => pending.delete(work)).catch(() => {}); return work;
   }
@@ -176,7 +186,8 @@ async function main(argv) {
   }
   if (options.config?.extensionEnabled === true) throw failure('INVALID_CONFIG', 'The stdio CLI does not enable a TCP extension listener');
   const session = await createDirectSession(options), lines = createInterface({input: process.stdin, crlfDelay: Infinity});
-  let tail = Promise.resolve(), shutdown;
+  let tail = Promise.resolve(), shutdown, generation = 0;
+  const controls = new Set();
   const send = value => process.stdout.write(`${JSON.stringify(value)}\n`);
   const stop = () => { lines.close(); shutdown ??= session.close(); void shutdown.catch(() => {}); };
   process.on('SIGINT', stop); process.on('SIGTERM', stop);
@@ -185,20 +196,29 @@ async function main(argv) {
       if (!line.trim()) continue;
       let input;
       try { input = JSON.parse(line); } catch (error) { send({ok: false, error: serializeReplError(error)}); continue; }
-      // reset/close are deliberately not queued behind an in-flight run.
+      // Only approval controls and cancellation may pass an in-flight run.
+      // Ordinary requests (including act) retain their serial input order.
+      const queuedGeneration = generation;
+      if (['reset', 'close'].includes(input?.method)) generation++;
+      const bypass = ['reset', 'close'].includes(input?.method)
+        || input?.method === 'request' && approvalControls.has(input?.endpoint);
       const operation = async () => {
         try {
           const {id, method = 'run', ...args} = input;
           if (!['run', 'request', 'reset', 'close', 'readImage'].includes(method)) throw failure('UNSUPPORTED_METHOD', 'Unknown direct-session operation');
+          if (!bypass && queuedGeneration !== generation) throw failure('SESSION_RESET', 'Queued direct-session operation was cancelled by reset or close');
           const result = method === 'run' ? await session.run(args) : method === 'request' ? await session.request(args.endpoint, args.args)
             : method === 'readImage' ? await session.readImage(args.image) : await session[method]();
           send({id, ok: true, result}); if (method === 'close') lines.close();
         } catch (error) { send({id: input?.id, ok: false, error: {...serializeReplError(error), ...(error?.metricsError ? {metricsError: error.metricsError} : {})}}); }
       };
-      if (['reset', 'close'].includes(input?.method)) await operation();
+      if (bypass) {
+        const work = operation(); controls.add(work);
+        void work.finally(() => controls.delete(work));
+      }
       else { const work = tail.then(operation); tail = work.catch(() => {}); }
     }
-    await tail;
+    await tail; await Promise.allSettled([...controls]);
   } finally { process.off('SIGINT', stop); process.off('SIGTERM', stop); await session.close(); }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
