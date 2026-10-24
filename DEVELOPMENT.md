@@ -2,11 +2,11 @@
 
 OpenCU 是 DSH 插件：新控制核心、浏览器／原生／扩展后端配合真实 REA 前端组件。AI 像使用其他工具一样调用电脑；页面、活动和监看自然呈现，没有单独的 CU 控制台。
 
-当前源码默认适配 DSH `0.2.1-rc.2`，当前发行版本为 `2.0.8-dsh.0.2.1-rc.2`；`0.2.1-rc.1` 使用独立 SDK 构建入口。只支持这两个宿主。
+源码默认适配 DSH `0.2.1-rc.3`。`rc1`、`021rc2`、`021rc3` 分别使用精确匹配的 SDK、冻结依赖锁与宿主适配器；每份包只用于自己的完整宿主版本。
 
 ## 加载
 
-各宿主分别精确匹配 SDK 与框架：DSH `0.2.1-rc.1`／`0.2.1-rc.2` 均使用 Cordis `4.0.5`／Schemastery `3.18.5`。插件包根入口和 `opencu/dsh` 均为 Cordis Host 插件，依赖宿主真实 `tools` 和 `attachments` 服务。不需要另开 OpenCU 服务，也不接受外部 origin/token。由 DSH profile 加载：
+各宿主分别精确匹配 SDK 与框架：DSH `0.2.1-rc.1`／`0.2.1-rc.2`／`0.2.1-rc.3` 均使用 Cordis `4.0.5`／Schemastery `3.18.5`。插件包根入口和 `opencu/dsh` 均为 Cordis Host 插件，依赖宿主真实 `tools` 和 `attachments` 服务。不需要另开 OpenCU 服务，也不接受外部 origin/token。由 DSH profile 加载：
 
 ```yaml
 - insert:

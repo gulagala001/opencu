@@ -283,7 +283,9 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
           throw error
         }
         if (current.documentGeneration !== documentGeneration) return {url:guest.getURL(),documentId:String(current.documentGeneration),readyState:'loading',webContentsId:guest.id,...cursor()}
-        return {...result,documentId:String(current.documentGeneration),webContentsId:guest.id,...cursor()}
+        if (!result || typeof result !== 'object' || !('url' in result) || typeof result.url !== 'string'
+          || !('readyState' in result) || typeof result.readyState !== 'string') throw new Error('Invalid browser navigation state')
+        return {url:result.url,readyState:result.readyState,documentId:String(current.documentGeneration),webContentsId:guest.id,...cursor()}
       }
       if (operation === 'pageState') return value(await send('Runtime.evaluate', { expression:
         '({ documentId: globalThis.__opencuDocument?.id, url: location.href, width: innerWidth, height: innerHeight, scrollX, scrollY, focused: document.hasFocus() })', returnByValue: true }))

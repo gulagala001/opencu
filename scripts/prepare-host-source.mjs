@@ -3,7 +3,7 @@ import { resolve, join } from 'node:path';
 import { loadBuildInputs } from './host-build-inputs.mjs';
 
 const [id, destination] = process.argv.slice(2);
-if (!id || !destination) throw new Error('Usage: node scripts/prepare-host-source.mjs <rc1|021rc2> <checkout-directory>');
+if (!id || !destination) throw new Error('Usage: node scripts/prepare-host-source.mjs <rc1|021rc2|021rc3> <checkout-directory>');
 const directory = resolve(destination);
 const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'));
 const { files, pkg } = await loadBuildInputs(id, manifest);

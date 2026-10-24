@@ -17,6 +17,14 @@
         "pnpm-lock.yaml": "98aa09fc8a2abd6789fe7b4c18dc12cec0094119d738a0a3f56a186ef1bd316e",
         "pnpm-workspace.yaml": "87d8bf565068239d69c43cfa18b8c74fb95779fddb431b51d0a779e77e70a4bd"
       }
+    },
+    "021rc3": {
+      "sha256": {
+        "package-lock.json": "98105fd4745b8ce5736e79c58c1b6fc318844b15e75dfc2533d7bcc3aad5362e",
+        "package.json": "8289c77ae3fb8f55ae3d1e898ffd63fd74483b72ba281caa1ddd256fd0037f3b",
+        "pnpm-lock.yaml": "931d4928357962392205df6cdf7111a53e51edd40d25dbb17a1fec2b379e71f5",
+        "pnpm-workspace.yaml": "d03ab3824fab4ed61caaa0ba358165c5ed40dd22113960444024cf2f43c6775d"
+      }
     }
   },
   "frontend": {
