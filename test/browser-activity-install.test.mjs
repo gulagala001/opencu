@@ -110,3 +110,29 @@ test('JavaScript exceptions propagate without retry and cleanup never installs a
   await monitor.dispose();
   assert.equal(f.evaluations().filter(call => call.expression.includes('function installMonitor')).length, 1);
 });
+
+test('standalone wheel uses the pointed frame and exact native deltas across focused and shadow targets',async()=>{
+  const {actOnPage}=await import('../src/browser/actions.mjs');
+  const f=protocol(),send=f.session.send.bind(f.session),listeners=new Map();let focusReads=0,retired=false;
+  const control={nodeType:1,tagName:'INPUT',type:'range',closest:()=>null},shadowHost={nodeType:1,tagName:'DIV'};
+  const context=createContext({crypto:webcrypto,performance,setTimeout,Date,target:control,document:{activeElement:null},
+    addEventListener:(name,listener)=>listeners.set(name,listener),removeEventListener:name=>listeners.delete(name)});
+  const root={frameId:'root',documentId:'root-doc',owners:[]};
+  const child={frameId:'child',documentId:'child-doc',contextId:2,owners:[{parent:root}],send:async(method,args={})=>{
+    if(method==='Runtime.releaseObject')return {};
+    if(method==='Runtime.evaluate')return {result:{value:runInContext(args.expression,context)}};
+    if(method==='Runtime.callFunctionOn'){context.args=args.arguments.map(arg=>arg.value);return {result:{value:runInContext(`(${args.functionDeclaration}).apply(target,args)`,context)}};}
+    throw Error(method);
+  }};
+  const router={validate:async()=>{if(retired)throw Object.assign(Error('frame detached'),{code:'FRAME_DETACHED'});},
+    atPoint:async()=>({route:child,backendNodeId:42}),focused:async()=>{focusReads++;return root;},remoteElement:async()=> 'input'};
+  f.session.send=(method,args)=>method==='Emulation.setFocusEmulationEnabled'?Promise.resolve({}):send(method,args);
+  const monitor=await createUserActivityMonitor(f.session,{frameRouter:router});
+  const wheel=()=>listeners.get('wheel')({type:'wheel',isTrusted:true,target:shadowHost,composedPath:()=>[control],clientX:4,clientY:5,deltaX:0,deltaY:75});
+  const record={session:f.session,page:{mouse:{wheel:async()=>wheel()}},pending:new Set(),keys:new Set(),buttons:new Set(),pointer:{x:30,y:40},frameRouter:router,documentGeneration:0};
+  await actOnPage(record,{action:'scroll',deltaY:75},{expectInput:events=>monitor.expect(events),finishInput:marker=>monitor.finish(marker)});
+  assert.equal(await monitor.read(),null);assert.equal(focusReads,0,'wheel must not consult keyboard focus');
+  wheel();const manual=await monitor.read();assert.equal(manual.kind,'wheel');assert.equal(manual.sequence,1);assert(manual.frameDocumentId);
+  retired=true;assert.equal((await monitor.read()).sequence,1,'retired frame activity cannot be replayed');
+  assert.equal((await monitor.read()).sequence,1);await monitor.dispose();
+});

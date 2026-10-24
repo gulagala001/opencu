@@ -31,13 +31,14 @@ export function watchGuestClosure(element, driver, closed, report) {
 
 export function createGuestDriver(element, target, changed, focus, cursor, capture = () => element.capturePage(), automate) {
   const keys = new Set(), buttons = new Set(), pending = new Set();
-  let inputSequence = 0, position = { x: 0, y: 0 }, lastObservation, generation = 0, moveSequence = 0, cancelNavigation;
+  let inputSequence = 0, position = { x: 0, y: 0 }, lastObservation, generation = 0, documentGeneration = 0, moveSequence = 0, cancelNavigation;
   let exited = false;
   const rendererExited = () => { if (exited) return true; try { return element.isCrashed?.() === true; } catch { return false; } };
   const live = () => { if (rendererExited()) fail('BROWSER_GUEST_CRASHED', 'The browser page process exited; reload the page before observing or sending input'); };
   const invalidate = () => { exited = true; generation++; lastObservation = null; keys.clear(); buttons.clear(); cancelNavigation?.(); };
   element.addEventListener('render-process-gone', invalidate);
   element.addEventListener('dom-ready', () => { exited = false; });
+  for(const event of ['did-navigate','did-navigate-in-page'])element.addEventListener(event,()=>{documentGeneration++;lastObservation=null;});
   const navigate = action => new Promise((resolve, reject) => {
     let settled = false;
     const finish = error => {
@@ -106,7 +107,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     const epoch = generation;
     let marker, submitted = false, dispatched = false, failure;
     try {
-      if (event.type === 'mouseDown') await expectInput([{ type: 'pointerdown', x: event.x, y: event.y }]);
+      if (['mouseDown','mouseMove','mouseUp'].includes(event.type)) marker=await expectInput([{type:({mouseDown:'pointerdown',mouseMove:'pointermove',mouseUp:'pointerup'})[event.type],x:event.x,y:event.y}]);
       else if (event.type === 'mouseWheel') marker = await expectInput([{ type: 'wheel', x: event.x, y: event.y, deltaX: event.deltaX ?? 0, deltaY: event.deltaY ?? 0 }], true);
       else if (event.type === 'keyDown') {
         const bits = [...keys].reduce((mask,key) => mask | ({Alt:1,Control:2,Meta:4,Shift:8}[key] ?? 0),0);
@@ -214,13 +215,18 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       }
       await assertNoDialog();
       if (!['navigate', 'reload', 'back', 'forward'].includes(args.action)) live();
-      const epoch = generation, screenshot = args.elementId == null && args.coordinateSpace?.includes('screenshot') ? lastObservation : null;
-      const sendInput = event => send({...event,keyboardEditable:args.keyboardEditable}, screenshot, args.elementId);
+      const epoch = generation, occurrence = documentGeneration;
+      const inputActionId=['click','doubleClick','move','mouseDown','scroll','drag','type','keyDown','press','paste','selectText','fill','selectOption'].includes(args.action) ? crypto.randomUUID() : undefined;
+      const inputDocumentId=inputActionId ? (await evaluate('navigationState')).documentId : undefined;
+      const check=()=>{if(epoch!==generation)fail('CONTROL_STOPPED','Input sequence was cancelled');if(inputActionId&&occurrence!==documentGeneration)fail('STALE_DOCUMENT','The document changed during input; observe again');};
+      check();
+      const screenshot = args.elementId == null && args.coordinateSpace?.includes('screenshot') ? lastObservation : null;
+      const sendInput = event => send({...event,keyboardEditable:args.keyboardEditable,inputDocumentId,inputActionId}, screenshot, args.elementId);
       const step = async work => {
-        if (epoch !== generation) fail('CONTROL_STOPPED', 'Input sequence was cancelled');
-        const task = Promise.resolve().then(() => { if (epoch !== generation) fail('CONTROL_STOPPED', 'Input sequence was cancelled'); return work(); });
+        check();
+        const task = Promise.resolve().then(() => {check();return work();});
         pending.add(task);
-        try { const result = await task; if (epoch !== generation) fail('CONTROL_STOPPED', 'Input sequence was cancelled'); return result; }
+        try { const result = await task;check();return result; }
         finally { pending.delete(task); }
       };
       const move = async (value, animateMovement = true, resolved = false) => {
@@ -265,7 +271,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
           for (const key of click.keys) { keys.add(key); await step(() => sendInput({ type:'keyDown', keyCode:key })); }
           for (let clickCount = 1; clickCount <= click.count; clickCount++) {
             buttons.add(button); await step(() => sendInput({ type: 'mouseDown', ...position, button, clickCount }));
-            await step(() => holdClick(click.durationMs, () => {if (epoch !== generation) fail('CONTROL_STOPPED','Input sequence was cancelled');}));
+            await step(() => holdClick(click.durationMs, check));
             await step(() => sendInput({ type: 'mouseUp', ...position, button, clickCount })); buttons.delete(button);
           }
           for (const key of [...click.keys].reverse()) { await step(() => sendInput({type:'keyUp',keyCode:key})); keys.delete(key); }
@@ -288,7 +294,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
           const {points,intervalMs}=dragPath(waypoints,args.durationMs);
           await move(points[0],true,true); await down(button);
           for (const value of points.slice(1)) {
-            await step(() => holdClick(intervalMs,() => {if (epoch !== generation) fail('CONTROL_STOPPED','Input sequence was cancelled');}));
+            await step(() => holdClick(intervalMs,check));
             await move(value,false,true);
           }
           await up(button); break;
@@ -310,7 +316,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
             try { await step(() => sendInput({ type:'keyDown',keyCode:key })); }
             catch (error) { if (error.details?.inputDispatched === false) keys.delete(key); throw error; }
           }
-          await step(() => holdClick(durationMs, () => {if (epoch !== generation) fail('CONTROL_STOPPED','Input sequence was cancelled');}));
+          await step(() => holdClick(durationMs, check));
           for (const key of [...chord].reverse()) { await step(() => sendInput({ type: 'keyUp', keyCode: key })); keys.delete(key); }
           break;
         }

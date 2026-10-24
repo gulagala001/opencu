@@ -51,11 +51,11 @@ function installMonitor() {
     if (control?.isConnected === false || control?.matches?.(':disabled')) return;
     return control?.tagName === 'SELECT' || control?.tagName === 'INPUT' && ['range','number','date','datetime-local','month','time','week','color'].includes(control.type) ? control : undefined;
   };
-  const pointerDefault = (event,target) => {
+  const pointerDefault = (event,target,input) => {
     if (event.type === 'pointerdown') pointerControl=event.button === 0 ? {target:pointerTarget(target),pointerId:event.pointerId} : undefined;
     const control=pointerControl && pointerControl.pointerId === event.pointerId ? pointerControl.target : undefined;
     if (control && (event.type === 'pointerdown' || event.type === 'pointerup' || event.buttons & 1)) {
-      const effect=pointerEffect={target:control,input:true,change:true};
+      const effect=pointerEffect={target:control,id:input.id,markerId:input.markerId,input:true,change:true};
       setTimeout(()=>{if(pointerEffect===effect)pointerEffect=undefined;},0);
     }
     if (event.type === 'pointerup') pointerControl=undefined;
@@ -68,7 +68,8 @@ function installMonitor() {
     (item.target === undefined || item.target === (event.composedPath?.()[0] ?? event.target)) &&
     (item.key === undefined || item.key === event.key || item.key === event.code) &&
     (item.type !== 'input' || item.inputTypes === undefined || item.inputTypes.includes(event.inputType ?? null)) &&
-    (item.x === undefined || Math.abs(item.x - event.clientX) <= 2 && Math.abs(item.y - event.clientY) <= 2);
+    (item.x === undefined || Math.abs(item.x - event.clientX) <= 2 && Math.abs(item.y - event.clientY) <= 2) &&
+    (item.deltaY === undefined || Math.abs(item.deltaX-event.deltaX)<1 && Math.abs(item.deltaY-event.deltaY)<1);
   for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'keydown', 'beforeinput', 'input', 'change', 'wheel', 'click']) {
     const listener = event => {
       if (!event.isTrusted) return;
@@ -96,7 +97,7 @@ function installMonitor() {
       const index = expected.findIndex(item => matches(item, event));
       if (index >= 0) {
         const [input] = expected.splice(index, 1);
-        if (['pointerdown','pointermove','pointerup'].includes(event.type)) pointerDefault(event,target);
+        if (['pointerdown','pointermove','pointerup'].includes(event.type)) pointerDefault(event,target,input);
         if (event.type === 'keydown') {
           const editor = textInputTarget();
           const native = keyboardControlInput(editor,event,input.inputTypes);
@@ -143,6 +144,7 @@ function installMonitor() {
     },
     finish(marker) {
       if (marker?.documentId !== documentId) return;
+      if (pointerEffect?.id === marker.id) pointerEffect=undefined;
       if (textInput?.id === marker.id) textInput = undefined;
       for (let i = expected.length - 1; i >= 0; i--) if (expected[i].id === marker.id && !(marker.pointerDown && expected[i].type === 'click')) expected.splice(i, 1);
     },
@@ -173,9 +175,9 @@ export async function createUserActivityMonitor(session, {onAcquire, frameRouter
     if (current === null) return run(`${source};${expression}`);
     return current?.value;
   }
-  const routes=new Map(),seen=new Map();
+  const routes=new Map(),seen=new Map(),routeDocuments=new Map();
   let pointerRoute,sequence=0,activity,rootDocument;
-  const stale=error=>['FRAME_DETACHED','STALE_ELEMENT','STALE_DOCUMENT'].includes(error.code);
+  const stale=error=>['FRAME_DETACHED','STALE_ELEMENT','STALE_DOCUMENT','STALE_OBSERVATION'].includes(error.code) || /Cannot find context|Execution context was destroyed|No session with given id|Session with given id not found|Session closed|Target closed|No frame with given id/iu.test(error.message);
   const routed=async(route,expression,install=true)=>{
     await frameRouter.validate(route);
     const response=await route.send('Runtime.evaluate',{contextId:route.contextId,expression:install ? `${source};${expression}` : expression,returnByValue:true});
@@ -183,6 +185,8 @@ export async function createUserActivityMonitor(session, {onAcquire, frameRouter
     routes.set(route.frameId,route);
     return response.result.value;
   };
+  const forgetRoute=route=>{routes.delete(route.frameId);const documentId=routeDocuments.get(route.frameId);if(documentId)seen.delete(documentId);routeDocuments.delete(route.frameId);if(pointerRoute===route)pointerRoute=undefined;};
+  const rememberDocument=(route,documentId)=>{const previous=routeDocuments.get(route.frameId);if(previous&&previous!==documentId)seen.delete(previous);routeDocuments.set(route.frameId,documentId);};
   const inFrame=route=>route?.owners?.length>0;
   const markerFor=async(route,events,node)=>{
     if(!inFrame(route))return {marker:await evaluate(`globalThis.opencuActivity.expect(${JSON.stringify(events)})`)};
@@ -196,6 +200,7 @@ export async function createUserActivityMonitor(session, {onAcquire, frameRouter
         marker=response.result.value;
       }finally{await route.send('Runtime.releaseObject',{objectId}).catch(()=>{});}
     }else marker=await routed(route,`globalThis.opencuActivity.expect(${JSON.stringify(events.map(({x,y,...event})=>event))})`);
+    if(marker?.documentId)rememberDocument(route,marker.documentId);
     return {route,marker};
   };
   let scriptRemoved = false, disposed = false, disposing;
@@ -204,8 +209,10 @@ export async function createUserActivityMonitor(session, {onAcquire, frameRouter
       const root=await evaluate('({documentId:globalThis.opencuActivity.documentId,activity:globalThis.opencuActivity.read()})');
       if(rootDocument!==root.documentId){rootDocument=root.documentId;sequence=0;activity=undefined;seen.clear();pointerRoute=undefined;}
       const rows=[root.activity];
-      for(const route of [...routes.values()])try{rows.push(await routed(route,'globalThis.opencuActivity.read()'));}
-      catch(error){if(!stale(error))throw error;routes.delete(route.frameId);if(pointerRoute===route)pointerRoute=undefined;}
+      for(const route of [...routes.values()])try{
+        const state=await routed(route,'({documentId:globalThis.opencuActivity.documentId,activity:globalThis.opencuActivity.read()})');
+        rememberDocument(route,state.documentId);rows.push(state.activity);
+      }catch(error){if(!stale(error))throw error;forgetRoute(route);}
       for(const current of rows)if(current && (seen.get(current.documentId)??0)<current.sequence){
         sequence+=current.sequence-(seen.get(current.documentId)??0);seen.set(current.documentId,current.sequence);
         if(!activity || current.at>=activity.at)activity={...current,frameDocumentId:current.documentId};
@@ -215,13 +222,16 @@ export async function createUserActivityMonitor(session, {onAcquire, frameRouter
     async expect(events){
       if(!events.length)return;
       if(!frameRouter)return {markers:[await markerFor(undefined,events)]};
-      const event=events[0],pointer=event.type.startsWith('pointer'),point=Number.isFinite(event.x)&&Number.isFinite(event.y);
-      const hit=pointer&&point ? await frameRouter.atPoint(event) : undefined;
+      const event=events[0],pointer=event.type.startsWith('pointer'),atPointer=pointer||event.type==='wheel',point=Number.isFinite(event.x)&&Number.isFinite(event.y);
+      const hit=atPointer&&point ? await frameRouter.atPoint(event) : undefined;
       const route=hit?.route ?? await frameRouter.focused();
       const previous=pointerRoute;
       if(event.type==='pointerdown')pointerRoute=route;
-      const markers=[await markerFor(route,events,event.type==='pointerdown'?hit?.backendNodeId:undefined)];
-      if(pointer && event.type!=='pointerdown' && previous && (previous.frameId!==route.frameId || previous.documentId!==route.documentId)) markers.push(await markerFor(previous,events));
+      const markers=[await markerFor(route,events,['pointerdown','wheel'].includes(event.type)?hit?.backendNodeId:undefined)];
+      if(pointer && event.type!=='pointerdown' && previous && (previous.frameId!==route.frameId || previous.documentId!==route.documentId)) {
+        try{markers.push(await markerFor(previous,events));}
+        catch(error){await monitor.finish({markers});throw error;}
+      }
       if(event.type==='pointerup')pointerRoute=undefined;
       return {markers};
     },
@@ -229,7 +239,7 @@ export async function createUserActivityMonitor(session, {onAcquire, frameRouter
       for(const {route,marker} of value?.markers??[])if(marker)try{
         if(route)await routed(route,`globalThis.opencuActivity.finish(${JSON.stringify(marker)})`);
         else await evaluate(`globalThis.opencuActivity.finish(${JSON.stringify(marker)})`);
-      }catch(error){if(!route||!stale(error))throw error;routes.delete(route.frameId);if(pointerRoute===route)pointerRoute=undefined;}
+      }catch(error){if(!route||!stale(error))throw error;forgetRoute(route);}
     },
     dispose() {
       if (disposed) return Promise.resolve();
@@ -241,13 +251,13 @@ export async function createUserActivityMonitor(session, {onAcquire, frameRouter
         await evaluate('globalThis.opencuActivity && globalThis.opencuActivity.dispose()', false);
         for(const route of [...routes.values()])try{await routed(route,'globalThis.opencuActivity && globalThis.opencuActivity.dispose()',false);}
         catch(error){if(!stale(error))throw error;}
-        routes.clear();seen.clear();pointerRoute=undefined;
+        routes.clear();seen.clear();routeDocuments.clear();pointerRoute=undefined;
         disposed = true;
       })().finally(() => { disposing = undefined; });
     },
   };
   // Registration must retain the cleanup handle before current-document setup can fail.
   onAcquire?.(monitor);
-  await evaluate(`${source};null`, false);
+  rootDocument=await evaluate(`${source};globalThis.opencuActivity.documentId`, false);
   return monitor;
 }

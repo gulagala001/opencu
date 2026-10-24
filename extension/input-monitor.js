@@ -1,6 +1,21 @@
 /** Exact trusted-input attribution shared by REA and native frame worlds. */
 export function createPageInputMonitor(enqueue) {
   const expected = [];
+  let pointerControl, pointerEffect;
+  const pointerTarget = target => {
+    const control=target?.closest?.('label')?.control ?? target?.closest?.('select') ?? target;
+    if (control?.isConnected === false || control?.matches?.(':disabled')) return;
+    return control?.tagName === 'SELECT' || control?.tagName === 'INPUT' && ['range','number','date','datetime-local','month','time','week','color'].includes(control.type) ? control : undefined;
+  };
+  const pointerDefault = (event,target,input) => {
+    if (event.type === 'pointerdown') pointerControl=event.button === 0 ? {target:pointerTarget(target),pointerId:event.pointerId} : undefined;
+    const control=pointerControl && pointerControl.pointerId === event.pointerId ? pointerControl.target : undefined;
+    if (control && (event.type === 'pointerdown' || event.type === 'pointerup' || event.buttons & 1)) {
+      const effect=pointerEffect={target:control,id:input.id,markerId:input.markerId,input:true,change:true};
+      setTimeout(()=>{if(pointerEffect===effect)pointerEffect=undefined;},0);
+    }
+    if (event.type === 'pointerup') pointerControl=undefined;
+  };
   const checkable = target => {
     const control = target?.closest?.('label')?.control ?? target;
     return control?.tagName === 'INPUT' && ['checkbox', 'radio'].includes(control.type) ? control : null;
@@ -53,6 +68,7 @@ export function createPageInputMonitor(enqueue) {
     if (!event.isTrusted) return;
     const now = performance.now(), target = event.composedPath?.()[0] ?? event.target;
     for (let i = expected.length - 1; i >= 0; i--) if (expected[i].until < now) expected.splice(i, 1);
+    if (['input','change'].includes(event.type) && pointerEffect && pointerEffect.target === pointerTarget(target) && pointerEffect[event.type] && (event.inputType == null || ['insertText','insertReplacementText'].includes(event.inputType))) {pointerEffect[event.type]=false;return;}
     if (event.type === 'beforeinput') {
       const input = expected.find(input => input.target === editTarget(target) && (
         input.textInput && input.inputType === event.inputType && input.data === event.data ||
@@ -82,6 +98,7 @@ export function createPageInputMonitor(enqueue) {
       (input.deltaY == null || Math.abs(input.deltaX - event.deltaX) < 1 && Math.abs(input.deltaY - event.deltaY) < 1));
     if (index !== -1) {
       const [input] = expected.splice(index, 1);
+      if (['pointerdown','pointermove','pointerup'].includes(event.type)) pointerDefault(event,target,input);
       if (event.type === 'keydown') {
         const editor = textInputTarget();
         const native = keyboardControlInput(editor,event,input.inputTypes);
@@ -104,7 +121,8 @@ export function createPageInputMonitor(enqueue) {
       }
       return;
     }
-    if (event.type === 'click') return;
+    if (['pointerdown','pointermove','pointerup','pointercancel','keydown','wheel'].includes(event.type)) {pointerControl=undefined;pointerEffect=undefined;}
+    if (['click','change','pointermove','pointerup','pointercancel'].includes(event.type)) return;
     if (event.type === 'pointerdown' || event.type === 'keydown') {
       for (let i = expected.length - 1; i >= 0; i--) if (expected[i].type === 'click') expected.splice(i, 1);
     }
@@ -112,7 +130,7 @@ export function createPageInputMonitor(enqueue) {
     lastActivity = now;
     enqueue({ type: 'opencu-user-activity', kind: event.type });
   };
-  const inputEvents = ['pointerdown', 'keydown', 'wheel', 'beforeinput', 'input', 'click'];
+  const inputEvents = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'keydown', 'wheel', 'beforeinput', 'input', 'change', 'click'];
   for (const type of inputEvents) window.addEventListener(type, activity, true);
   return {
     expectInput(events, pending = false) {
@@ -127,17 +145,18 @@ export function createPageInputMonitor(enqueue) {
       expected.push({type:'beforeinput',inputType:'insertText',data:text,target,textInput:true,id,until:performance.now()+1500});
       return id;
     },
-    clearInput() { expected.length = 0; textInput = undefined; },
+    clearInput() { expected.length = 0; textInput = undefined; pointerControl=undefined; pointerEffect=undefined; },
     finishInput(id, dispatched) {
+      if (pointerEffect?.id === id) pointerEffect=undefined;
       if (textInput?.id === id) textInput = undefined;
       for (let i = expected.length - 1; i >= 0; i--) if (expected[i].id === id) {
-        if (dispatched && !expected[i].textInput && !expected[i].keyboardInput && expected[i].type !== 'keydown') expected[i].until = performance.now() + 1500;
+        if (dispatched && !expected[i].textInput && !expected[i].keyboardInput && !['keydown','pointerdown','pointermove','pointerup'].includes(expected[i].type)) expected[i].until = performance.now() + 1500;
         else expected.splice(i, 1);
       }
     },
     dispose() {
       for (const type of inputEvents) window.removeEventListener(type, activity, true);
-      expected.length = 0; textInput = undefined;
+      expected.length = 0; textInput = undefined; pointerControl=undefined; pointerEffect=undefined;
     },
   };
 }

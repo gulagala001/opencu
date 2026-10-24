@@ -152,3 +152,24 @@ test('guest drag preflights later endpoints and uses sampled cursor updates',asy
   assert.equal(cursors[0].animateMovement,true);assert(cursors.slice(1).every(cursor=>cursor.animateMovement===false));
   assert(events.every(event=>event.modifiers.includes('shift')));assert.equal(events.at(-1).type,'mouseUp');
 });
+
+for(const action of ['drag','doubleClick','click'])test(`${action} stops its remaining native input after a CSS document occurrence changes`,async()=>{
+  const f=fixture();f.record.page.keyboard={down:async()=>{},up:async()=>{}};f.record.page.mouse.down=async()=>{f.events.push({type:'down'});f.record.documentGeneration++;};
+  await assert.rejects(actOnPage(f.record,{action,coordinateSpace:'css',x:10,y:10,key:action==='click'?'Shift':undefined,path:[{x:10,y:10},{x:180,y:40}]},f.options),{code:'STALE_DOCUMENT'});
+  assert.deepEqual(f.events.map(event=>event.type),['move','down']);assert.equal(f.record.buttons.has('left'),true);
+  f.record.page.keyboard={up:async()=>{}};assert.deepEqual(await releasePage(f.record,100),[]);assert.equal(f.events.at(-1).type,'up');
+});
+
+test('guest gesture occurrence remains fixed across RPCs and client navigation events',async()=>{
+  const {createGuestDriver}=await import('../src/client/guest-driver.mjs');
+  for(const action of ['drag','doubleClick']) {
+    const listeners=new Map(),events=[];let navigated=false;
+    const driver=createGuestDriver({addEventListener:(name,handler)=>listeners.set(name,handler),getURL:()=> 'https://fixture.test/',getTitle:()=> 'Fixture'}, {},()=>{},()=>{},()=>{},undefined,async(operation,args)=>{
+      if(operation==='navigationState')return {documentId:'3'};
+      if(operation==='input'){events.push(args);if(args.type==='mouseDown'&&!navigated){navigated=true;listeners.get('did-navigate')();}}
+      return {};
+    });
+    await assert.rejects(driver.act({action,coordinateSpace:'css',x:10,y:10,path:[{x:10,y:10},{x:180,y:40}]}),{code:'STALE_DOCUMENT'});
+    assert.deepEqual(events.map(event=>event.type),['mouseMove','mouseDown']);assert(events.every(event=>event.inputDocumentId==='3'&&event.inputActionId===events[0].inputActionId));
+  }
+});

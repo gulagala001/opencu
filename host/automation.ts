@@ -33,6 +33,8 @@ interface ObservationState {
   inputActive?: boolean
   inputKeys: Map<string, ReturnType<typeof inputKey>>
   inputButtons: Set<string>
+  pointerRoutes?: Map<string, FrameRoute>
+  inputOccurrence?: {id:string;routes:Map<string,FrameRoute>}
   releasingInputs: Map<string, Promise<unknown>>
   inputPosition: { x: number; y: number }
   uploadGeneration: number
@@ -111,7 +113,7 @@ export async function settleDestroyedOpenCUInput(guest: WebContents): Promise<{ 
   } finally { clearTimeout(timer) }
   // Native destruction has already ended the child sessions; close only their local journals.
   await current.frameRouter?.close().catch(() => undefined)
-  current.inputKeys.clear(); current.inputButtons.clear(); current.releasingInputs.clear()
+  current.inputKeys.clear(); current.inputButtons.clear(); current.pointerRoutes?.clear(); current.releasingInputs.clear()
   current.elements.clear(); current.elementIds.clear(); current.nodeIds.clear(); current.monitorRoutes.clear(); current.monitorScripts.clear(); current.monitorEvents.length = 0
   states.delete(guest)
   return { released: true, retired: true }
@@ -169,11 +171,11 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
       inputKeys: new Map(), inputButtons: new Set(), releasingInputs: new Map(), inputPosition: { x: 0, y: 0 } }
     states.set(guest, state)
     const tracked = state
-    const invalidate = (): void => { tracked.monitorEvents.length = 0; if(tracked.monitoringActive) tracked.monitorError = 'The new document has not completed frame input monitoring'; tracked.documentGeneration++; tracked.identityScope = randomUUID(); tracked.elements.clear(); tracked.elementIds.clear(); tracked.nodeIds.clear(); delete tracked.observationId; delete tracked.deferredAX }
+    const invalidate = (): void => { tracked.monitorEvents.length = 0; if(tracked.monitoringActive) tracked.monitorError = 'The new document has not completed frame input monitoring'; tracked.pointerRoutes?.clear(); delete tracked.inputOccurrence; tracked.documentGeneration++; tracked.identityScope = randomUUID(); tracked.elements.clear(); tracked.elementIds.clear(); tracked.nodeIds.clear(); delete tracked.observationId; delete tracked.deferredAX }
     guest.on('render-process-gone', () => {
       invalidate(); tracked.rendererExited = true; tracked.uploadGeneration++
       tracked.monitorRoutes.clear(); tracked.monitorScripts.clear(); tracked.monitorEvents.length = 0
-      tracked.inputKeys.clear(); tracked.inputButtons.clear(); tracked.releasingInputs.clear(); tracked.inputActive = false
+      tracked.inputKeys.clear(); tracked.inputButtons.clear(); tracked.pointerRoutes?.clear(); tracked.releasingInputs.clear(); tracked.inputActive = false
       const router = tracked.frameRouter; delete tracked.frameRouter
       void router?.close().catch(() => {}) // The exited process already owns no frame sessions.
     })
@@ -199,7 +201,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
   }
   if (current.rendererExited || guest.isCrashed()) {
     if (operation === 'releaseInput') {
-      current.inputKeys.clear(); current.inputButtons.clear(); current.inputActive = false
+      current.inputKeys.clear(); current.inputButtons.clear(); current.pointerRoutes?.clear(); current.inputActive = false
       return Promise.resolve({ released: true })
     }
     return Promise.reject(guestExited())
@@ -278,7 +280,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
           const forget = (): void => { if (current.releasingInputs.get(releaseId) === ack) current.releasingInputs.delete(releaseId) }
           void ack.then(() => {
             if (releasedKey) current.inputKeys.delete(releasedKey)
-            if (releasedButton) current.inputButtons.delete(releasedButton)
+            if (releasedButton) {current.inputButtons.delete(releasedButton);current.pointerRoutes?.delete(releasedButton)}
             forget()
           }, forget)
         }
@@ -520,6 +522,14 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
       if (operation === 'input' || operation === 'insertText') {
         current.inputActive = true
         const generation = current.documentGeneration
+        const checkOccurrence=async():Promise<void>=>{
+          if(args.inputDocumentId!==undefined && String(current.documentGeneration)!==args.inputDocumentId || args.inputActionId!==undefined && current.documentGeneration!==generation)throw Object.assign(new Error('The document changed during input; observe again'),{code:'STALE_DOCUMENT',details:{inputDispatched:false}})
+          if(typeof args.inputActionId==='string'){
+            if(current.inputOccurrence?.id!==args.inputActionId)current.inputOccurrence={id:args.inputActionId,routes:new Map()}
+            for(const route of current.inputOccurrence.routes.values())await frameRouter().validate(route)
+          }
+        }
+        await checkOccurrence()
         // Focus the embedding element, not its BrowserWindow. Chromium otherwise drops
         // keyboard/text CDP events in a nested guest even with focus emulation enabled.
         if (operation === 'insertText' || args.type === 'keyDown') {
@@ -551,6 +561,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
             const marker = down && current.monitoringActive ? await markInput(await frameRouter().focused(), [{type:'keydown',key:parameters.key,
               inputTypes:keyboardInputTypes(spec.code, modifiers, process.platform === 'darwin')}]) : undefined
             await dispatchMarked(marker, async () => {
+              await checkOccurrence()
               if (down) current.inputKeys.set(spec.key, spec)
               return send('Input.dispatchKeyEvent', parameters)
             })
@@ -572,18 +583,30 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
               wheel = scrollDeltas(scrollRequest,geometry)
             }
             signal.throwIfAborted()
-            let marker: { route: FrameRoute; id: string } | undefined
-            if (current.monitoringActive && ['mousePressed', 'mouseWheel'].includes(type)) {
+            let marker: { route: FrameRoute; id: string } | undefined, captureMarker: typeof marker, pointerRoute: FrameRoute | undefined
+            if (current.monitoringActive) {
               const hit = await frameRouter().atPoint(current.inputPosition)
-              marker = await markInput(hit.route, [{type:type === 'mousePressed' ? 'pointerdown' : 'wheel',
-                ...(type === 'mouseWheel' ? wheel : {})}], hit.backendNodeId, true)
+              const event = {type:({mousePressed:'pointerdown',mouseMoved:'pointermove',mouseReleased:'pointerup',mouseWheel:'wheel'})[type],
+                ...(type === 'mouseWheel' ? wheel : {})}
+              marker = await markInput(hit.route, [event], ['mousePressed','mouseWheel'].includes(type) ? hit.backendNodeId : undefined, true)
+              pointerRoute=hit.route
+              if(type==='mousePressed' && typeof args.inputActionId==='string')current.inputOccurrence?.routes.set(`${hit.route.frameId}:${hit.route.documentId}`,hit.route)
+              const origin=current.pointerRoutes?.get(String(args.button)) ?? [...(current.pointerRoutes?.values()??[])][0]
+              if (['mouseMoved','mouseReleased'].includes(type) && origin && (origin.frameId!==hit.route.frameId || origin.documentId!==hit.route.documentId)) {
+                try {captureMarker=await markInput(origin,[event],undefined,true)}
+                catch(error){await finishMarker(marker,false);throw error}
+              }
             }
-            await dispatchMarked(marker, async () => {
-              if (type === 'mousePressed') current.inputButtons.add(String(args.button))
+            await dispatchMarked(captureMarker, () => dispatchMarked(marker, async () => {
+              await checkOccurrence()
+              if (type === 'mousePressed') {
+                current.inputButtons.add(String(args.button))
+                if(pointerRoute)(current.pointerRoutes??=new Map()).set(String(args.button),pointerRoute)
+              }
               return send('Input.dispatchMouseEvent', { type, x: args.x, y: args.y, button: args.button ?? 'none', buttons: args.buttons ?? 0, clickCount: args.clickCount ?? 0, modifiers,
                 ...(type === 'mouseWheel' ? wheel : {}) })
-            })
-            if (type === 'mouseReleased') current.inputButtons.delete(String(args.button))
+            }))
+            if (type === 'mouseReleased') {current.inputButtons.delete(String(args.button));current.pointerRoutes?.delete(String(args.button))}
           }
         }
         return { dispatched: true, delivery: 'target-cdp', effectVerified: false }
@@ -593,7 +616,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
         const modifiers = [...current.inputKeys.keys()].reduce((bits, name) => bits | ({ Alt: 1, Control: 2, Meta: 4, Shift: 8 }[name] ?? 0), 0)
         for (const button of [...current.inputButtons]) {
           const buttons = [...current.inputButtons].filter(name => name !== button).reduce((bits, name) => bits | ({ left: 1, right: 2, middle: 4 }[name] ?? 0), 0)
-          try { await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...current.inputPosition, button, buttons, clickCount: 1, modifiers }); current.inputButtons.delete(button) }
+          try { await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...current.inputPosition, button, buttons, clickCount: 1, modifiers }); current.inputButtons.delete(button);current.pointerRoutes?.delete(button) }
           catch (error) { errors.push(error) }
         }
         // Failed mouse-up keeps its modifier journal intact for the next release.

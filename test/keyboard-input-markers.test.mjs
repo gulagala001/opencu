@@ -144,3 +144,30 @@ test('extension pointer checkbox input belongs only to the confirmed clicked con
   await f.finish(marker);f.event('input',{target:control});assert.equal(await f.read(),1,'completed click cannot hide a later manual value change');
   const separate=await fixture('extension');await separate.expect([{type:'pointerdown',target:control}]);separate.event('pointerdown',{target:control,button:0});separate.event('click',{target:control});separate.event('input',{target:separate.other});assert.equal(await separate.read(),1,'another control is never exempted');
 });
+
+for(const route of ['standalone','extension','dsh']) {
+  test(`${route}: native pointer defaults belong to each confirmed event, control and task`,async()=>{
+    for(const [tagName,type] of [['INPUT','range'],['INPUT','number'],['INPUT','date'],['INPUT','color'],['SELECT',undefined]]) {
+      const f=await fixture(route),control={nodeType:1,tagName,type,isConnected:true,matches:()=>false,closest:()=>null};
+      let marker=await f.expect([{type:'pointerdown',x:10,y:20}]);f.event('pointerdown',{target:control,button:0,pointerId:7,clientX:10,clientY:20});
+      f.event('input',{target:control});f.event('change',{target:control});assert.equal(await f.read(),0,`${tagName}/${type} down`);await f.finish(marker);
+      marker=await f.expect([{type:'pointermove',x:25,y:20}]);f.event('pointermove',{target:control,buttons:1,pointerId:7,clientX:25,clientY:20});
+      f.event('input',{target:control});assert.equal(await f.read(),0,'one confirmed move owns its native input');await f.finish(marker);
+      marker=await f.expect([{type:'pointerup',x:25,y:20}]);f.event('pointerup',{target:control,button:0,pointerId:7,clientX:25,clientY:20});f.event('change',{target:control});assert.equal(await f.read(),0);await f.finish(marker);
+      f.event('input',{target:control});assert.equal(await f.read(),1,'completed gesture never hides a later unmarked native input');
+    }
+  });
+  test(`${route}: pending, no-op, mismatched and interrupted pointer markers do not exempt input`,async()=>{
+    const control={nodeType:1,tagName:'INPUT',type:'range',isConnected:true,matches:()=>false,closest:()=>null};
+    for(const scenario of ['pending','finished','target','inputType','unmarked-move','pointer-id','disabled']) {
+      const f=await fixture(route),source=scenario==='disabled'?{...control,matches:()=>true}:control;
+      const marker=await f.expect([{type:'pointerdown',x:10,y:20}]);
+      if(scenario!=='pending')f.event('pointerdown',{target:source,button:0,pointerId:7,clientX:10,clientY:20});
+      if(scenario==='finished')await f.finish(marker);
+      if(scenario==='unmarked-move')f.event('pointermove',{target:source,pointerId:7,buttons:1,clientX:11,clientY:20});
+      if(scenario==='pointer-id') {f.event('input',{target:source});const move=await f.expect([{type:'pointermove',x:11,y:20}]);f.event('pointermove',{target:source,pointerId:8,buttons:1,clientX:11,clientY:20});await f.finish(move);}
+      f.event('input',{target:scenario==='target'?f.other:source,...(scenario==='inputType'?{inputType:'insertFromPaste'}:{})});
+      assert.equal(await f.read(),1,scenario);
+    }
+  });
+}

@@ -46,7 +46,10 @@ export async function actOnPage(record, request, options) {
   request = normalizeBrowserAction(request);
   const {page} = record;
   const signal = request.signal;
+  const inputOccurrence = ['click','doubleClick','move','mouseDown','scroll','drag','type','keyDown','press','paste','selectText','fill','selectOption'].includes(request.action) ? record.documentGeneration : undefined;
+  const inputRoutes=new Set();
   const check = () => { checkSignal(signal); options.actionGuard?.check();
+    if (inputOccurrence !== undefined && inputOccurrence !== record.documentGeneration) fail('STALE_DOCUMENT','The document changed during input; observe again before continuing');
     if (request.action === 'fileChooserSetFiles' && request.deadline !== undefined && Date.now() >= request.deadline) fail('FILE_CHOOSER_TIMEOUT','Setting file chooser files timed out; observe before deciding another action');
   };
   const screenshotInput = request.elementId == null && ['screenshot', 'screenshot-pixels', 'physical-screenshot-pixels'].includes(request.coordinateSpace);
@@ -97,6 +100,11 @@ export async function actOnPage(record, request, options) {
     await record.session.send('Emulation.setFocusEmulationEnabled', { enabled: true });
     record.focusEmulated = true;
     check();
+    if (record.frameRouter) {
+      for(const route of inputRoutes)await frameRouter.validate(route);
+      const down=events.find(event=>event.type==='pointerdown');
+      if(down && Number.isFinite(down.x) && Number.isFinite(down.y)) inputRoutes.add((await frameRouter.atPoint(down)).route);
+    }
     const expected = await options.expectInput?.(events), marker = scopedInput ? expected : undefined;
     let failure;
     try {
@@ -108,6 +116,7 @@ export async function actOnPage(record, request, options) {
       if (request.elementId != null) {const entry = elementFor(record, request); if (entry.route) await frameRouter.validate(entry.route);}
       check();
       await beforeDispatch?.();
+      if(record.frameRouter)for(const route of inputRoutes)await frameRouter.validate(route);
       check();
       record.inputDispatchSequence = (record.inputDispatchSequence ?? 0) + 1;
       return await work();
@@ -285,7 +294,7 @@ export async function actOnPage(record, request, options) {
         return readElementScrollGeometry(entry.route ? frameRouter.route(entry.route).send : frameSend,{backendNodeId:entry.backendNodeId,contextId:entry.route?.contextId});
       };
       if (!deltas) {geometry = await step(dimensions);deltas = scrollDeltas(request,geometry);}
-      await input([{type: 'wheel'}], () => page.mouse.wheel(deltas.deltaX,deltas.deltaY), async () => {
+      await input([{type:'wheel',...(record.pointer??{x:0,y:0}),...deltas}], () => page.mouse.wheel(deltas.deltaX,deltas.deltaY), async () => {
         await checkPointer();
         if (geometry) checkScrollGeometry(geometry,await dimensions());
       });

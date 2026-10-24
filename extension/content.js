@@ -50,11 +50,11 @@ export function installDocumentRuntime({trackActivity = true} = {}) {
     if (control?.isConnected === false || control?.matches?.(':disabled')) return;
     return control?.tagName === 'SELECT' || control?.tagName === 'INPUT' && ['range','number','date','datetime-local','month','time','week','color'].includes(control.type) ? control : undefined;
   };
-  const pointerDefault = (event,target) => {
+  const pointerDefault = (event,target,input) => {
     if (event.type === 'pointerdown') pointerControl=event.button === 0 ? {target:pointerTarget(target),pointerId:event.pointerId} : undefined;
     const control=pointerControl && pointerControl.pointerId === event.pointerId ? pointerControl.target : undefined;
     if (control && (event.type === 'pointerdown' || event.type === 'pointerup' || event.buttons & 1)) {
-      const effect=pointerEffect={target:control,input:true,change:true};
+      const effect=pointerEffect={target:control,id:input.id,markerId:input.markerId,input:true,change:true};
       setTimeout(()=>{if(pointerEffect===effect)pointerEffect=undefined;},0);
     }
     if (event.type === 'pointerup') pointerControl=undefined;
@@ -98,7 +98,7 @@ export function installDocumentRuntime({trackActivity = true} = {}) {
       return event.type === 'click';
     }
     const [input] = expected.splice(index,1);
-    if (['pointerdown','pointermove','pointerup'].includes(event.type)) pointerDefault(event,target);
+    if (['pointerdown','pointermove','pointerup'].includes(event.type)) pointerDefault(event,target,input);
     if (event.type === 'keydown') {
       const editor = textInputTarget();
       const native = keyboardControlInput(editor,event,input.inputTypes);
@@ -149,6 +149,7 @@ export function installDocumentRuntime({trackActivity = true} = {}) {
         return {expected:true,markerId,documentId};
       }
       case 'finishInput':
+        if (pointerEffect?.markerId === input.markerId) pointerEffect=undefined;
         if (textInput?.markerId === input.markerId) textInput = undefined;
         for (let i = expected.length - 1; i >= 0; i--) if (expected[i].markerId === input.markerId) {
           if (input.dispatched && !expected[i].textInput && !expected[i].keyboardInput && !['keydown','pointerdown','pointermove','pointerup'].includes(expected[i].type)) expected[i].expires = performance.now() + 500;
