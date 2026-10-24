@@ -6,13 +6,15 @@ import {observeAccessibility,elementOperation,invalidateElements} from '../exten
 import {observePage} from '../src/browser/observation.mjs';
 import {actOnPage} from '../src/browser/actions.mjs';
 import {hitTest} from '../src/browser/dom.mjs';
+import {runCDPLocator} from '../extension/cdp-locator.js';
 
 function fixture() {
   const frames = new Map(['top','outer','inner'].map((id,index)=>[id,{id,documentId:`document-${index}`,child:['outer','inner'][index]}]));
   const events = [], hooks = {};
   const stale = () => Object.assign(Error('Frame document changed'),{code:'FRAME_DETACHED',details:{inputDispatched:false}});
   const send = id => async (method,args={}) => {
-    await hooks.send?.(id,method,args);
+    const hooked = await hooks.send?.(id,method,args);
+    if (hooked !== undefined) return hooked;
     const frame = frames.get(id);
     if (method === 'Runtime.evaluate' && args.expression === 'document') return {result:{objectId:`document:${id}`}};
     if (method === 'Runtime.releaseObject') return {};
@@ -39,6 +41,37 @@ function fixture() {
     documentGeneration:0,nextElementId:0,elements:new Map(),pending:new Set(),keys:new Set(),buttons:new Set()};
   return {record,router,frames,events,hooks,send:send('top')};
 }
+
+function snapshotFixture() {
+  const f=fixture();
+  f.hooks.send=(id,method,args)=>{
+    const child=f.frames.get(id).child;
+    if(method==='Runtime.evaluate'&&args.expression.includes('"snapshotDetails":true'))return {result:{objectId:`snapshot:${id}`}};
+    if(method==='Runtime.callFunctionOn'&&args.objectId===`snapshot:${id}`) {
+      if(args.arguments)return {result:{objectId:`owner:${id}`}};
+      return {result:{value:{lines:[`Document ${id}`,child?'iframe "nested"':`textbox "${id}"`],frames:child?[{line:1,depth:0}]:[],truncated:false}}};
+    }
+    if(method==='DOM.describeNode'&&args.objectId===`owner:${id}`)return {node:{backendNodeId:9,frameId:child}};
+  };
+  return f;
+}
+
+test('DOM snapshots expand nested routed frames under one output budget',async()=>{
+  const f=snapshotFixture();
+  const result=await runCDPLocator(f.send,{operation:'domSnapshot',args:{},locator:[]},()=>assert.fail('read-only snapshot registered input'),f.router);
+  assert.equal(result.value,'Document top\niframe "nested"\n  Document outer\n  iframe "nested"\n    Document inner\n    textbox "inner"');
+  const bounded=await runCDPLocator(f.send,{operation:'domSnapshot',args:{maxNodes:2},locator:[]},()=>{},f.router);
+  assert(!bounded.value.includes('Document inner'));assert.match(bounded.value,/\[truncated: maxNodes=2/);
+});
+
+test('DOM snapshots reject changed owner topology before publishing any partial text',async()=>{
+  const f=snapshotFixture(),original=f.hooks.send;let documents=0;
+  f.hooks.send=(id,method,args)=>{
+    if(id==='top'&&method==='DOM.describeNode'&&args.objectId==='document:top'&&++documents===2)f.frames.get('top').child=undefined;
+    return original(id,method,args);
+  };
+  await assert.rejects(runCDPLocator(f.send,{operation:'domSnapshot',args:{},locator:[]},()=>{},f.router),{code:'STALE_OBSERVATION',details:{inputDispatched:false}});
+});
 
 test('AX frame roots join real owners and colliding CDP node numbers get distinct stable handles',async()=>{
   const f=fixture();

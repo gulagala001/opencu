@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { observeAccessibility, elementOperation, locatorOperation, invalidateElements } from '../extension/accessibility.js';
 import { createCDPFrameRouter } from '../extension/frame-router.js';
-import { extensionKeySpec as keySpec, keyEventParameters } from '../extension/keyboard.js';
+import { extensionKeySpec as keySpec, keyEventParameters, sequentialTextKey, checkSequentialDeadline } from '../extension/keyboard.js';
 import { clickParameters, checkClickHeld, holdClick } from '../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../extension/key-options.js';
 
@@ -66,7 +66,7 @@ async function fixture(t) {
     return { ok: true, json: async () => ({ commands: next }) };
   };
   const imports = { observeAccessibility, elementOperation, locatorOperation, invalidateElements, createCDPFrameRouter, keySpec, keyEventParameters,
-    clickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld,
+    clickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline,
     createPairingClient: () => ({ start: async () => {}, pause: async () => {} }) };
   const worker = new Function(...Object.keys(imports), 'chrome', 'navigator', 'fetch', 'setTimeout', `${source}\nreturn {
     ready: initialize(), observe, act, releaseTab, controlToken, attached, observations, loop,
@@ -83,6 +83,23 @@ async function fixture(t) {
   t.after(async () => { for (const key of Object.keys(hooks)) delete hooks[key]; worker.setConnection(null); queue(); await loop; invalidateElements(73); });
   return { worker, identity, hooks, events, seed, queue, message, result };
 }
+
+test('MV3 sequential text dispatches real printable keys and inserts Unicode by code point',async t=>{
+  const f=await fixture(t);f.seed([],[]);
+  await f.worker.act(f.identity,{type:'type_text',text:'aB!🙂é',sequential:true});
+  assert.deepEqual(f.events.filter(([method,params])=>method==='Input.dispatchKeyEvent'&&params.type==='keyDown').map(([,params])=>params.key),['a','B','!']);
+  assert.deepEqual(f.events.filter(([method])=>method==='Input.insertText').map(([,params])=>params.text),['🙂','é']);
+  assert.equal(f.worker.attached.get(73).keys.size,0);
+});
+
+test('MV3 sequential deadline stops trailing characters and preserves dispatched receipt',async t=>{
+  t.mock.timers.enable({apis:['Date'],now:1000});
+  const f=await fixture(t);f.seed([],[]);
+  f.hooks.send=(method,params)=>{if(method==='Input.dispatchKeyEvent'&&params.type==='keyDown')t.mock.timers.tick(2);};
+  await assert.rejects(f.worker.act(f.identity,{type:'type_text',text:'ab',sequential:true,deadline:1001}),{code:'LOCATOR_TIMEOUT',details:{inputDispatched:true}});
+  assert.deepEqual(f.events.filter(([method,params])=>method==='Input.dispatchKeyEvent'&&params.type==='keyDown').map(([,params])=>params.key),['a']);
+  assert.equal(f.worker.attached.get(73).keys.size,0);
+});
 
 test('MV3 screenshot format captures pixels without reading AX and keeps fresh observation identity', async t => {
   const f = await fixture(t);

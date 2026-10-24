@@ -333,7 +333,7 @@ export function openCUAutomation(guest: WebContents, operation: unknown, input: 
           if (args.type === 'keyDown' || args.type === 'keyUp') {
             const spec = inputKey(args.keyCode), down = args.type === 'keyDown'
             if (down) current.inputKeys.set(spec.key, spec)
-            await send('Input.dispatchKeyEvent', keyEventParameters(spec, down, modifiers, process.platform === 'darwin'))
+            await send('Input.dispatchKeyEvent', keyEventParameters(spec, down, modifiers, process.platform === 'darwin', args.keyboardEditable === true))
             if (!down) current.inputKeys.delete(spec.key)
           } else {
             const types: Record<string, string> = { mouseMove: 'mouseMoved', mouseDown: 'mousePressed', mouseUp: 'mouseReleased', mouseWheel: 'mouseWheel' }

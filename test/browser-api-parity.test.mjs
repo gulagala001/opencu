@@ -122,3 +122,37 @@ test('uncertain input and cancellation are never retried', async () => {
   await result;
   assert.equal(calls, 1);
 });
+
+test('composite locators serialize relative matches and reject another target or frame', async () => {
+  const requests = [];
+  const api = createPlaywrightAPI(async (_action, request) => { requests.push(structuredClone(request)); return 3; }, value => value);
+  const other = createPlaywrightAPI(async () => 0, value => value);
+  await api.locator('.card').filter({has:api.getByRole('heading', {name:/乙/u}), hasNot:api.getByText('归档')})
+    .and(api.getByTestId('card-b')).or(api.getByTestId('card-a')).count();
+  assert.deepEqual(requests[0].locator, [
+    {kind:'css',value:'.card'},
+    {kind:'filter',has:[{kind:'role',value:'heading',name:{type:'regex',source:'乙',flags:'u'}}],hasNot:[{kind:'text',value:'归档'}]},
+    {kind:'and',locator:[{kind:'testId',value:'card-b'}]},
+    {kind:'or',locator:[{kind:'testId',value:'card-a'}]},
+  ]);
+  assert.throws(() => api.locator('.card').filter({has:other.locator('h2')}), /same target/);
+  assert.throws(() => api.locator('.card').or(api.frameLocator('iframe').locator('.card')), /same frame/);
+  assert.throws(() => api.frameLocator('#a').locator('.card').filter({has:api.frameLocator('#b').getByText('x')}), /same frame/);
+  assert.throws(() => api.filter({has:{}}), /Locator/);
+  await api.frameLocator('#a').locator('.card').filter({has:api.frameLocator('#a').getByText('x')}).count();
+  assert.deepEqual(requests.at(-1).locator.at(-1), {kind:'filter',has:[{kind:'text',value:'x'}]});
+});
+
+test('all captures the current list length and append methods keep one protected request', async () => {
+  const requests = [];
+  const api = createPlaywrightAPI(async (_action, request) => { requests.push(structuredClone(request)); return request.method === 'count' ? 2 : 'ok'; }, value => value);
+  const items = await api.locator('.card').all();
+  assert.equal(items.length, 2);
+  await items[1].type('甲🙂');
+  await items[0].pressSequentially('乙é', {timeoutMs:1000});
+  assert.equal(requests[0].method, 'count');
+  assert.deepEqual(requests[1], {locator:[{kind:'css',value:'.card'},{kind:'nth',index:1}],method:'type',args:{value:'甲🙂'}});
+  assert.equal(requests[2].method, 'pressSequentially');
+  assert.deepEqual(requests[2].args, {value:'乙é'});
+  assert(Number.isFinite(requests[2].deadline));
+});

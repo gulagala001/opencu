@@ -1,4 +1,4 @@
-import { guestKeySpec, keyEventKey } from '../../extension/keyboard.js';
+import { guestKeySpec, keyEventKey, sequentialTextKey, checkSequentialDeadline } from '../../extension/keyboard.js';
 import { clickParameters, checkClickHeld, holdClick } from '../../extension/click-options.js';
 import { pressParameters, checkPressHeld } from '../../extension/key-options.js';
 import { inputReleased } from '../protocol.mjs';
@@ -172,7 +172,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       await assertNoDialog();
       if (!['navigate', 'reload', 'back', 'forward'].includes(args.action)) live();
       const epoch = generation, screenshot = args.elementId == null && args.coordinateSpace?.includes('screenshot') ? lastObservation : null;
-      const sendInput = event => send(event, screenshot, args.elementId);
+      const sendInput = event => send({...event,keyboardEditable:args.keyboardEditable}, screenshot, args.elementId);
       const step = async work => {
         if (epoch !== generation) fail('CONTROL_STOPPED', 'Input sequence was cancelled');
         const task = Promise.resolve().then(() => { if (epoch !== generation) fail('CONTROL_STOPPED', 'Input sequence was cancelled'); return work(); });
@@ -196,8 +196,9 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
           const checking = ['check', 'uncheck', 'setChecked'].includes(method);
           const checked = method === 'setChecked' ? options.checked : method === 'check';
           if (!checking || result.checked !== checked) {
-            const performed = await this.act({action: checking ? 'click' : method === 'dblclick' ? 'doubleClick' : method,
-              elementId: result.elementId, button: options.button, key: options.key, value: options.value, inputMode: args.inputMode});
+            const performed = await this.act({action: checking ? 'click' : method === 'dblclick' ? 'doubleClick' : method === 'pressSequentially' ? 'type' : method,
+              elementId: result.elementId, button: options.button, key: options.key, value: options.value, text: options.value,
+              sequential:method === 'pressSequentially', deadline:args.deadline, keyboardEditable:result.keyboardEditable, inputMode: args.inputMode});
             if (performed.pendingDialog) return performed;
             if (checking && (await step(() => evaluate('checked', {elementId: result.elementId}))).checked !== checked) fail('LOCATOR_ACTION_FAILED', 'Click did not produce the requested checked state');
           }
@@ -255,9 +256,24 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
           break;
         }
         case 'type':
+          if (typeof args.text !== 'string') fail('INVALID_ARGUMENT', 'type requires text');
+          if (args.sequential) {
+            checkSequentialDeadline(args.deadline);
+            for (const character of args.text) {const key=sequentialTextKey(character); if(key) checkPressHeld({keys},[key],{identity:value=>guestKeySpec(value).code});}
+          }
           if (args.elementId != null) await step(() => evaluate('focus', args));
           if (args.elementId != null) await step(() => evaluate('verifyElement', args));
-          await step(() => evaluate('insertText', { text: args.text, elementId: args.elementId })); break;
+          if (args.sequential) for (const character of args.text) {
+            checkSequentialDeadline(args.deadline);
+            const key=sequentialTextKey(character);
+            if (key) {
+              keys.add(key);
+              try {await step(() => sendInput({type:'keyDown',keyCode:key}));}
+              catch (error) {if (error.details?.inputDispatched === false) keys.delete(key);throw error;}
+              await step(() => sendInput({type:'keyUp',keyCode:key}));keys.delete(key);
+            } else await step(() => evaluate('insertText',{text:character,elementId:args.elementId}));
+          }
+          else await step(() => evaluate('insertText', { text: args.text, elementId: args.elementId })); break;
         case 'selectText':
         case 'paste': {
           const result = await step(() => evaluate(args.action,args));
