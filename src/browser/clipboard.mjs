@@ -56,6 +56,42 @@ export function createClipboardAPI({act,active,supported = () => false}) {
   });
 }
 
+/** Retain cleanup ownership until the original context/origin is restored.
+ * A page closing or crashing is not proof that browser-context permissions ended.
+ * Only the backend, after its owned browser process actually closes, may pass
+ * ownedProcessClosed:true. A browser-level sender can recover a closed page's debt.
+ */
+export function restoreClipboardPermissions(record,{send = record.clipboardPermissionSend ?? ((method,params) => record.session.send(method,params)),ownedProcessClosed = false} = {}) {
+  if (ownedProcessClosed) {
+    if (record.sessionClipboard !== true) throw invalid('Only a confirmed OpenCU-owned browser process may revoke clipboard cleanup ownership');
+    record.clipboardPermissionProcessClosed = true;
+    record.clipboardPermissionRestores?.clear();
+    return Promise.resolve({restored:true});
+  }
+  if (record.clipboardPermissionProcessClosed || !record.clipboardPermissionRestores?.size) return Promise.resolve({restored:true});
+  if (record.clipboardPermissionRestoreWork) return record.clipboardPermissionRestoreWork;
+  let work;
+  work = (async () => {
+    const errors = [];
+    for (const [key,debt] of [...record.clipboardPermissionRestores]) {
+      if (record.clipboardPermissionProcessClosed) break;
+      const restoring = Promise.resolve().then(() => send('Browser.setPermission',structuredClone(debt.params)));
+      record.pending?.add(restoring);
+      try {
+        await restoring;
+        if (record.clipboardPermissionRestores.get(key) === debt) record.clipboardPermissionRestores.delete(key);
+      } catch (error) { errors.push(error); }
+      finally { record.pending?.delete(restoring); }
+    }
+    if (record.clipboardPermissionRestores.size && !record.clipboardPermissionProcessClosed) throw Object.assign(
+      failure('CLIPBOARD_PERMISSION_RESTORE_FAILED','The private browser clipboard permission still requires restoration'),
+      {cause:new AggregateError(errors),details:{inputDispatched:false,effectVerified:false,permissionRestorePending:true,pendingPermissions:record.clipboardPermissionRestores.size}});
+    return {restored:true};
+  })().finally(() => { if (record.clipboardPermissionRestoreWork === work) delete record.clipboardPermissionRestoreWork; });
+  record.clipboardPermissionRestoreWork = work;
+  return work;
+}
+
 /** Chromium's native headless clipboard belongs to its owned browser process.
  * Never enable this route for headed, adopted, CDP-connected or Electron browsers.
  */
@@ -69,6 +105,10 @@ export async function actOnClipboard(record,request,{step,check,onWrite = () => 
   } else if (!['clipboardRead','clipboardReadText'].includes(request.action)) throw invalid('Unknown clipboard operation');
   check();
   if (record.sessionClipboard !== true) throw failure('UNSUPPORTED_CLIPBOARD','Isolated session clipboard requires an OpenCU-owned headless Chromium browser; this backend cannot access it without using the system clipboard');
+  if (record.clipboardPermissionProcessClosed) throw failure('UNSUPPORTED_CLIPBOARD','The owned browser process is closed');
+  // A prior failed cleanup must not become a new, incorrectly granted baseline.
+  await restoreClipboardPermissions(record);
+  check();
   const generation = record.documentGeneration;
   const send = (method,params) => step(() => record.session.send(method,params));
   const {frameTree} = await send('Page.getFrameTree');
@@ -95,11 +135,15 @@ export async function actOnClipboard(record,request,{step,check,onWrite = () => 
     throw failure('INVALID_CLIPBOARD_STATE','The browser returned invalid clipboard permissions');
   const permission = {name:writing ? 'clipboard-write' : 'clipboard-read',...(writing ? {allowWithoutGesture:true} : {allowWithoutSanitization:true})};
   const permissionArgs = {permission,origin,...(record.identity.contextId === 'default' ? {} : {browserContextId:record.identity.contextId})};
-  let permissionChanged = false, operationError;
+  let permissionDebt, operationError;
   try {
     // These permissions affect only the private owned browser process and origin.
     // Mark before sending: a lost acknowledgement still requires restoration.
-    permissionChanged = true;
+    const key = JSON.stringify([permissionArgs.browserContextId ?? 'default',origin,permission]);
+    const debts = record.clipboardPermissionRestores ??= new Map();
+    permissionDebt = debts.get(key) ?? Object.freeze({params:Object.freeze({...permissionArgs,permission:Object.freeze({...permission}),
+      setting:permissions.find(item => item.name === permission.name).state})});
+    debts.set(key,permissionDebt);
     await send('Browser.setPermission',{...permissionArgs,setting:'granted'});
     record.focusEmulated = true;
     await send('Emulation.setFocusEmulationEnabled',{enabled:true});
@@ -155,15 +199,14 @@ export async function actOnClipboard(record,request,{step,check,onWrite = () => 
     return {action:operation,value:result.result?.value,scope:'browser-session',...(writing ? {inputDispatched:true,effectVerified:true} : {})};
   } catch (error) { operationError = error; throw error; }
   finally {
-    if (permissionChanged) {
+    if (permissionDebt) {
       // Cleanup must pass cancellation; do not race it behind the aborted step.
-      const restoring = Promise.resolve().then(() => record.session.send('Browser.setPermission',{...permissionArgs,setting:permissions.find(item => item.name === permission.name).state}));
-      record.pending?.add(restoring);
-      try { await restoring; }
+      try { await restoreClipboardPermissions(record); }
       catch (cause) {
         throw Object.assign(failure('CLIPBOARD_PERMISSION_RESTORE_FAILED','The private browser clipboard permission could not be restored; do not replay a possibly completed write',writing),
-          {cause,details:{inputDispatched:writing,effectVerified:false,...(operationError ? {operationError:{code:operationError.code,message:operationError.message}} : {})}});
-      } finally { record.pending?.delete(restoring); }
+          {cause,details:{inputDispatched:writing,effectVerified:false,permissionRestorePending:true,
+            ...(operationError ? {operationError:{code:operationError.code,message:operationError.message}} : {})}});
+      }
     }
   }
 }
