@@ -134,4 +134,14 @@ OPENCU_DSH_SMOKE=1 node --test test/dsh.test.mjs
 
 该检查通过真实 DSH profile launcher、ToolRuntime 和 LocalAttachmentStore 调用插件；不连接预先启动的 OpenCU 服务，不修改当前工作 DSH。本仓库不执行公开发布或日常部署。
 
+源码 checkout 还可用 `scripts/cu-direct.mjs` 直接调用生产 runtime 和持久 Worker REPL。先安装开发依赖并运行 `npm run build:client`，再显式指定隔离数据和附件目录；默认只启用独立无头浏览器，应用许可不会自动批准。该开发入口不启动 DSH 页面，不覆盖宿主工具调度、附件规范化或浮窗交互验证。
+
+```sh
+node scripts/cu-direct.mjs --data-dir /absolute/isolated/cu/data --output-dir /absolute/isolated/cu/output --metrics-output /absolute/isolated/cu/calls.jsonl
+```
+
+标准输入每行一个 JSON，例如 `{"id":"inventory","code":"await cua.getState()","title":"Inspect targets"}`；后续行复用同一 REPL。`method` 可取 `run`（默认）、`request`、`reset`、`readImage`、`close`。脚本也导出 `createDirectSession(options)`，返回 `pid` 与同名异步方法；`run` 保留生产结果并附 `timing.totalMs`。缺少浏览器构建资产时提前返回 `BUILD_REQUIRED`；指标写入失败单独报告 `metricsError`，成功输入不会因此变成执行失败。正常结束必须调用 `close()`，取消或失败后应先观察状态，再决定是否继续。
+
+`scripts/cu-metrics.mjs` 可独立采样指定进程树：`node scripts/cu-metrics.mjs sample --root PID --output /absolute/isolated/cu/process.jsonl --summary /absolute/isolated/cu/summary.json --interval 500 --duration 30000`。记录 RSS、进程数、系统平滑 CPU、连续快照间实际观察到的 CPU 时间差、阶段与采样错误；调用记录只保留固定标签、耗时、字节数和状态，不保存代码、标题或正文。RSS 可能重复计入共享页；CPU 差值会遗漏新生、退出及采样间短命进程，不能据此比较不同宿主的 CU 独占开销。汇总的峰值、计数和总和精确，中位数在超过 1,024 个值后由固定容量样本估算；原始采样仍写入 JSONL。SIGINT／SIGTERM 只停止采样器并刷新汇总，不终止测量目标。
+
 隔离发行目录通过 `OPENCU_SOURCE_ROOT` 指向真实源码目录；文档检查从该目录读取 Git 清单，并核对当前构建目录的文档内容。
