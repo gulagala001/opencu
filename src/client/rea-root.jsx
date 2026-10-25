@@ -130,6 +130,9 @@ function BrowserRoute({ sessionId, tabId, visible, container, portal }) {
 }
 
 export function ReaProviders({ portal, path, children }) {
+  // Every REA overlay needs its own styles; falling back to the host body can
+  // turn an empty notification viewport into a full-window input blocker.
+  if (!portal) throw new Error('REA providers require a styled portal');
   const intl = React.useSyncExternalStore(subscribeReaLocale, reaIntl, reaIntl);
   const history = React.useMemo(() => Shared.Ult({ initialEntries: [path], v5Compat: true }), [path]);
   const [current, setCurrent] = React.useState(() => ({ history, location: history.location }));

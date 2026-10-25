@@ -8,7 +8,7 @@ export { React, jsxRuntime, ReactDOM, ReactDOMClient, compiler };
 import { services } from './rea-services.mjs';
 export { services };
 export { documentSourceBytes } from './document-source.mjs';
-export { findReaElement, reaPortalContainer } from './portal-host.mjs';
+export { findReaElement, reaPortalContainer, protectReaCarrier, prepareReaGuestRoot } from './portal-host.mjs';
 export function activeReaElement() {
   let element = document.activeElement;
   while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;

@@ -183,7 +183,7 @@ async function mount() {
     const visible = React.useSyncExternalStore(listener => { visibleListeners.add(listener); return () => visibleListeners.delete(listener); }, () => physicalVisible);
     return <><ReaRoot sessionId={init.sessionId} tabId={init.tabId} visible={visible} container={container} portal={portal} />
       <ReaProviders portal={portal} path={`/ca/${init.sessionId}`}><PageLoadError sessionId={init.sessionId} tabId={init.tabId} container={container} browserHost={host} /></ReaProviders>
-      <ReaProviders path="/opencu-hidden-pages">{pages.map(page => <HiddenBrowserUseWebviewHost key={page.key}
+      <ReaProviders portal={portal} path="/opencu-hidden-pages">{pages.map(page => <HiddenBrowserUseWebviewHost key={page.key}
         conversationId={page.conversationId} browserUseTabIdsKey={page.browserTabId} />)}</ReaProviders></>;
   }
   root.render(<Surface />);

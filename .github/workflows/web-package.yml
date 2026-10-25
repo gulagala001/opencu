@@ -33,7 +33,9 @@ jobs:
       - name: Verify reproducible production bytes
         run: node scripts/check-generated-client.mjs
       - name: Run tests
-        run: npm test
+        run: |
+          npx playwright install --with-deps chromium
+          npm test
       - name: Verify rebuilt frontend and public package contents
         run: |
           node scripts/check-web-package.mjs ./*.tgz

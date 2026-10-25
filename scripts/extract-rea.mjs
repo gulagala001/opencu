@@ -91,7 +91,19 @@ async function load(file) {
     const before = '{toasterId:n,toaster:r}=e,i=G(pne);G(Xjn),G(ete);';
     if (!source.includes(before)) throw new Error('REA notification host geometry changed');
     source = source.replace(before, '{toasterId:n,toaster:r}=e,i=0,hostPortal=Host.React.useContext(Host.ReaPortalContext);');
-    source = source.replace('}),document.body),t[19]=h,t[20]=c,t[21]=g)', '}),hostPortal??document.body),t[19]=h,t[20]=c,t[21]=g)');
+    const toastStart = source.indexOf('function aDi('), toastEnd = source.indexOf('function oDi(', toastStart);
+    let toast = source.slice(toastStart, toastEnd);
+    for (const [before, after] of [
+      ['(0,sDi.c)(22)', '(0,sDi.c)(23)'],
+      ['c={inset:0}', 'c={inset:0,position:`fixed`,zIndex:60,pointerEvents:`none`}'],
+      ['style:c,children:h', 'style:c,ref:Host.protectReaCarrier,children:h'],
+      ['t[19]!==h||t[20]!==c?', 't[19]!==h||t[20]!==c||t[22]!==hostPortal?'],
+      ['}),document.body),t[19]=h,t[20]=c,t[21]=g)', '}),hostPortal),t[19]=h,t[20]=c,t[21]=g,t[22]=hostPortal)'],
+    ]) {
+      if (!toast.includes(before)) throw new Error(`REA notification portal boundary changed: ${before}`);
+      toast = toast.replace(before, after);
+    }
+    source = source.slice(0, toastStart) + toast + source.slice(toastEnd);
     const menuStart = source.indexOf('function zfa('), forkStart = source.indexOf('let u=gd(e.value);', menuStart), forkEnd = source.indexOf('Vfa(c)!=null', forkStart);
     if (menuStart < 0 || forkStart < 0 || forkEnd < forkStart) throw new Error('REA browser tab menu boundary changed');
     source = source.slice(0, forkStart) + source.slice(forkEnd);
@@ -106,6 +118,21 @@ async function load(file) {
     ]) {
       if (!source.includes(before)) throw new Error(`REA tab action boundary changed: ${before}`);
       source = source.replace(before, after);
+    }
+  }
+  if (file === 'app-shared-2f2228189a8d.js') {
+    // These original carriers retain native guests in document.body. Their
+    // geometry and hit transparency cannot depend on the host's utility CSS.
+    for (const [name, variable, browser] of [['MRi', 't', false], ['zRi', 'n', true]]) {
+      const start = source.indexOf(`function ${name}(`), end = source.indexOf('function ', start + 10);
+      let body = source.slice(start, end);
+      const existing = browser ? 'if(t!=null)return t;' : 'if(e!=null)return e;';
+      const previous = browser ? 't' : 'e';
+      const append = browser ? 'e.append(n)' : 'document.body.append(t)';
+      if (start < 0 || end < start || !body.includes(existing) || !body.includes(append)) throw new Error(`REA guest carrier changed: ${name}`);
+      body = body.replace(existing, `if(${previous}!=null)return Host.prepareReaGuestRoot(${previous},${browser}),${previous};`)
+        .replace(append, `Host.prepareReaGuestRoot(${variable},${browser}),${append}`);
+      source = source.slice(0, start) + body + source.slice(end);
     }
   }
   if (file === 'mcp-tool-item-content-f32f64d93b42.js') {

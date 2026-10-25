@@ -41,6 +41,8 @@ function update(cursor) {
     host = document.createElement('div');
     host.setAttribute('aria-hidden', 'true'); host.dataset.opencuCursor = '';
     host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;contain:strict';
+    host.style.setProperty('pointer-events', 'none', 'important');
+    host.inert = true;
     const shadow = host.attachShadow({ mode: 'closed' }), style = document.createElement('style'), mount = document.createElement('div');
     style.textContent = styles; mount.dataset.reaRoot = ''; mount.dataset.theme = 'light';
     mount.style.cssText = 'position:absolute;inset:0;pointer-events:none';

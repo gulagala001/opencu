@@ -6,6 +6,22 @@ const noDrag = '[data-rea-root] * { -webkit-app-region: no-drag; }';
 
 const portals = new Map();
 
+/** Transparent carriers must stay click-through even under host !important rules. */
+export function protectReaCarrier(element) {
+  element?.style.setProperty('pointer-events', 'none', 'important');
+}
+
+/** Native guests live in the host document, outside the styled shadow portals. */
+export function prepareReaGuestRoot(element, browser = false) {
+  Object.assign(element.style, { position: 'fixed', inset: '0', overflow: 'visible' });
+  protectReaCarrier(element);
+  if (browser) element.style.contain = 'paint';
+  else {
+    element.style.zIndex = 'calc(var(--dsh-dockkit-dock-layer,10) + 1)';
+    element.style.setProperty('-webkit-app-region', 'initial', 'important');
+  }
+}
+
 /** Keep body-positioned overlays in their owning component's styled portal. */
 export function reaPortalContainer(container, anchor) {
   if (container !== document.body || !anchor) return container;
@@ -25,6 +41,7 @@ export function createReaPortal(styles, source, zIndex = 50) {
   const host = document.createElement('div');
   host.dataset.opencuPortal = '';
   host.style.cssText = `position:fixed;inset:0;z-index:${zIndex};pointer-events:none;-webkit-app-region:initial`;
+  protectReaCarrier(host);
   const shadow = host.attachShadow({ mode: 'open' });
   const portal = document.createElement('div');
   Object.assign(portal.dataset, dataset);
@@ -41,9 +58,6 @@ export function createReaPortal(styles, source, zIndex = 50) {
 }
 
 export const guestPortalStyles = `
-[data-embedded-frame-host-root],[data-browser-host-root]{pointer-events:none;position:fixed;inset:0;overflow:visible}
-[data-embedded-frame-host-root]{z-index:calc(var(--dsh-dockkit-dock-layer,10) + 1);-webkit-app-region:initial!important}
-[data-browser-host-root]{contain:paint}
 [data-browser-sidebar-webview]>webview{display:flex;width:100%;height:100%}
 `;
 
