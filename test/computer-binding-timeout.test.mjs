@@ -95,7 +95,7 @@ test('a stalled native observation reports its backend stage and does not become
       return true;
     });
   } finally { gate.resolve({ax: {nodes: []}}); }
-  assert.ok(f.calls.release > 0);
+  assert.equal(f.calls.release, 0, 'read-only timeout must not interrupt unrelated control');
   await assert.rejects(f.run('app.id'), /app is not defined/);
 });
 
@@ -127,7 +127,7 @@ test('browser pairing waits beyond the execution budget and retains the same wor
   await pairing.discover('chrome-extension://'+ 'a'.repeat(32),{instanceId,label:'Google Chrome'});
   const waiting=Promise.withResolvers();
   const computer=createComputerSession(async(endpoint,args,options)=>{
-    if(endpoint==='stop')return {ok:true};
+    if(endpoint==='interrupt')return {ok:true};
     assert.equal(endpoint,'connectBrowser');
     const result=await pairing.request(args.browser,computer.signal,{waitMs:5000,onWaiting:approval=>{
       const finish=options.onApprovalWait(approval);waiting.resolve();return finish;
@@ -147,7 +147,7 @@ test('browser pairing waits beyond the execution budget and retains the same wor
 test('a concurrent approval cannot hide or mislabel a stalled backend deadline',async t=>{
   let stops=0;
   const computer=createComputerSession(async(endpoint,args,options)=>{
-    if(endpoint==='stop'){stops++;return {ok:true};}
+    if(endpoint==='interrupt'){stops++;return {ok:true};}
     const signal=computer.signal;
     const finish=endpoint==='connectBrowser' ? options.onApprovalWait({kind:'browser'}) : undefined;
     try { await new Promise((_,reject)=>{
@@ -162,5 +162,5 @@ test('a concurrent approval cannot hide or mislabel a stalled backend deadline',
     assert.ok(error.details.pendingRequests.some(value=>value.stage==='browser-approval'));
     assert.ok(error.details.pendingRequests.some(value=>value.endpoint==='state'));return true;
   });
-  assert.equal(stops,1);
+  assert.equal(stops,0, 'read-only and approval waits must not stop unrelated input');
 });

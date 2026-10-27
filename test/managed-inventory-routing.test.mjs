@@ -201,7 +201,7 @@ test('bound-tabs-list-forwards-id-after-inventory-disappears', {timeout:5000}, a
  const computer=createComputerSession(async (method,args)=>{
   requests.push({method,args});
   if(method==='targets') return ++reads===1 ? {ok:true,targets:[],browsers:[{id:'browser:local',provider:'browser',connected:true}]} : {ok:true,targets:[],browsers:[]};
-  if(method==='stop') return {ok:true};
+  if(method==='stop'||method==='interrupt') return {ok:true};
   throw new Error('Unexpected synthetic boundary method');
  });
  try {

@@ -250,6 +250,7 @@ test('the existing settings recovery clears only human-confirmed closed sidebar 
     const state = (await runtime.request('state')).state;
     assert.equal(state.releasePending,false);
     assert.equal(state.mode,'recovery_required');
+    assert.equal(state.explicitlyStopped,false);
     assert.deepEqual(state.targets,[]);
   } finally { await runtime.close(); await rm(dataDir,{recursive:true,force:true}); }
 });

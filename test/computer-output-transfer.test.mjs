@@ -31,8 +31,8 @@ test('worker progress transfers each displayed string once and resets between ce
 test('cancelled worker retains all earlier text and attachments once, then starts a fresh cell', async t => {
   const entered = Promise.withResolvers(), gate = Promise.withResolvers();
   const computer = createComputerSession(async endpoint => {
-    if (endpoint === 'targets') { entered.resolve(); return gate.promise; }
-    if (endpoint === 'stop') { gate.resolve({ok:true, targets:[]}); return {ok:true, released:true}; }
+    if (endpoint === 'targets') { entered.resolve(); return new Promise((resolve, reject) => { computer.signal.addEventListener('abort', () => reject(computer.signal.reason), {once:true}); gate.promise.then(resolve, reject); }); }
+    if (endpoint === 'interrupt') { gate.resolve({ok:true, targets:[]}); return {ok:true, released:true}; }
     throw Error(endpoint);
   });
   t.after(() => computer.close());

@@ -22,7 +22,7 @@ test('REPL forwards browser element pages without a screenshot and validates mal
     if(endpoint==='select'||endpoint==='resume')return {target:{...target,verified:true},state:{mode:'active'}};
     if(endpoint==='observe')return {observation:{observationId:'ax',ax:{nodes:[]}}};
     if(endpoint==='act'){events.push(args);return {result:{action:args.action}};}
-    if(endpoint==='stop')return {released:true};
+    if(endpoint==='stop'||endpoint==='interrupt')return {released:true};
     throw Error(endpoint);
   });t.after(()=>repl.close());
   await repl.run({code:'var tab=await cua.getTab("tab:scroll");await tab.scroll(13,"down",0.25);await tab.scroll(13,"right");await tab.scroll(13,"down",0);await tab.scroll(13,"down",{pixels:20});'});

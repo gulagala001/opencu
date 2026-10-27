@@ -36,7 +36,7 @@ async function fixture(t) {
   };
   const runtime = createPluginRuntime({dataDir, browser: backend, nativeEnabled: false, extensionEnabled: false});
   const computer = createComputerSession((endpoint, args) => runtime.request(endpoint, args,
-    {sessionKey: 'synthetic-session', signal: endpoint === 'stop' ? undefined : computer.signal}));
+    {sessionKey: 'synthetic-session', signal: ['stop','interrupt'].includes(endpoint) ? undefined : computer.signal}));
   const run = code => computer.run({code, timeoutMs: 3000});
   t.after(async () => { await computer.close(); await runtime.close(); await rm(dataDir, {recursive: true, force: true}); });
   await run('var original = await cua.getTab("tab:reused");');

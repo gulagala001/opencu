@@ -92,8 +92,8 @@ for(const [reason,code,details] of [
 ])test(`${reason} still blocks further input`,async t=>{
   const f=await fixture(t);f.hooks.error=Object.assign(Error(code),{code,details});
   const result=await f.controller.act({targetId:'tab:original',action:'click'});
-  assert.equal(result.state.mode,'faulted');assert.equal(f.releases,1);
-  assert.equal((await f.controller.act({targetId:'tab:original',action:'click'})).error.code,'CONTROL_STOPPED');
+  assert.equal(result.state.mode,'active');assert.equal(f.releases,0);assert.equal(result.state.targets[0].verified,false);
+  assert.equal((await f.controller.act({targetId:'tab:original',action:'click'})).error.code,'RECOVERY_REQUIRED');
 });
 
 test('a human view change during input releases only that target and requires a fresh observation',async t=>{
@@ -115,7 +115,7 @@ test('view-change recovery never continues while target input release is unconfi
   f.hooks.error=Object.assign(Error('focus moved'),{code:'TARGET_WINDOW_NOT_ACTIVE',details:{inputDispatched:true}});
   const result=await f.controller.act({targetId:'tab:original',action:'press'});
   assert.equal(result.error.code,'RELEASE_FAILED');assert.equal(result.state.releasePending,true);
-  assert.equal(result.state.mode,'release_failed');
+  assert.equal(result.state.mode,'active');assert.equal(result.state.targets[0].verified,false);
 });
 
 test('explicit stop remains stopped after a fresh observation',async t=>{
@@ -200,8 +200,8 @@ for(const code of ['MODAL_BLOCKED','MODAL_STATE_UNAVAILABLE','MODAL_POINTER_UNAV
     test(`native ${code} ${reason} still blocks input`,async t=>{
       const f=await fixture(t);f.hooks.error=Object.assign(Error(code),{code,details});
       const result=await f.controller.act({targetId:'tab:original',action:'click'});
-      assert.equal(result.state.mode,'faulted');
-      assert.equal((await f.controller.act({targetId:'tab:original',action:'click'})).error.code,'CONTROL_STOPPED');
+      assert.equal(result.state.mode,'active');assert.equal(result.state.targets[0].verified,false);
+      assert.equal((await f.controller.act({targetId:'tab:original',action:'click'})).error.code,'RECOVERY_REQUIRED');
     });
   }
 }
@@ -251,8 +251,8 @@ for(const [reason,action,code,details] of [
 ])test(`site tool ${reason} still blocks unknown or unreleased input`,async t=>{
   const f=await fixture(t);f.hooks.error=Object.assign(Error(reason),{code,details});
   const result=await f.controller.act({targetId:'tab:original',action});
-  assert.equal(result.state.mode,'faulted');assert.equal(f.releases,1);
-  assert.equal((await f.controller.act({targetId:'tab:original',action:'click'})).error.code,'CONTROL_STOPPED');
+  assert.equal(result.state.mode,'active');assert.equal(f.releases,0);assert.equal(result.state.targets[0].verified,false);
+  assert.equal((await f.controller.act({targetId:'tab:original',action:'click'})).error.code,'RECOVERY_REQUIRED');
 });
 
 
@@ -278,8 +278,8 @@ test('a confirmed lost input context preserves active bindings after acknowledge
   await f.run('await tab.getScreenshot();await tab.click([60,40]);');assert.deepEqual(f.events,['mouseMove','mouseDown','mouseUp']);
 });
 
-test('an unknown transport failure during navigation still faults the controller',async t=>{
+test('an unknown transport failure quarantines its browser target',async t=>{
   const f=await fixture(t),failure=Object.assign(Error('Transport disconnected'),{details:{inputDispatched:true}});
   f.hooks.error=await inputFrameFailure(failure,{documentChanged:()=>true});assert.equal(f.hooks.error,failure);
-  const result=await f.controller.act({targetId:'tab:original',action:'click'});assert.equal(result.state.mode,'faulted');assert.equal(f.releases,1);
+  const result=await f.controller.act({targetId:'tab:original',action:'click'});assert.equal(result.state.mode,'active');assert.equal(f.releases,0);assert.equal(result.state.targets[0].verified,false);
 });

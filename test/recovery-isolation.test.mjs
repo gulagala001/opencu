@@ -58,7 +58,7 @@ test('browser isolation never bypasses a failed native hardware release',async t
 test('an automatic target fault permits a fresh tab while a failed explicit stop does not',async t=>{
   const f=await fixture(t);ok(await f.c.selectTarget(f.live));ok(await f.c.resume({targetId:f.live.id}));
   const act=f.browser.act;f.browser.act=async()=>{throw Error('uncertain action failure');};
-  assert.equal((await f.c.act({targetId:f.live.id,action:'click'})).error.code,'RELEASE_FAILED');
+  assert.equal((await f.c.act({targetId:f.live.id,action:'click'})).ok,false);
   f.browser.act=act;ok(await f.c.openTarget({browserId:f.live.browserId}));
   await f.c.stop();assert.equal((await f.c.getState()).state.explicitlyStopped,true);
   assert.equal((await f.c.openTarget({browserId:f.live.browserId})).error.code,'CONTROL_STOPPED');
@@ -228,4 +228,97 @@ test('authenticated extension bridge isolates failed tab release and retains ful
   await reply(backend.release(a),()=>({released:true}));
   await assert.rejects(backend.act(b,{action:'click'}),{code:'RELEASE_FAILED'});
   assert.equal((await reply(backend.release(),()=>({released:true}))).released,true);
+});
+
+test('an empty connected browser resumes an explicit stop without touching old occurrences or allocating a tab', async t => {
+  const f = await fixture(t);
+  f.browser.listTargets = async () => [];
+  await f.c.stop();
+  assert.equal((await f.c.openTarget({browserId:f.live.browserId})).error.code, 'CONTROL_STOPPED');
+  const resumed = ok(await f.c.resume({browserId:f.live.browserId}));
+  assert.equal(resumed.state.explicitlyStopped, false);
+  assert.equal(resumed.state.releasePending, true);
+  assert.equal(resumed.state.recoveryIsolated, true);
+  assert.deepEqual(f.calls, []);
+  assert.equal(resumed.state.targets.find(target => target.id === f.old.id).verified, false);
+  ok(await f.c.openTarget({browserId:f.live.browserId}));
+  assert.deepEqual(f.calls, [['new']]);
+});
+
+test('browser recovery rejects mixed references, unavailable browsers and unresolved native input', async t => {
+  const f = await fixture(t, {nativeFailure:true});
+  assert.equal((await f.c.resume({browserId:f.live.browserId, targetId:f.live.id})).error.code, 'INVALID_ARGUMENT');
+  assert.equal((await f.c.resume({browserId:'missing'})).error.code, 'AMBIGUOUS_TARGET');
+  assert.equal((await f.c.resume({browserId:f.live.browserId})).error.code, 'RELEASE_FAILED');
+  assert.deepEqual(f.calls, []);
+});
+
+test('automatic interruption remains recoverable, but cannot remove a preceding user stop', async t => {
+  const f = await fixture(t);
+  await f.c.interrupt();
+  assert.equal((await f.c.getState()).state.explicitlyStopped, false);
+  ok(await f.c.openTarget({browserId:f.live.browserId}));
+  await f.c.stop(); await f.c.interrupt();
+  assert.equal((await f.c.getState()).state.explicitlyStopped, true);
+  assert.equal((await f.c.openTarget({browserId:f.live.browserId})).error.code, 'CONTROL_STOPPED');
+});
+
+test('a browser disappearing during recovery cannot grant control', async t => {
+  const f = await fixture(t);
+  let reads = 0;
+  f.browser.listBrowsers = async () => ++reads === 1 ? [{id:f.live.browserId}] : [];
+  assert.equal((await f.c.resume({browserId:f.live.browserId})).error.code, 'AMBIGUOUS_TARGET');
+  assert.notEqual((await f.c.getState()).state.mode, 'active');
+  assert.deepEqual(f.calls, []);
+});
+
+test('stop wins over an in-flight browser-only resume', async t => {
+  const f = await fixture(t);
+  const entered = Promise.withResolvers(), gate = Promise.withResolvers();
+  let reads = 0;
+  f.browser.listBrowsers = async () => { if (++reads === 2) { entered.resolve(); await gate.promise; } return [{id:f.live.browserId}]; };
+  const recovering = f.c.resume({browserId:f.live.browserId});
+  await entered.promise;
+  const stopped = f.c.stop(); gate.resolve();
+  assert.equal((await recovering).error.code, 'CONTROL_STOPPED');
+  await stopped;
+  assert.equal((await f.c.getState()).state.explicitlyStopped, true);
+});
+
+test('a failed browser occurrence cannot disable healthy peers or allocate/replay input during recovery', async t => {
+  const f = await fixture(t);
+  ok(await f.c.resume({browserId:f.live.browserId}));
+  const peer = {...tab('peer')};
+  f.browser.listTargets = async () => [f.live, peer];
+  ok(await f.c.selectTarget(f.live)); ok(await f.c.resume({targetId:f.live.id}));
+  ok(await f.c.selectTarget(peer)); ok(await f.c.resume({targetId:peer.id}));
+  f.browser.act = async (target, action) => {
+    f.calls.push(['dispatch',target.id,action.action]);
+    if (target.id === f.live.id) throw Error('Synthetic uncertain target failure');
+    return {};
+  };
+  f.browser.releaseTarget = async target => ({released:target.id !== f.live.id});
+  assert.equal((await f.c.act({targetId:f.live.id,action:'click'})).error.code,'RELEASE_FAILED');
+  ok(await f.c.act({targetId:peer.id,action:'click'}));
+  assert.equal((await f.c.act({targetId:f.live.id,action:'click'})).error.code,'RECOVERY_REQUIRED');
+  const before = f.calls.length;
+  f.browser.newTab = async () => { throw Error('Synthetic creation failure'); };
+  assert.equal((await f.c.openTarget({browserId:f.live.browserId})).ok,false);
+  ok(await f.c.act({targetId:peer.id,action:'click'}));
+  assert.equal(f.calls.length,before+1);
+  assert.equal(f.calls.filter(call=>call[0]==='dispatch'&&call[1]===f.live.id).length,1,'uncertain input is never replayed');
+  assert.equal((await f.c.getState()).state.targets.find(target=>target.id===peer.id).verified,true);
+});
+
+test('a new explicit stop wins over delayed closed-connection confirmation', async t => {
+  const f = await fixture(t), entered = Promise.withResolvers(), gate = Promise.withResolvers();
+  f.browser.confirmClosedTargets = async () => { entered.resolve(); await gate.promise; return {released:true}; };
+  const state = (await f.c.getState()).state;
+  const recovery = f.c.recoverClosedTargets({targetIds:[f.old.id], expectedReleaseErrors:JSON.stringify(state.releaseErrors)});
+  await entered.promise;
+  const stopped = f.c.stop(); gate.resolve();
+  assert.equal((await recovery).error.code,'CONTROL_STOPPED');
+  await stopped;
+  assert.equal((await f.c.getState()).state.explicitlyStopped,true);
+  assert.equal((await f.c.openTarget({browserId:f.live.browserId})).error.code,'CONTROL_STOPPED');
 });

@@ -35,9 +35,10 @@ async function fixture(t, createSession = createComputerSession) {
       return hooks.releaseFails ? {released: false, failures: [{message: 'Synthetic unacknowledged release'}]} : {released: true};
     }, close: async () => {},
   };
+  backend.releaseTarget = backend.release;
   const runtime = createPluginRuntime({dataDir, browser: backend, nativeEnabled: false, extensionEnabled: false});
   const computer = createSession((endpoint, args) => runtime.request(endpoint, args,
-    {sessionKey: 'synthetic-pending', signal: endpoint === 'stop' ? undefined : computer.signal}));
+    {sessionKey: 'synthetic-pending', signal: ['stop','interrupt'].includes(endpoint) ? undefined : computer.signal}));
   const run = (code, timeoutMs = 3000, signal) => computer.run({code, timeoutMs}, signal);
   t.after(async () => { hooks.releaseFails = false; gate.resolve(); await computer.close(); await runtime.close(); await rm(dataDir, {recursive: true, force: true}); });
   await run('var tab = await cua.getTab("tab:pending");');
@@ -107,7 +108,7 @@ for (const [name, createSession] of [['worker', createComputerSession], ['REPL',
     f.gate.resolve(); await f.run('await tab.pressKey("Shift+A");');
     await f.computer.close();
     assert.equal(f.events.filter(([kind]) => kind === 'release').length, 1);
-    assert.equal((await f.runtime.request('state')).state.mode, 'stopped');
+    assert.equal((await f.runtime.request('state')).state.mode, 'recovery_required');
   });
 
   test(`${name}: acknowledged explicit stop clears a failed release obligation`, async t => {
@@ -155,7 +156,7 @@ test('a failed cell with stalled input retains its deadline, releases and resets
     {code: 'COMPUTER_TIMEOUT'});
   assert.deepEqual(f.events, [['dispatch', 'once'], ['release']]);
   const state = (await f.runtime.request('state')).state;
-  assert.equal(state.mode, 'stopped'); assert.equal(state.releasePending, false);
+  assert.equal(state.mode, 'recovery_required'); assert.equal(state.releasePending, false);
   await assert.rejects(f.run('tab.id'), /tab is not defined/);
 });
 
@@ -202,4 +203,25 @@ test('an outstanding call release failure takes precedence over the earlier Java
   f.gate.reject(new Error('Synthetic dispatched action failure'));
   assert.equal((await run).code, 'RELEASE_FAILED');
   assert.equal((await f.runtime.request('state')).state.releasePending, true);
+});
+
+for (const [name, createSession] of [['worker', createComputerSession], ['REPL', createComputerRepl]]) {
+  test(`${name}: idle reset preserves control without recording an explicit user stop`, async t => {
+    const f = await fixture(t, createSession);
+    await f.computer.reset();
+    assert.deepEqual(f.events, []);
+    const state = (await f.runtime.request('state')).state;
+    assert.equal(state.explicitlyStopped, false);
+    assert.equal(state.mode, 'active');
+    assert.equal(state.releasePending, false);
+  });
+}
+
+test('JavaScript-only timeout leaves the shared browser controller usable', async t => {
+  const f = await fixture(t);
+  await assert.rejects(f.run('while (true) {}', 100), {code:'COMPUTER_TIMEOUT'});
+  const state = (await f.runtime.request('state')).state;
+  assert.equal(state.mode, 'active'); assert.equal(state.explicitlyStopped, false);
+  assert.deepEqual(f.events, []);
+  assert.equal((await f.runtime.request('observe', {targetId:'tab:pending', format:'ax'})).ok, true);
 });

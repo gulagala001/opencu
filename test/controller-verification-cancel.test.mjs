@@ -221,7 +221,7 @@ for (const stage of ['verification', 'observation']) for (const ending of ['stop
 test('computer timeout releases held input during a stalled observation',async t=>{
  const {controller:c,backend,A,events}=await setup(t);
  const {createComputerSession}=await import('../src/dsh/computer.mjs');
- const methods={select:'selectTarget',resume:'resume',observe:'observe',act:'act',stop:'stop'};
+ const methods={select:'selectTarget',resume:'resume',observe:'observe',act:'act',stop:'stop',interrupt:'interrupt'};
  const session=createComputerSession((endpoint,args)=>c[methods[endpoint]](endpoint==='select'?args.reference:args));
  const entered=deferred(),gate=deferred();
  try {
@@ -272,7 +272,7 @@ test('close and retry-close finish without late input while verification stays p
 test('computer overall timeout completes despite stalled read-only verification',async t=>{
  const {controller:c,A,events,hooks}=await setup(t);
  const {createComputerSession}=await import('../src/dsh/computer.mjs');
- const methods={select:'selectTarget',resume:'resume',observe:'observe',act:'act',stop:'stop'};
+ const methods={select:'selectTarget',resume:'resume',observe:'observe',act:'act',stop:'stop',interrupt:'interrupt'};
  const session=createComputerSession((endpoint,args)=>c[methods[endpoint]](endpoint==='select'?args.reference:args));
  try{
   await session.run({code:`var tab = await cua.getTab(${JSON.stringify(A.id)}); await tab.keyDown('Shift');`,timeoutMs:1000});
@@ -282,7 +282,7 @@ test('computer overall timeout completes despite stalled read-only verification'
   try{
    assert.equal(await settledWithin(run,100),true,'COMPUTER_TIMEOUT handler can release and finish');
    assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
-   assert.equal((await c.getState()).state.mode,'stopped');
+   assert.equal((await c.getState()).state.mode,'recovery_required');
   }finally{hooks.send=undefined;gate.resolve();await assert.rejects(run,e=>e.code==='COMPUTER_TIMEOUT');}
   assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
   assert.equal(events.filter(e=>e[1]==='text').length,0);

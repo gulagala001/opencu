@@ -147,7 +147,7 @@ export async function createDirectSession({dataDir, outputDir, config = {}, metr
     pending.add(work); void work.finally(() => pending.delete(work)).catch(() => {}); return work;
   }
   computer = createComputerSession((endpoint, args, waiting) => dispatch(endpoint, args, {
-    signal: endpoint === 'stop' ? undefined : computer.signal, modelProjection: true, onApprovalWait: waiting?.onApprovalWait,
+    signal: ['stop','interrupt'].includes(endpoint) ? undefined : computer.signal, modelProjection: true, onApprovalWait: waiting?.onApprovalWait,
   }));
   function ready() { if (closed) throw failure('SESSION_CLOSED', 'Direct session is closed'); }
   return {
