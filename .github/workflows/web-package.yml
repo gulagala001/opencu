@@ -1,5 +1,6 @@
 name: Build, test and package verification
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
@@ -23,6 +24,8 @@ jobs:
           package-manager-cache: false
       - name: Install exact locked dependencies
         run: npm ci
+      - name: Verify process supervision on this runner
+        run: node --test test/cu-liveness-runner.test.mjs
       - name: Verify public distribution files
         run: node scripts/check-public-files.mjs
       # Build output is not committed; build once, then require a byte-identical rebuild.

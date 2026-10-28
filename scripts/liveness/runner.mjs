@@ -15,7 +15,9 @@ async function processInventory() {
   // Environments are used only to identify this random supervision chain. Never
   // retain command lines or other environment fields in reports or diagnostics.
   let output;
-  try {output=(await execute('/bin/ps',['eww','-axo','pid=,ppid=,pgid=,stat=,command='],{encoding:'utf8',timeout:2000,maxBuffer:64*1024*1024})).stdout;}
+  // Keep selection in BSD syntax: procps rejects the mixed `eww -axo`
+  // spelling that macOS accepts. Both implementations support `axeww -o`.
+  try {output=(await execute('/bin/ps',['axeww','-o','pid=,ppid=,pgid=,stat=,command='],{encoding:'utf8',timeout:2000,maxBuffer:64*1024*1024})).stdout;}
   catch(error){throw Object.assign(Error('Could not inspect the supervised process tree'),{code:'PROCESS_INSPECTION_FAILED',causeCode:error.code});}
   const rows=[];
   for(const line of output.split('\n')) {

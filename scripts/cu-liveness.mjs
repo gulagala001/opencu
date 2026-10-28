@@ -78,6 +78,7 @@ else if(['check','verify','replay'].includes(command)) {
           results.at(-1).failureFile='failures/'+file;
           await writeJson(join(failures,file),{version:VERSION,kind:'opencu-liveness-failure',sourceDigest:sourceIdentity.digest,verifierDigest:verifierIdentity.digest,spec,result});
           console.log(`FAIL ${spec.id}: ${result.error?.code} ${result.error?.message}`);
+          for(const error of result.supervision?.cleanup?.errors??[])console.log(`  Cleanup: ${error.code} ${error.message}`);
         } else if(results.length%25===0)console.log(`Cases ${results.length}/${selected.length}`);
       }
       if(!aborter.signal.aborted&&runAdapters) {
