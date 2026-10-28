@@ -124,7 +124,7 @@ const cases = [
   {name:'explicit-external-multiple-profiles',kind:'empty',entry:'external',multiple:true,expectCode:'BROWSER_CHOICE_REQUIRED'},
   {name:'empty-generic-caller-abort',kind:'empty',entry:'tool',end:'abort'},
   {name:'empty-computer-caller-abort',kind:'empty',entry:'computer',code:'await cua.getBrowser()',end:'abort'},
-  {name:'empty-computer-release-failure-visible',kind:'release-error',entry:'computer',code:'await cua.getBrowser()',end:'abort',releaseError:true},
+  {name:'empty-computer-cancel-does-not-release-unowned-native-input',kind:'release-error',entry:'computer',code:'await cua.getBrowser()',end:'abort',unownedReleaseError:true},
   {name:'native-generic-list-no-pairing',kind:'native',entry:'tool'},
   {name:'native-is-not-a-browser',kind:'native',entry:'computer',code:'await cua.getBrowser()',expectError:true},
   {name:'native-explicit-external-still-reachable',kind:'native',entry:'external',end:'decline'},
@@ -142,7 +142,7 @@ for (const spec of cases) test(spec.name,{timeout:10000},async()=>{
   if (spec.end) {
    const demand = await f.demand(); f.events.push('demand:observed');
    if (spec.end === 'decline') { await f.post('decline',{requestId:demand.requestId}); f.events.push('peer:decline'); }
-   else { if(spec.releaseError) f.failRelease(true); caller.abort(reason); f.events.push('caller:abort'); }
+   else { if(spec.unownedReleaseError) { f.failRelease(true); record.releasesBeforeAbort=f.nativeStats.releases; } caller.abort(reason); f.events.push('caller:abort'); }
   }
   const result = await observed; record.inventoryReadsForEntry=f.physical.stats.inventoryReads-inventoryBaseline;
   if(spec.name==='managed-generic-tool') assert.equal(record.inventoryReadsForEntry,1,'one inventory read per generic request');
@@ -150,8 +150,8 @@ for (const spec of cases) test(spec.name,{timeout:10000},async()=>{
   record.returned=result.returned; record.errorCode=result.code??null;
   if (spec.end === 'decline') assert.equal(result.code,'PAIRING_DECLINED');
   else if (spec.end === 'abort') {
-   if(spec.releaseError) { assert.equal(result.code,'RELEASE_FAILED'); assert.notEqual(result.error,reason); }
-   else { assert.equal(result.error,reason,'original caller abort reason must retain object identity'); record.abortReasonSameObject=true; }
+   assert.equal(result.error,reason,'original caller abort reason must retain object identity'); record.abortReasonSameObject=true;
+   if(spec.unownedReleaseError) assert.equal(f.nativeStats.releases,record.releasesBeforeAbort,'read-only discovery owns no native input and must not release another session');
   } else if(spec.expectCode) assert.equal(result.code,spec.expectCode);
   else if(spec.expectError) assert.equal(result.returned,false,'explicit absent browser must not bind another browser');
   else assert.equal(result.returned,true);
