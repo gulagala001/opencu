@@ -36,6 +36,19 @@ test('source inventory rejects changed and newly added asynchronous paths',async
   await writeJson(baseline,await scan(directory));await fs.writeFile(join(directory,'src/core/new.mjs'),'export async function extra(){await Promise.resolve()}');
   await assert.rejects(checkCatalog(directory,baseline),{code:'CATALOG_DRIFT'});
 });
+test('host staging prepack checks registration in the declared source checkout without shipping tests',async t=>{
+  const directory=await scratch(t);
+  await fs.cp(join(root,'scripts'),join(directory,'scripts'),{recursive:true});
+  await fs.mkdir(join(directory,'src/native'),{recursive:true});
+  await fs.copyFile(join(root,'src/native/linux-helper.mjs'),join(directory,'src/native/linux-helper.mjs'));
+  await fs.copyFile(join(root,'package.json'),join(directory,'package.json'));
+  await fs.symlink(await fs.realpath(join(root,'node_modules')),join(directory,'node_modules'));
+  const output=execFileSync(process.execPath,[join(directory,'scripts/cu-liveness.mjs'),'check'],
+    {cwd:directory,env:{...process.env,OPENCU_SOURCE_ROOT:root},encoding:'utf8'});
+  const result=JSON.parse(output);assert.ok(result.files>0);
+  assert.ok(Object.values(result.adapterSuites).every(count=>count>0));
+  await assert.rejects(fs.stat(join(directory,'test')),{code:'ENOENT'});
+});
 for(const mutation of ['human-stop','duplicate-input','release-human'])test(`independent continuation oracle catches the ${mutation} mutant`,async t=>{
   const parent=await scratch(t),spec=cases().find(x=>x.family==='human'&&x.backend==='browser'&&x.phase==='before'&&x.human===(mutation==='release-human'?'held-key':'click'));
   const baseline=await runCase(spec,{root,parent});assert.equal(baseline.ok,true,JSON.stringify(baseline.error));

@@ -27,7 +27,10 @@ if(command==='help'||command==='--help') {
   console.log(JSON.stringify({files:catalog.records.length,waitPoints:catalog.records.reduce((n,r)=>n+r.sites.length,0),written:options.write===true}));
 } else if(command==='list')console.log(JSON.stringify({invariants,contracts:contracts.map(({id,invariant})=>({id,invariant})),cases:cases()},null,2));
 else if(['check','verify','replay'].includes(command)) {
-  const inventory=await checkCatalog(root,baseline,{consumer:root!==sourceRoot&&Boolean(options.root)}),groups=await adapterTests(sourceRoot);
+  // Host build staging intentionally omits test/. Its prepack gate reads both
+  // source inventory and test registration from the declared source checkout.
+  const registrationRoot=command==='check'&&!options.root&&process.env.OPENCU_SOURCE_ROOT?root:sourceRoot;
+  const inventory=await checkCatalog(root,baseline,{consumer:root!==sourceRoot&&Boolean(options.root)}),groups=await adapterTests(registrationRoot);
   for(const [id,files]of Object.entries(groups))if(!files.length)throw Error(`Contract ${id} has no executable adapter tests`);
   if(command==='check')console.log(JSON.stringify({...inventory,adapterSuites:Object.fromEntries(Object.entries(groups).map(([key,files])=>[key,files.length]))}));
   else {
