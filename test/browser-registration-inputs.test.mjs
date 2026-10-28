@@ -4,6 +4,7 @@ import {EventEmitter} from 'node:events';
 import {createHash} from 'node:crypto';
 import {mkdtemp, readFile, writeFile, mkdir, rename, rm} from 'node:fs/promises';
 import {join} from 'node:path';
+import {tmpdir} from 'node:os';
 import {createBrowserBackend} from '../src/browser/backend.mjs';
 import {createPluginRuntime} from '../src/dsh/runtime.mjs';
 const endpoint = 'ws://registration.synthetic.invalid/devtools/browser/registration-safety';
@@ -24,7 +25,7 @@ async function until(predicate, label, wait = tick) {
   throw new Error('Synthetic fixture did not reach ' + label);
 }
 async function fixture(t, saved = [], {provided = false} = {}) {
-  const dataDir = await mkdtemp('/tmp/opencu-registration-regression-data-');
+  const dataDir = await mkdtemp(join(tmpdir(),'opencu-registration-regression-data-'));
   t.after(() => rm(dataDir, {recursive: true, force: true}));
   const journalPath = join(dataDir, 'browser-inputs.json');
   if (saved.length) await writeFile(journalPath, JSON.stringify(saved));
@@ -162,7 +163,8 @@ test('frequent closed tabs bound duplicate-release history and evicted identitie
 });
 
 for(const action of ['keyDown','keyUp','mouseUp']) test(`${action} which closes its exact page returns a released closure receipt`,async t=>{
-  const f=await fixture(t,[targetRecord('child')]);
+  const owned={...targetRecord('child'),keys:action==='keyUp'?['Enter']:['Shift'],buttons:action==='mouseUp'?['left']:[]};
+  const f=await fixture(t,[owned]);
   const child=f.addPage('child'),parent=f.addPage('parent');
   const targets=await f.backend.listTargets(),target=targets.find(item=>item.identity.targetId==='child');
   const close=async()=>{child.closeFromOwner();throw child.closedError;};

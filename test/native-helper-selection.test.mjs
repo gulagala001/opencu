@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {linuxHelper} from '../src/native/linux-helper.mjs';
 import {createNativeBackend} from '../src/native/backend.mjs';
+import {platformSkip} from '../scripts/liveness/scope.mjs';
 
 // Hyprland ships no RemoteDesktop portal, so the compositor backend has to win over the
 // generic Wayland one even though both sessions report the same session type.
@@ -29,7 +30,7 @@ readline.createInterface({input: process.stdin}).on('line', line => {
 
 // The hand-back is a Hyprland concept: only that helper moves the user's view, so every other
 // session type has to keep its backend object exactly as it was.
-test('only the Hyprland helper advertises the screen hand-back', {skip: process.platform !== 'linux'}, async t => {
+test('only the Hyprland helper advertises the screen hand-back', {skip: platformSkip('test/native-helper-selection.test.mjs','only the Hyprland helper advertises the screen hand-back')}, async t => {
   const awayFor = async env => {
     const dataDir = await mkdtemp(join(tmpdir(), 'opencu-handback-'));
     t.after(() => rm(dataDir, {recursive: true, force: true}));

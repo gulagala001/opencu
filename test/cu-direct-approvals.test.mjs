@@ -179,3 +179,17 @@ test('stdio close cancels approval and queued input before exiting', async t => 
   assert.equal((await binding).ok, false); assert.equal((await input).error.code, 'SESSION_RESET');
   assert.deepEqual(await f.calls(), []); assert.equal((await cli.exited).code, 0);
 });
+
+for (const kind of ['file', 'directory']) test('stdio starts through a ' + kind + ' symlink and keeps approval control available', async t => {
+  const f = await fixture(t);
+  const link = join(f.root, kind === 'file' ? 'direct-link.mjs' : 'scripts-link');
+  await symlink(kind === 'file' ? f.script : join(f.root, 'scripts'), link, kind === 'directory' ? 'dir' : 'file');
+  const cli = await stdio(t, { ...f, script: kind === 'file' ? link : join(link, 'cu-direct.mjs') });
+  const binding = cli.send(bind);
+  const request = await stdioPending(cli);
+  assert.equal((await cli.send({ method: 'request', endpoint: 'appApprovals/respond', args: { requestId: request.id, action: 'accept', persist: 'session' } })).ok, true);
+  assert.equal((await binding).ok, true);
+  assert.deepEqual(await f.calls(), [{ method: 'select' }]);
+  assert.equal((await cli.send({ method: 'close' })).result.closed, true);
+  assert.equal((await cli.exited).code, 0);
+});

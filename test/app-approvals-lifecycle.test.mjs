@@ -105,3 +105,46 @@ test('metadata is loaded only for a new prompt and never grants a changed execut
   await authorize(target, 'other'); assert.equal(reads, 4);
   assert.deepEqual(await f.service.read(), { approvedApps: [] });
 });
+
+for (const action of ['cancel', 'forgetSession', 'abort', 'close']) test('authorization cancels while metadata never replies: ' + action, async t => {
+  const f = await fixture(t), entered = Promise.withResolvers(), metadata = Promise.withResolvers(), aborter = new AbortController();
+  let settled = false;
+  const work = f.service.authorize(target, 'session', aborter.signal, () => { entered.resolve(); return metadata.promise; })
+    .then(() => ({ accepted: true }), error => ({ error })).then(value => { settled = true; return value; });
+  await entered.promise;
+  if (action === 'abort') aborter.abort(Error('explicit abort'));
+  else if (action === 'close') await f.service.close();
+  else f.service[action]('session');
+  await new Promise(resolve => setImmediate(resolve));
+  const cancelledBeforeMetadata = settled;
+  metadata.resolve();
+  const outcome = await work;
+  assert.equal(cancelledBeforeMetadata, true, 'cancellation must not wait for an unrelated metadata reply');
+  assert.ok(outcome.error); assert.deepEqual(f.service.snapshot(), []);
+});
+
+test('a synchronous approval observer can cancel the newly published request', async t => {
+  const { directory } = await fixture(t);
+  let service, first = true, settled = false;
+  service = createAppApprovals(() => directory, () => { if (first) { first = false; service.cancel('session'); } });
+  const work = service.authorize(target, 'session').then(() => null, error => error).then(value => { settled = true; return value; });
+  for (let i = 0; i < 100 && first; i++) await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  const cancelled = settled;
+  // Unblock old implementations without leaving a dangling authorization.
+  if (!settled) await service.close();
+  assert.equal(cancelled, true, 'publish callbacks must see a cancellable waiter');
+  assert.equal((await work).code, 'APP_APPROVAL_CANCELLED');
+  await service.close();
+});
+
+test('synchronous cancellation inside waiting feedback runs its returned cleanup once', async t => {
+  const { service } = await fixture(t);
+  let cleaned = 0;
+  const error = await service.authorize(target, 'session', undefined, undefined, () => {
+    service.cancel('session');
+    return () => { cleaned++; };
+  }).then(() => null, error => error);
+  assert.equal(error.code, 'APP_APPROVAL_CANCELLED');
+  assert.equal(cleaned, 1); assert.deepEqual(service.snapshot(), []);
+});

@@ -89,6 +89,17 @@ function assertClean(session) {
   assert.equal(session.listenerCount('Target.detachedFromTarget'), 0);
 }
 
+for(const action of ['keyDown','mouseDown'])test(`${action} pre-dispatch transport failure cannot release an unowned human input`,async t=>{
+  const f=fixture(),page=f.addPage('input-owner'),inputs=[];
+  page.keyboard={down:async key=>inputs.push(['keyDown',key]),up:async key=>inputs.push(['keyUp',key])};
+  page.mouse={down:async({button})=>inputs.push(['mouseDown',button]),up:async({button})=>inputs.push(['mouseUp',button])};
+  const b=await backend(t,f),[target]=await b.listTargets();
+  const original=page.fail('Emulation.setFocusEmulationEnabled');
+  await assert.rejects(b.act(target,{action,key:'Shift',button:'left'}),error=>error===original&&error.details.inputDispatched===false);
+  assert.deepEqual(inputs,[],'failed pre-dispatch intent is not owned input');
+  await b.close();assert.deepEqual(inputs,[]);assertClean(f.sessions[0]);
+});
+
 test('supplied initial rejection releases its session and retries without closing the external context', async t => {
   const f = fixture(), page = f.addPage('initial'), original = page.fail('Target.getTargetInfo');
   const b = await backend(t, f);

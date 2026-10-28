@@ -7,13 +7,11 @@ import {join} from 'node:path';
 import {createInterface} from 'node:readline';
 import {fileURLToPath} from 'node:url';
 import {createNativeBackend} from '../src/native/backend.mjs';
-import {linuxHelper} from '../src/native/linux-helper.mjs';
+import {platformSkip} from '../scripts/liveness/scope.mjs';
 
 // Hyprland exposes no RemoteDesktop portal, so this backend runs only on a live
 // Hyprland session. It never injects input: the checks stay read-only.
-const live = process.platform === 'linux' && linuxHelper() === 'hyprland.py';
-
-test('real Hyprland backend enumerates windows and captures the foreground one', {skip: !live}, async () => {
+test('real Hyprland backend enumerates windows and captures the foreground one', {skip: platformSkip('test/native.hyprland.test.mjs','real Hyprland backend enumerates windows and captures the foreground one')}, async () => {
   const dataDir = await mkdtemp(join(tmpdir(), 'opencu-hyprland-'));
   const backend = await createNativeBackend({dataDir});
   try {
@@ -62,7 +60,7 @@ test('real Hyprland backend enumerates windows and captures the foreground one',
   }
 });
 
-test('the helper gives up its session when its peer disappears', {skip: !live}, async () => {
+test('the helper gives up its session when its peer disappears', {skip: platformSkip('test/native.hyprland.test.mjs','the helper gives up its session when its peer disappears')}, async () => {
   // A driver that crashes must not leave the controlled window parked in the
   // isolation workspace: the helper has to notice the closed pipe, release held
   // input and restore the desktop on its own.

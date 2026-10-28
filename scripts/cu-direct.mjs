@@ -221,6 +221,6 @@ async function main(argv) {
     await tail; await Promise.allSettled([...controls]);
   } finally { process.off('SIGINT', stop); process.off('SIGTERM', stop); await session.close(); }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(await realpath(process.argv[1]).catch(() => resolve(process.argv[1]))).href) {
   main(process.argv.slice(2)).catch(error => { process.stderr.write(`${JSON.stringify({ok: false, error: serializeReplError(error)})}\n`); process.exitCode = 1; });
 }

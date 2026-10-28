@@ -27,6 +27,7 @@ function guest({trigger='mouseUp',confirmed=true}={}) {
 for(const [action,trigger] of [['click','mouseUp'],['press','keyDown'],['keyUp','keyUp']])test(`DSH ${action} self-close requires the exact host destruction receipt`,async()=>{
   const f=guest({trigger}),target={id:'child',identity:{guestId:'original'}};
   const driver=createGuestDriver(f.element,target,()=>{},()=>{},()=>{},undefined,f.automate);
+  if(action==='keyUp')await driver.act({action:'keyDown',key:'Enter'});
   const result=await driver.act({action,...(action==='click'?{}:{key:'Enter'}),x:10,y:10});
   assert.equal(result.closedTargetId,'child');assert.equal(result.inputDispatched,true);
   assert.equal(result.release.retired,true);assert.equal(result.release.webContentsId,9);
@@ -66,14 +67,10 @@ test('DSH transport retires a timer/external close without another action and pr
   assert.deepEqual(f.events,['keyDown']);await detach();
 });
 
-test('remote closure waits for the actual controller reply, then preserves the exact retired occurrence',async t=>{
+test('remote closure settles a missing action reply as unknown and preserves its exact release receipt',async t=>{
   const oldDocument=globalThis.document;globalThis.document={documentElement:{lang:'en'}};
-  const host=createBrowserHost(),input=Promise.withResolvers(),entered=Promise.withResolvers(),delivered=Promise.withResolvers();
-  let actionId;
-  const client={request:async(method,args,signal)=>{
-    if(method==='browser/result'&&args.result?.closedTargetId){actionId=args.id;await delivered.promise;}
-    return host.handle(method,args,signal);
-  }};
+  const host=createBrowserHost(),input=Promise.withResolvers(),entered=Promise.withResolvers();
+  const client={request:(method,args,signal)=>host.handle(method,args,signal)};
   const transport=createBrowserTransport(client);await transport.start();await new Promise(resolve=>setImmediate(resolve));
   const release={closed:true,released:true,retired:true,leaseId:'original',webContentsId:9};
   const remote=transport.attachRemote({sessionId:'s',tabId:'t',request:async(method)=>{
@@ -82,14 +79,14 @@ test('remote closure waits for the actual controller reply, then preserves the e
     throw Error(method);
   }});
   remote.update({url:'https://fixture.invalid/',title:'Child'});const target=remote.target;
-  t.after(async()=>{input.resolve();delivered.resolve();await transport.dispose();host.close();globalThis.document=oldDocument;});
+  t.after(async()=>{input.resolve();await transport.dispose();host.close();globalThis.document=oldDocument;});
   await new Promise(resolve=>setImmediate(resolve));
-  await host.backend.select(target);const action=host.backend.act(target,{action:'click'});await entered.promise;
-  let retired=false;const retirement=remote.retire(release).then(()=>{retired=true;});
-  input.resolve();for(let count=0;count<10&&!actionId;count++)await new Promise(resolve=>setImmediate(resolve));
-  assert(actionId);assert.equal(retired,false,'sending the inner reply cannot destroy its shell before delivery');
-  delivered.resolve();assert.equal((await action).closedTargetId,target.id);await retirement;
-  assert.equal(retired,true);assert.deepEqual(await host.backend.listTargets(),[]);
+  await host.backend.select(target);const action=host.backend.act(target,{action:'click'}).catch(error=>error);await entered.promise;
+  await remote.retire(release);
+  const error=await action;
+  assert.equal(error.code,'TARGET_CLOSED');assert.equal(error.details.effectVerified,false);assert.equal(error.details.inputDispatched,true);
+  assert.deepEqual(error.details.release,release);assert.deepEqual(await host.backend.listTargets(),[]);
+  input.resolve();await new Promise(resolve=>setImmediate(resolve));
   assert.equal((await host.backend.releaseTarget(target)).retired,true);
   await assert.rejects(host.backend.releaseTarget({...target,identity:{...target.identity,guestId:'replacement'}}),{code:'TARGET_IDENTITY_CHANGED'});
 });

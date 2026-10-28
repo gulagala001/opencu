@@ -10,6 +10,12 @@ import {scrollDeltas,checkScrollGeometry} from '../extension/scroll.js';
 import {installDocumentRuntime} from '../extension/content.js';
 import {locatorInputFixture} from './fixtures/locator-input.mjs';
 import {dragPath} from '../extension/pointer-path.js';
+import {createServer} from 'node:http';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {createExtensionBackend} from '../src/extension/backend.mjs';
+import {targetId} from '../src/extension/protocol.mjs';
 
 // Execute the production MV3 worker and its real AX/input helpers. Only Chrome
 // APIs and local bridge transport are simulated; no browser is started.
@@ -22,18 +28,26 @@ async function within(promise) {
   finally { clearTimeout(timer); }
 }
 async function fixture(t) {
-  const events = [], replies = new Map(), replyWaiters = new Map(), polls = [], commands = [], hooks = {};
-  const event = () => ({ addListener() {}, removeListener() {} });
-  const storage = { get: async () => ({}), set: async () => {}, remove: async () => {} };
+  const events = [], replies = new Map(), replyWaiters = new Map(), polls = [], commands = [], hooks = {}, sessionData = {}, localData = {};
+  const event = () => {
+    const listeners = new Set();
+    return {addListener:listener=>listeners.add(listener),removeListener:listener=>listeners.delete(listener),
+      emit:(...args)=>{for(const listener of listeners)listener(...args);}};
+  };
+  const storage = { get: async () => structuredClone(localData), set: async value => Object.assign(localData,structuredClone(value)),
+    remove: async keys => {for(const key of Array.isArray(keys)?keys:[keys])delete localData[key];} };
   const identity = { tabId: 73, documentId: 'doc', epoch: 'epoch', instanceId: 'instance', browserInstanceId: 'browser' };
   const owner = { ...identity, endpoint: 'http://127.0.0.1:12345', token: 'synthetic-local-token', sessionId: 'session' };
   const geometry = { width: 100, height: 80, visual: { x: 0, y: 0, width: 100, height: 80, scale: 1 } };
   const bytes = Buffer.alloc(24); bytes.writeUInt32BE(0x89504e47, 0); bytes.writeUInt32BE(100, 16); bytes.writeUInt32BE(80, 20);
   const chrome = {
-    storage: { local: storage, session: storage },
+    storage: { local: storage, session: {
+      get:async()=>structuredClone(sessionData),set:async value=>{await hooks.persist?.(value);Object.assign(sessionData,structuredClone(value));},
+      remove:async keys=>{for(const key of Array.isArray(keys)?keys:[keys])delete sessionData[key];},
+    } },
     tabs: {
       get: async id => { await hooks.get?.(id); return { id, url: 'https://fixture.invalid/', status: 'complete', windowId: 1, active: false }; },
-      query: async () => { await hooks.query?.(); return [{ id: 73, url: 'https://fixture.invalid/', status: 'complete' }]; },
+      query: async () => await hooks.query?.() ?? [{ id: 73, url: 'https://fixture.invalid/', status: 'complete' }],
       update: async (id, value) => { events.push(['tabs.update', value]); await hooks.update?.(); return { id, windowId: 1 }; },
       create: async value => { events.push(['tabs.create', value]); await hooks.create?.(); return { id: 74, windowId: 1 }; },
       onRemoved: event(),
@@ -41,8 +55,8 @@ async function fixture(t) {
     windows: { get: async () => ({ focused: false }), update: async () => { events.push(['windows.update']); } },
     scripting: { executeScript: async request => {
       if (!request.args) return [{ frameId: 0, documentId: 'chrome-doc', result: true }];
-      const [method,args] = request.args; events.push(['content',method,args]); await hooks.content?.(method,args);
-      return [{ frameId: 0, documentId: 'chrome-doc', result: { ok: true, result: { documentId: 'doc', geometry } } }];
+      const [method,args] = request.args; events.push(['content',method,args,request.target.tabId]); await hooks.content?.(method,args,request.target.tabId);
+      return [{ frameId: 0, documentId: 'chrome-doc', result: { ok: true, result: { documentId: (typeof hooks.documentId === 'function' ? hooks.documentId(request.target.tabId) : hooks.documentId) ?? 'doc', geometry } } }];
     } },
     debugger: {
       sendCommand: async (_, method, params) => {
@@ -52,15 +66,17 @@ async function fixture(t) {
         return {};
       },
       attach: async () => { events.push(['attach']); await hooks.attach?.(); }, detach: async () => { events.push(['detach']); },
-      getTargets: async () => { await hooks.targets?.(); return []; }, onEvent: event(), onDetach: event(),
+      getTargets: async () => await hooks.targets?.() ?? [], onEvent: event(), onDetach: event(),
     },
     downloads: { onCreated: event(), onChanged: event(), onErased: event() },
     webNavigation: { onCommitted: event(), onDOMContentLoaded: event() },
     alarms: { onAlarm: event() }, runtime: { onStartup: event(), onInstalled: event(), onMessage: event(), getURL: path => 'chrome-extension://fixture/' + path },
-    action: { setBadgeText: async () => {} },
+    action: { setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {} },
   };
   const fetch = async (url, request) => {
+    if(hooks.fetch)return hooks.fetch(url,request);
     const input = JSON.parse(request.body);
+    if (url.endsWith('/connect')) {events.push(['connect',input]);return {ok:true,json:async()=>({sessionId:'session-'+input.epoch,releaseTicket:'ticket-'+input.epoch,acknowledgedReleases:input.releaseReceipts.map(item=>JSON.stringify([item.instanceId,item.browserInstanceId,item.epoch]))})};}
     if (url.endsWith('/result')) {
       replies.set(input.id, input); replyWaiters.get(input.id)?.resolve(input);
       return { ok: true, json: async () => ({}) };
@@ -71,21 +87,239 @@ async function fixture(t) {
   };
   const imports = { observeAccessibility, elementOperation, locatorOperation, invalidateElements, createCDPFrameRouter, installDocumentRuntime, dragPath, keySpec, keyEventParameters,
     clickParameters, locatorClickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes, scrollDeltas, checkScrollGeometry,
-    createPairingClient: () => ({ start: async () => {}, pause: async () => {} }) };
+    createPairingClient: () => ({ start: async () => {events.push(['pairing.start']);}, pause: async () => {} }) };
   const worker = new Function(...Object.keys(imports), 'chrome', 'navigator', 'fetch', 'setTimeout', `${source}\nreturn {
-    ready: initialize(), observe, act, releaseTab, controlToken, attached, observations, loop,
-    setConnection(value) { connection = value; },
-  };`)(...Object.values(imports), chrome, { platform: 'MacIntel' }, fetch, (callback, ms) => setTimeout(callback, ms === 500 ? 0 : ms));
+    ready: initialize(), restore, connect, watchPairing, attach, observe, act, releaseTab, releaseAll, controlToken, attached, observations, loop,
+    getStatus() { return status; }, getRunning() { return running; },
+    setConnection(value) { connection = value; }, getConnection() { return connection; },
+  };`)(...Object.values(imports), chrome, { platform: 'MacIntel' }, fetch, (callback, ms) => setTimeout(callback, ms === 500 ? 0 : hooks.deadlineMs ? Math.min(ms,hooks.deadlineMs) : ms));
   await worker.ready; worker.setConnection(owner);
-  const seed = (keys = ['Shift'], buttons = ['left']) => worker.attached.set(73, { keys: new Map(keys.map(key => [key, keySpec(key)])), buttons: new Set(buttons), x: 10, y: 20 });
+  const seed = (keys = ['Shift'], buttons = ['left']) => worker.attached.set(73, { keys: new Map(keys.map(key => [key, keySpec(key)])), buttons: new Set(buttons), x: 10, y: 20, identity:{...identity} });
   seed();
   const queue = (...items) => { if (polls.length) polls.shift()(items); else commands.push(items); };
   const message = (id, method, params = {}) => ({ id, method, epoch: owner.epoch, deadline: Date.now() + 10000,
     params: method === 'listTargets' ? params : { identity, ...params } });
   const result = id => { if (replies.has(id)) return Promise.resolve(replies.get(id)); const pending = deferred(); replyWaiters.set(id, pending); return pending.promise; };
   const loop = worker.loop(owner);
-  t.after(async () => { for (const key of Object.keys(hooks)) delete hooks[key]; worker.setConnection(null); queue(); await loop; invalidateElements(73); });
-  return { worker, identity, hooks, events, seed, queue, message, result };
+  const stop = async () => {worker.setConnection(null);queue();await loop;for(let n=0;worker.getRunning()&&n<200;n++){queue();await new Promise(resolve=>setTimeout(resolve,1));}assert.equal(worker.getRunning(),false);};
+  t.after(async () => { for (const key of Object.keys(hooks)) delete hooks[key]; await stop(); invalidateElements(73); });
+  return { worker, identity, hooks, events, seed, queue, message, result, chrome, owner, sessionData, localData, stop };
+}
+
+test('MV3 human debugger detach invalidates only that tab and preserves another in-flight observation',async t=>{
+  const f=await fixture(t),other={...f.identity,tabId:74},entered=deferred(),gate=deferred();
+  f.worker.attached.set(74,{keys:new Map(),buttons:new Set(),x:0,y:0});
+  f.hooks.get=async id=>{if(id===74){entered.resolve();await gate.promise;}};
+  const pending=f.worker.observe(other,{format:'ax',screenshot:false});await entered.promise;
+  const old=f.worker.controlToken(73);
+  f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');
+  await tick();
+  assert.equal(f.worker.getConnection(),f.owner,'a detached target must not disconnect the bridge');
+  assert.equal(f.worker.attached.get(73).detached,true);assert.equal(f.worker.attached.has(74),true);
+  assert.equal(f.events.some(([method])=>method.startsWith('Input.')),false,'human cancellation must not release another target');
+  await assert.rejects(f.worker.act(f.identity,{type:'key_down',key:'a'},old),{code:'CONTROL_STOPPED'});
+  gate.resolve();assert.equal((await pending).identity.tabId,74);
+  delete f.hooks.get;
+  await f.worker.act(other,{type:'key_down',key:'b'});
+  assert.equal(f.events.filter(([method])=>method==='Input.dispatchKeyEvent').at(-1)[1].key,'b');
+});
+
+test('MV3 detached held input remains journalled until explicit same-document release',async t=>{
+  const f=await fixture(t);f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await tick();
+  assert.deepEqual(f.sessionData.heldInputs[0].keys.map(key=>key.key),['Shift']);
+  assert.equal(f.sessionData.heldInputs[0].detached,true);
+  await assert.rejects(f.worker.act(f.identity,{type:'key_down',key:'a'}),{code:'RELEASE_REQUIRED'});
+  assert.equal(f.events.some(([name])=>name.startsWith('Input.')),false);
+  assert.equal((await f.worker.releaseTab(73)).released,true);
+  assert.deepEqual(f.events.filter(([name])=>name.startsWith('Input.')).map(([name,args])=>[name,args.type,args.key??args.button]),
+    [['Input.dispatchMouseEvent','mouseReleased','left'],['Input.dispatchKeyEvent','keyUp','Shift']]);
+  assert.equal(f.worker.attached.has(73),false);assert.deepEqual(f.sessionData.heldInputs,[]);
+});
+
+for(const boundary of ['changed document','another debugger'])test(`MV3 detached recovery refuses ${boundary} and retains original ownership`,async t=>{
+  const f=await fixture(t);f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await tick();
+  if(boundary==='changed document')f.hooks.documentId='replacement';else f.hooks.targets=async()=>[{tabId:73,attached:true}];
+  await assert.rejects(f.worker.releaseTab(73),{code:'RELEASE_FAILED'});
+  assert.equal(f.worker.attached.get(73).keys.has('Shift'),true);
+  assert.equal(f.events.some(([name])=>name.startsWith('Input.')||name==='attach'),false);
+  assert.equal(f.sessionData.heldInputs[0].detached,true);
+  f.chrome.tabs.onRemoved.emit(73);await tick();
+  assert.equal((await f.worker.releaseTab(73)).released,true,'actual tab removal can retire the original input destination');
+});
+
+test('MV3 cold restoration preserves and releases a detached journal without replaying key-down',async t=>{
+  const f=await fixture(t);f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await tick();
+  f.worker.attached.clear();f.worker.setConnection(null);await f.worker.restore();
+  assert.deepEqual(f.sessionData.heldInputs,[]);
+  assert.deepEqual(f.events.filter(([name])=>name.startsWith('Input.')).map(([,args])=>args.type),['mouseReleased','keyUp']);
+});
+
+for(const boundary of ['changed document','another debugger'])test(`MV3 cold ${boundary} isolates its journal while a fresh epoch controls healthy tabs`,async t=>{
+  const f=await fixture(t);f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await tick();await f.stop();
+  const original={...f.owner,releaseTicket:'original-ticket',receiptScope:'original-scope'};
+  f.localData.releaseOwner=original;
+  f.sessionData.authorization={port:12345,token:'synthetic-reconnect-token-12345',consent:true};
+  if(boundary==='changed document')f.hooks.documentId=id=>id===73?'replacement':'doc';
+  else f.hooks.targets=async()=>[{tabId:73,attached:true}];
+  f.worker.attached.clear();await f.worker.restore();
+  assert.equal(f.worker.getStatus().connected,true,'one unsafe release must not revoke authorization for every tab');
+  assert.ok(f.sessionData.authorization);assert.equal(f.sessionData.heldInputs[0].keys[0].key,'Shift');
+  assert.equal(f.localData.releaseReceipts?.some(item=>item.epoch===original.epoch)??false,false,'the old connection is still unreleased');
+  assert.ok(f.localData.releaseOwners.some(item=>item.epoch===original.epoch),'fresh ownership must not overwrite the original ticket');
+  const connection=f.worker.getConnection(),healthy={...f.identity,...connection,tabId:74};
+  await f.worker.attach(healthy);f.worker.attached.get(74).frameRouter=undefined;
+  await f.worker.act(healthy,{type:'key_down',key:'b'});
+  await assert.rejects(f.worker.act({...healthy,tabId:73,documentId:boundary==='changed document'?'replacement':'doc'},{type:'key_down',key:'a'}),{code:'RELEASE_REQUIRED'});
+  assert.deepEqual(f.events.filter(([name])=>name==='Input.dispatchKeyEvent').map(([,params])=>[params.type,params.key]),[['keyDown','b']]);
+  await assert.rejects(f.worker.releaseAll(),{code:'RELEASE_FAILED'});
+  assert.equal(f.localData.releaseReceipts?.some(item=>item.epoch===original.epoch)??false,false);
+  f.chrome.tabs.onRemoved.emit(73);await tick();await f.stop();
+  await f.worker.connect({port:12345,token:'synthetic-reconnect-token-12345',consent:true});
+  assert.equal(f.localData.releaseReceipts.find(item=>item.epoch===original.epoch).scope,'original-scope','an old owner retains the original credential scope');
+});
+
+test('MV3 an expired inventory read abandons only its reply and frees the control lane',async t=>{
+  const f=await fixture(t),entered=deferred(),gate=deferred();f.seed([],[]);
+  f.hooks.query=async()=>{entered.resolve();return gate.promise;};
+  f.queue({...f.message('expired-inventory','listTargets'),deadline:Date.now()+30});await entered.promise;
+  const expired=await within(f.result('expired-inventory'));
+  assert.equal(expired.error.code,'COMMAND_TIMEOUT');assert.equal(f.worker.getConnection(),f.owner);
+  delete f.hooks.query;f.queue(f.message('healthy-after-inventory','act',{action:{type:'key_down',key:'b'}}));
+  assert.equal((await within(f.result('healthy-after-inventory'))).ok,true);
+  gate.resolve([{id:73,url:'https://fixture.invalid/',status:'complete'}]);await tick();
+  assert.equal((await f.result('expired-inventory')).error.code,'COMMAND_TIMEOUT','a late reply cannot resume the abandoned read');
+  assert.deepEqual(f.events.filter(([name])=>name==='Input.dispatchKeyEvent').map(([,params])=>[params.type,params.key]),[['keyDown','b']]);
+});
+
+test('MV3 multiple cold owners retain independent debt and original receipt scopes across reconnects',async t=>{
+  const f=await fixture(t);f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await tick();await f.stop();
+  const owners=[{...f.identity,releaseTicket:'ticket-first',receiptScope:'scope-first'},
+    {...f.identity,epoch:'second-old-epoch',releaseTicket:'ticket-second',receiptScope:'scope-second'}];
+  f.localData.instanceId=f.identity.instanceId;f.localData.releaseOwners=owners;
+  f.sessionData.attachedTabs.push(74);f.sessionData.heldInputs.push({tabId:74,keys:[keySpec('Control')],buttons:[],x:0,y:0,identity:{...owners[1],tabId:74},detached:true});
+  f.worker.attached.clear();f.hooks.documentId='replacement';await f.worker.restore();
+  const starts=f.events.filter(([name])=>name==='pairing.start').length;await f.worker.watchPairing();
+  assert.equal(f.events.filter(([name])=>name==='pairing.start').length,starts+1);
+  const input={port:12345,token:'synthetic-reconnect-token-12345',consent:true};
+  await f.worker.connect(input);await f.stop();f.worker.attached.clear();await f.worker.restore();
+  assert.deepEqual(f.localData.releaseOwners.filter(owner=>owners.some(original=>original.epoch===owner.epoch)).map(owner=>owner.epoch).sort(),['epoch','second-old-epoch']);
+  assert.equal(f.localData.releaseReceipts.length,0,'neither unresolved owner may be acknowledged or discarded');
+  f.chrome.tabs.onRemoved.emit(73);await tick();await f.stop();await f.worker.connect(input);
+  assert.equal(f.localData.releaseReceipts.find(receipt=>receipt.epoch===owners[0].epoch).scope,'scope-first');
+  assert.ok(f.localData.releaseOwners.some(owner=>owner.epoch===owners[1].epoch));
+  assert.equal(f.localData.releaseReceipts.some(receipt=>receipt.epoch===owners[1].epoch),false);
+  assert.equal(f.localData.releaseOwners.some(owner=>'token' in owner||'endpoint' in owner),false);
+  assert.equal(f.events.some(([name])=>name.startsWith('Input.')),false,'no unknown input is replayed or lifted');
+});
+
+test('MV3 recovery cannot bypass an unpersisted quarantine journal',async t=>{
+  const f=await fixture(t);f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await tick();await f.stop();
+  f.hooks.documentId='replacement';f.hooks.persist=()=>{throw Error('journal storage unavailable');};
+  await assert.rejects(f.worker.connect({port:12345,token:'synthetic-reconnect-token-12345',consent:true}),/journal storage unavailable/);
+  assert.equal(f.worker.getConnection(),null);assert.equal(f.events.some(([name])=>name==='connect'),false);
+  assert.equal(f.sessionData.heldInputs[0].keys[0].key,'Shift');
+});
+
+test('MV3 persisted recovery attachment never proves ownership of a replacement debugger',async t=>{
+  const f=await fixture(t);f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await tick();await f.stop();
+  f.sessionData.heldInputs[0].recoveryAttached=true;f.worker.attached.clear();
+  f.hooks.targets=async()=>[{tabId:73,attached:true}];
+  f.hooks.send=(method,params)=>{if(method==='Runtime.evaluate'&&params.expression==='void 0')throw Error('Debugger is not attached to the tab');};
+  await f.worker.restore();await f.worker.connect({port:12345,token:'synthetic-reconnect-token-12345',consent:true});
+  assert.equal(f.worker.getStatus().connected,true);assert.equal(f.worker.attached.get(73).quarantined,true);
+  assert.equal(f.events.some(([name])=>name.startsWith('Input.')||name==='attach'||name==='detach'),false);
+});
+
+test('MV3 a stalled cold identity read quarantines only its original tab and still reconnects',async t=>{
+  const f=await fixture(t);f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await tick();await f.stop();
+  f.sessionData.authorization={port:12345,token:'synthetic-reconnect-token-12345',consent:true};f.worker.attached.clear();
+  f.hooks.deadlineMs=20;f.hooks.content=async(method,_args,id)=>{if(id===73&&method==='identity')await new Promise(()=>{});};
+  await within(f.worker.restore());
+  assert.equal(f.worker.getStatus().connected,true);assert.equal(f.worker.attached.get(73).quarantined,true);
+  assert.equal(f.sessionData.heldInputs[0].keys[0].key,'Shift');
+  assert.equal(f.events.some(([name])=>name.startsWith('Input.')),false);
+});
+
+test('MV3 journal serialization retains original debt when an older detach write fails behind a new input',async t=>{
+  const f=await fixture(t),entered=deferred(),gate=deferred();let first=true;
+  f.hooks.persist=async()=>{if(first){first=false;entered.resolve();await gate.promise;throw Error('older detach journal failed');}};
+  f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await entered.promise;
+  const healthy={...f.identity,tabId:74};f.worker.attached.set(74,{keys:new Map(),buttons:new Set(),x:0,y:0,identity:healthy});
+  let complete=false;const write=f.worker.act(healthy,{type:'key_down',key:'b'}).then(()=>{complete=true;});await tick();
+  assert.equal(complete,false,'the new input must await its ordered journal acknowledgement');
+  gate.resolve();await write;
+  assert.deepEqual(f.sessionData.heldInputs.map(state=>[state.tabId,state.keys.map(key=>key.key)]),[[73,['Shift']],[74,['b']]]);
+});
+
+test('production MV3 recovery and authenticated backend preserve old debt until the original ticket is receipted',async t=>{
+  const dir=await mkdtemp(join(tmpdir(),'opencu-mv3-wire-')),server=createServer(),token='synthetic-mv3-http-connection-token';
+  const backend=createExtensionBackend({server,token,dataDir:dir,requestTimeoutMs:250});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const f=await fixture(t),wire=[];let failure;
+  try {
+    await f.stop();f.worker.attached.clear();
+    f.hooks.fetch=async(url,request)=>{wire.push([url.split('/').at(-1),JSON.parse(request.body)]);return fetch(url,{...request,headers:{...request.headers,Origin:'chrome-extension://'+'a'.repeat(32)}});};
+    const input={port:server.address().port,token,consent:true};await f.worker.connect(input);
+    const original=f.worker.getConnection(),oldIdentity={instanceId:original.instanceId,browserInstanceId:original.browserInstanceId,epoch:original.epoch,tabId:73,documentId:'doc'};
+    const old={id:targetId(oldIdentity),identity:oldIdentity};
+    f.worker.attached.set(73,{keys:new Map(),buttons:new Set(),x:0,y:0,identity:oldIdentity});
+    await backend.act(old,{action:'keyDown',key:'Shift'});
+    f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await tick();await f.stop();
+    f.hooks.documentId=id=>id===73?'replacement':'doc';f.worker.attached.clear();await f.worker.restore();
+    assert.equal(f.worker.getStatus().connected,true);
+    const fresh=f.worker.getConnection(),identity={...oldIdentity,epoch:fresh.epoch,tabId:74},healthy={id:targetId(identity),identity};
+    await f.worker.attach(identity);f.worker.attached.get(74).frameRouter=undefined;
+    await backend.act(healthy,{action:'keyDown',key:'b'});
+    await assert.rejects(backend.release(old),{code:'STALE_TARGET'});
+    assert.equal(wire.filter(([path])=>path==='connect')[1][1].releaseReceipts.some(receipt=>receipt.epoch===original.epoch),false);
+    await backend.release(healthy);f.chrome.tabs.onRemoved.emit(73);await tick();await f.stop();await f.worker.connect(input);
+    const receipts=wire.filter(([path])=>path==='connect').at(-1)[1].releaseReceipts;
+    assert.equal(receipts.find(receipt=>receipt.epoch===original.epoch).ticket,original.releaseTicket);
+    assert.equal((await backend.release(old)).retired,true,'only the authenticated original ticket can clear the old controller reference');
+    assert.deepEqual(f.events.filter(([name])=>name==='Input.dispatchKeyEvent').map(([,params])=>[params.type,params.key]),[['rawKeyDown','Shift'],['keyDown','b'],['keyUp','b']]);
+  } catch(error) {failure=error;} finally {
+    f.chrome.tabs.onRemoved.emit(73);f.chrome.tabs.onRemoved.emit(74);await tick();
+    try {await backend.close();}catch(error){failure??=error;}
+    const stopping=f.stop();server.closeAllConnections();
+    try {await stopping;}catch(error){failure??=error;}
+    await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});
+  }
+  if(failure)throw failure;
+});
+
+test('MV3 detached release journal retry does not reopen an already released debugger',async t=>{
+  const f=await fixture(t);f.chrome.debugger.onDetach.emit({tabId:73},'canceled_by_user');await tick();
+  f.hooks.persist=value=>{if(value.heldInputs?.length===0){delete f.hooks.persist;throw Error('synthetic journal commit failed');}};
+  await assert.rejects(f.worker.releaseTab(73),/journal commit failed/);
+  assert.equal((await f.worker.releaseTab(73)).released,true);
+  assert.equal(f.events.filter(([name])=>name==='attach').length,1);
+  assert.equal(f.events.filter(([name])=>name==='detach').length,1);
+  assert.deepEqual(f.sessionData.heldInputs,[]);
+});
+
+test('MV3 unmatched releases never lift human input and aliases clear the original automation key',async t=>{
+  const f=await fixture(t);f.seed([],[]);
+  await f.worker.act(f.identity,{type:'key_up',key:'a'});
+  await f.worker.act(f.identity,{type:'mouse_up',button:'left'});
+  assert.equal(f.events.some(([method])=>method.startsWith('Input.')),false);
+  await f.worker.act(f.identity,{type:'key_down',key:'a'});
+  await f.worker.act(f.identity,{type:'key_up',key:'A'});
+  await f.worker.act(f.identity,{type:'key_up',key:'a'});
+  assert.deepEqual(f.events.filter(([method])=>method==='Input.dispatchKeyEvent').map(([,params])=>[params.type,params.key]),[['keyDown','a'],['keyUp','a']]);
+  assert.equal(f.worker.attached.get(73).keys.size,0);
+});
+
+for(const [type,args] of [['key_down',{key:'a'}],['mouse_down',{button:'left',x:20,y:20,coordinateSpace:'css'}]]) {
+  test(`MV3 ${type} pre-dispatch failure rolls back only its new ownership before cleanup`,async t=>{
+    const f=await fixture(t);f.seed(['Shift'],['right']);
+    f.hooks.content=method=>{if(method==='expectInput')throw Object.assign(Error('marker unavailable before dispatch'),{code:'FRAME_DETACHED'});};
+    await assert.rejects(f.worker.act(f.identity,{type,...args}),error=>error.code==='FRAME_DETACHED'&&error.details.inputDispatched===false);
+    assert.deepEqual([...f.worker.attached.get(73).keys.keys()],['Shift']);
+    assert.deepEqual([...f.worker.attached.get(73).buttons],['right']);
+    delete f.hooks.content;await f.worker.releaseTab(73);
+    assert.deepEqual(f.events.filter(([method])=>method.startsWith('Input.')).map(([method,params])=>[method,params.key??params.button]),
+      [['Input.dispatchMouseEvent','right'],['Input.dispatchKeyEvent','Shift']]);
+  });
 }
 
 test('MV3 locator modifiers reach actual CDP mouse events and release once across double-click',async t => {

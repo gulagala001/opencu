@@ -250,7 +250,11 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         await step(() => sendInput({ type: 'mouseMove', ...position }));
       };
       const down = async button => { buttons.add(button); await step(() => sendInput({ type: 'mouseDown', ...position, button, clickCount: 1 })); };
-      const up = async button => { await step(() => sendInput({ type: 'mouseUp', ...position, button, clickCount: 1 })); buttons.delete(button); };
+      const up = async button => {
+        if (!['left','middle','right'].includes(button)) fail('INVALID_ARGUMENT','Mouse button must be left, middle, or right');
+        if (!buttons.has(button)) return;
+        await step(() => sendInput({ type: 'mouseUp', ...position, button, clickCount: 1 })); buttons.delete(button);
+      };
       switch (args.action) {
         case 'navigationState': return {action:args.action,value:await step(() => evaluate('navigationState',{downloadCursor:args.downloadCursor === true}))};
         case 'domSnapshot': return {action: args.action, ...await step(() => evaluate('domSnapshot', {locator:args.locator ?? [], args: args.args ?? {}}))};
@@ -318,8 +322,11 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         case 'keyDown': {const key=guestKeySpec(args.key).key; keys.add(key); await step(() => sendInput({ type:'keyDown',keyCode:key })); break;}
         case 'keyUp': {
           const spec=guestKeySpec(args.key);
-          await step(() => sendInput({type:'keyUp',keyCode:spec.key}));
-          keys.delete(spec.key);
+          const owned=[...keys].filter(key=>guestKeySpec(key).code===spec.code);
+          if (owned.length) {
+            await step(() => sendInput({type:'keyUp',keyCode:owned[0]}));
+            for (const key of owned) keys.delete(key);
+          }
           break;
         }
         case 'press': {

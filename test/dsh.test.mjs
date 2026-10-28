@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -9,7 +9,7 @@ import { readFile } from 'node:fs/promises';
 
 // Opt-in smoke: real installed DSH loader, tools and durable attachment store.
 // No replacement SDK, model/account, or current DSH profile is involved.
-test('adapter loads in a real isolated DSH profile and projects a real screenshot attachment', { skip: !process.env.OPENCU_DSH_SMOKE }, async () => {
+test('adapter loads in a real isolated DSH profile and projects a real screenshot attachment', { skip: !process.env.OPENCU_DSH_SMOKE && 'Set OPENCU_DSH_SMOKE=1 to run the real DSH isolated profile smoke' }, async t => {
   const installation = process.env.OPENCU_DSH_INSTALL || fileURLToPath(new URL('../../oh-my-dsh/package.json', import.meta.url));
   const workspaceRequire = createRequire(installation);
   const dshPackage = workspaceRequire.resolve('@deepseek-ai/dsh/package.json');
@@ -18,6 +18,7 @@ test('adapter loads in a real isolated DSH profile and projects a real screensho
   const { runProfile } = await module('@deepseek-ai/dsh/profile-boot');
   const { createLaunchEnvironmentSnapshot } = await module('@deepseek-ai/dsh-launch-environment');
   const home = await mkdtemp(join(tmpdir(), 'opencu-real-dsh-'));
+  t.after(() => rm(home, {recursive: true, force: true}));
   const profileDir = join(home, 'profiles', 'opencu-smoke');
   await mkdir(profileDir, { recursive: true });
   await writeFile(join(profileDir, 'package.json'), JSON.stringify({ name: 'opencu-isolated-profile', private: true, type: 'module', dsh: { profile: { bundles: [] } } }));

@@ -5,11 +5,12 @@ import {promisify} from 'node:util';
 import {mkdtemp, mkdir, readFile, writeFile, rm} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {join, resolve} from 'node:path';
+import {platformSkip} from '../scripts/liveness/scope.mjs';
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
 
-test('macOS normal clicks, modal scopes and visible AX geometry use the live interaction policies', {skip: process.platform !== 'darwin'}, async t => {
+test('macOS normal clicks, modal scopes and visible AX geometry use the live interaction policies', {skip: platformSkip('test/macos-interaction.test.mjs','macOS normal clicks, modal scopes and visible AX geometry use the live interaction policies')}, async t => {
   const local = join(root, '.local');
   await mkdir(local, {recursive: true});
   const directory = await mkdtemp(join(local, 'macos-interaction-'));

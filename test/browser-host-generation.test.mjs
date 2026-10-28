@@ -128,3 +128,88 @@ test('a connected cancellation still waits for the actual targeted release ackno
   assert.equal((await action).error, reason);
   assert.equal(host.listBrowsers().length, 1);
 });
+
+test('an acknowledged cancellation completes even when the original action reply is lost', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { host, rendererId, target } = await fixture(t), aborter = new AbortController();
+  let settled = false;
+  const reason = Error('explicit stop');
+  const work = settle(host.backend.act(target, { action: 'keyDown', key: 'Shift', signal: aborter.signal }))
+    .then(value => { settled = true; return value; });
+  const [action] = (await host.handle('browser/poll', { rendererId })).commands;
+  aborter.abort(reason);
+  const [release] = (await host.handle('browser/poll', { rendererId })).commands;
+  await host.handle('browser/result', { rendererId, id: release.id, result: { released: true } });
+  await new Promise(resolve => setImmediate(resolve));
+  const promptlySettled = settled;
+  t.mock.timers.tick(30000);
+  const outcome = await work;
+  assert.equal(promptlySettled, true, 'the release barrier makes an absent action reply irrelevant');
+  assert.equal(outcome.error, reason);
+  assert.equal(host.listBrowsers().length, 1, 'a cancelled command must not retain a disconnect timer');
+  assert.deepEqual(await host.handle('browser/result', { rendererId, id: action.id, result: { accepted: true } }), { ok: true, ignored: true });
+});
+
+test('cancelling a read-only command does not release another operation\'s input', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { host, rendererId, target } = await fixture(t), aborter = new AbortController();
+  let settled = false;
+  const work = settle(host.backend.act(target, { action: 'getDOM', signal: aborter.signal })).then(value => { settled = true; return value; });
+  const [action] = (await host.handle('browser/poll', { rendererId })).commands;
+  aborter.abort(Error('cancel observation'));
+  await new Promise(resolve => setImmediate(resolve));
+  const promptlySettled = settled;
+  t.mock.timers.tick(30000); await work;
+  assert.equal(promptlySettled, true);
+  assert.equal(host.listBrowsers().length, 1);
+  const next = host.backend.releaseTarget(target);
+  const commands = (await host.handle('browser/poll', { rendererId })).commands;
+  assert.equal(commands.length, 1, 'only the explicit release request is queued');
+  await host.handle('browser/result', { rendererId, id: commands[0].id, result: { released: true } });
+  await next;
+  assert.deepEqual(await host.handle('browser/result', { rendererId, id: action.id, result: {} }), { ok: true, ignored: true });
+});
+
+test('queued creation cancellation removes the undispatched operation', async t => {
+  const { host, rendererId } = await fixture(t), aborter = new AbortController();
+  const work = settle(host.backend.newTab('dsh:' + rendererId, 'about:blank', { sessionId: 'session', signal: aborter.signal }));
+  aborter.abort(Error('cancel queued creation'));
+  assert.ok((await work).error);
+  const commands = (await host.handle('browser/poll', { rendererId })).commands;
+  assert.equal(commands.some(command => ['openTab', 'cancelCreation'].includes(command.method)), false);
+});
+
+test('cancelled observations forget late replies without disconnecting the input channel', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { host, rendererId, target } = await fixture(t), aborter = new AbortController();
+  const observation = settle(host.backend.observe(target, { signal: aborter.signal }));
+  const [command] = (await host.handle('browser/poll', { rendererId })).commands;
+  aborter.abort(Error('cancel observation'));
+  assert.ok((await observation).error);
+  t.mock.timers.tick(30000);
+  assert.equal(host.listBrowsers().length, 1);
+  assert.deepEqual(await host.handle('browser/result', { rendererId, id: command.id, result: { screenshot: 'late' } }), { ok: true, ignored: true });
+});
+
+test('native presentation ownership cannot survive removal of its session or move to an unrelated window', async t => {
+  const host = createBrowserHost(); t.after(() => host.close());
+  const first = await host.handle('browser/connect', { presentation: true, sessionIds: ['session'] });
+  const second = await host.handle('browser/connect', { presentation: true, sessionIds: ['other'] });
+  assert.equal(host.presentationOwner({}, 'session'), first.rendererId);
+  await host.handle('browser/sessions', { ...first, sessionIds: [] });
+  assert.throws(() => host.presentationOwner({}, 'session'), { code: 'PRESENTATION_HOST_UNAVAILABLE' });
+  await host.handle('browser/disconnect', { ...first, released: true });
+  assert.throws(() => host.presentationOwner({}, 'session'), { code: 'PRESENTATION_HOST_UNAVAILABLE' });
+  assert.equal(host.presentationOwner({}, 'other'), second.rendererId);
+});
+
+test('a mismatched retirement receipt cannot settle another occurrence\'s pending observation', async t => {
+  const { host, rendererId, target } = await fixture(t);
+  const observation = host.backend.observe(target);
+  const [command] = (await host.handle('browser/poll', { rendererId })).commands;
+  const wrong = { ...target, identity: { ...target.identity, guestId: 'other-occurrence' } };
+  await assert.rejects(host.handle('browser/publish', { rendererId, targets: [], retiredTargets: [wrong] }), { code: 'TARGET_IDENTITY_CHANGED' });
+  assert.equal((await host.backend.listTargets())[0].id, target.id);
+  await host.handle('browser/result', { rendererId, id: command.id, result: { observed: true } });
+  assert.deepEqual(await observation, { observed: true });
+});

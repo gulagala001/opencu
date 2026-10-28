@@ -49,6 +49,18 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, code)
         return caught.exception
 
+    def test_handback_and_shutdown_keep_release_receipt_when_compositor_fails(self):
+        e = self.env
+        def unavailable():
+            raise e['Failure']('COMPOSITOR_UNAVAILABLE', 'Synthetic compositor disconnected')
+        e['hand_back_view'] = unavailable
+        e['restore_isolation'] = unavailable
+        for method, args in [('away', {}), ('away', {'relinquish': True}), ('release', {}), ('close', {})]:
+            failure = self.refusal(lambda: e['perform'](method, args, 0), 'COMPOSITOR_UNAVAILABLE')
+            self.assertIs(failure.details['release']['released'], True)
+            self.assertEqual(failure.details['release']['heldKeys'], [])
+        self.assertFalse(e['closing'], 'failed desktop cleanup can be explicitly retried')
+
     def test_selection_and_monitoring_are_passive(self):
         e, effects = self.env, []
         for name in ('isolate', 'focus', 'start_indicator', 'report'):
