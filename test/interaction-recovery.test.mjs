@@ -249,6 +249,17 @@ test('full recovery clears a failed global release but scoped recovery cannot er
   assert.equal(state.pending,false);
 });
 
+test('isolated continuation retires a failed stop retry while keeping other owned input',async()=>{
+  const state=createInputReleaseState();
+  await state.request('act',{targetId:'b',action:'keyDown',key:'Shift'},async()=>({ok:true}));
+  await state.request('stop',{},async()=>({ok:false,error:{code:'RELEASE_FAILED'}}));
+  const receipt=id=>async()=>({ok:true,release:{released:true},releasedTargetIds:[id],state:{mode:'active',releasePending:true,recoveryIsolated:true}});
+  await state.request('resume',{targetId:'a'},receipt('a'));
+  assert.equal(state.pending,true,'unreleased key on b still belongs to this session');
+  await state.request('resume',{targetId:'b'},receipt('b'));
+  assert.equal(state.pending,false,'old quarantined browser debts stay in the controller');
+});
+
 
 test('native site tool terminal errors retain the binding without inferring business success',async t=>{
   const f=await fixture(t);

@@ -122,6 +122,8 @@ for (const native of [false,true]) test(`${name}: recovered ${native ? 'native' 
   await assert.rejects(run('await target.click([10,10]);'),{code:'RELEASE_FAILED'});
   backend.act = act; backend.releaseTarget = releaseTarget;
   await run(`await cua.resume(${JSON.stringify(target.id)}); await target.getAXState();`);
+  await assert.rejects(run('await cua.stop();'),{code:'RELEASE_FAILED'});
+  await run(`await cua.resume(${JSON.stringify(target.id)}); await target.getAXState();`);
   await computer.reset();
   assert.equal((await f.c.getState()).state.mode,'active');
   assert.equal((await f.c.getState()).state.releasePending,true,'the unrelated old browser remains quarantined');
