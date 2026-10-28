@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { writeFile, rm } from 'node:fs/promises';
 import { buildExtensionZip } from '../src/extension/distribution.mjs';
 import {readdir, readFile} from 'node:fs/promises';
 import {join, resolve} from 'node:path';
@@ -7,6 +7,10 @@ import {spawnSync} from 'node:child_process';
 import {checkMacHelperDistribution} from '../src/native/macos-identity.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
+// A standard source build does not verify a separate installed host SDK graph.
+// Never inherit an older build's claim; build-targets writes its verified record
+// only after the complete build and prepack lifecycle have succeeded.
+await rm(join(root, 'lib/host-build.json'), { force: true });
 if (process.platform === 'darwin') await checkMacHelperDistribution(root);
 async function walk(directory) {
   const files = [];

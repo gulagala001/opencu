@@ -63,8 +63,9 @@ for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ['rc1', 
   run(stage, ['scripts/build.mjs']);
   run(stage, ['scripts/check-sdk.mjs', sdk]);
   const buildInputs = { packageManager: 'pnpm@11.28.5', sha256: hashes, frontendSha256: frontendInputs.hashes, ...installed };
+  run(stage, [pnpm, 'run', 'prepack'], {OPENCU_SOURCE_ROOT: root});
   await writeFile(join(stage, 'lib/host-build.json'), JSON.stringify({ ...target, peers, buildInputs }, null, 2) + '\n');
-  run(stage, [pnpm, 'pack', '--pack-destination', output], {OPENCU_SOURCE_ROOT: root});
+  run(stage, [pnpm, '--config.ignore-scripts=true', 'pack', '--pack-destination', output], {OPENCU_SOURCE_ROOT: root});
   await nativePackageModes(join(output, `opencu-${pkg.version}.tgz`));
   await writeFile(join(output, 'build.json'), JSON.stringify({ target, stage, sdk, lock: join(sdk, 'pnpm-lock.yaml'), buildInputs, package: join(output, `opencu-${pkg.version}.tgz`) }, null, 2) + '\n');
 }
