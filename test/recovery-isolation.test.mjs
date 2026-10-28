@@ -10,6 +10,8 @@ import {createGuestDriver} from '../src/client/guest-driver.mjs';
 import {createExtensionBackend} from '../src/extension/backend.mjs';
 import {targetId} from '../src/extension/protocol.mjs';
 import {createServer} from 'node:http';
+import {createComputerSession} from '../src/dsh/computer.mjs';
+import {createComputerRepl} from '../src/dsh/computer-repl.mjs';
 
 const root = new URL('../.local/', import.meta.url); await mkdir(root, {recursive:true});
 const ok = result => {assert.equal(result.ok,true,JSON.stringify(result));return result;};
@@ -29,8 +31,108 @@ async function fixture(t,{nativeFailure=false}={}) {
     release:async()=>({released:!nativeFails}),close:async()=>{}};
   const c=await createController({dataDir:dir,browser,native});
   t.after(async()=>{nativeFails=false;browser.release=async()=>({released:true});await c.close();await rm(dir,{recursive:true,force:true});});
-  return {c,dir,old,live,browser,calls};
+  return {c,dir,old,live,browser,native,calls};
 }
+
+async function nativeFixture(t, options) {
+  const f = await fixture(t, options);
+  const app = {id:'native:live',backend:'native',kind:'app',identity:{pid:123,windowId:7}};
+  f.native.listTargets = async () => [app];
+  f.native.act = async (_target, args) => { f.calls.push(['native',args.action]); return {}; };
+  ok(await f.c.selectTarget(app));
+  return {...f, app};
+}
+
+test('native recovery isolates unrelated orphaned browser targets after native input releases', async t => {
+  const f = await nativeFixture(t);
+  ok(await f.c.resume({targetId:f.app.id}));
+  ok(await f.c.observe({targetId:f.app.id}));
+  ok(await f.c.act({targetId:f.app.id,action:'click'}));
+  assert.equal(ok(await f.c.selectTarget(f.app)).target.verified,true);
+  const {state} = await f.c.getState();
+  assert.equal(state.releasePending,true);
+  assert.equal(state.targets.find(target => target.id === f.old.id).verified,false);
+  assert.equal((await f.c.act({targetId:f.old.id,action:'click'})).ok,false);
+  assert.deepEqual(f.calls,[['native','click']]);
+});
+
+test('native recovery never bypasses its own unresolved hardware input', async t => {
+  const f = await nativeFixture(t,{nativeFailure:true});
+  assert.equal((await f.c.resume({targetId:f.app.id})).error.code,'RELEASE_FAILED');
+  assert.equal((await f.c.act({targetId:f.app.id,action:'click'})).ok,false);
+  assert.deepEqual(f.calls,[]);
+});
+
+test('explicit stop still blocks a recovered native target until explicit resume', async t => {
+  const f = await nativeFixture(t);
+  ok(await f.c.resume({targetId:f.app.id}));
+  await f.c.stop();
+  assert.equal((await f.c.act({targetId:f.app.id,action:'click'})).error.code,'CONTROL_STOPPED');
+  assert.equal((await f.c.getState()).state.explicitlyStopped,true);
+  ok(await f.c.resume({targetId:f.app.id}));
+  ok(await f.c.act({targetId:f.app.id,action:'click'}));
+});
+
+test('stop during native recovery cannot be overwritten by a late release receipt', async t => {
+  const f = await nativeFixture(t);
+  const gate = Promise.withResolvers(), entered = Promise.withResolvers();
+  f.native.release = () => { entered.resolve(); return gate.promise; };
+  const resuming = f.c.resume({targetId:f.app.id});
+  await entered.promise;
+  const stopping = f.c.stop(); gate.resolve({released:true});
+  assert.equal((await resuming).error.code,'CONTROL_STOPPED');
+  await stopping;
+  assert.equal((await f.c.getState()).state.explicitlyStopped,true);
+  assert.equal((await f.c.act({targetId:f.app.id,action:'click'})).error.code,'CONTROL_STOPPED');
+});
+
+test('cold native launch recovers without requiring a pre-existing app or old browser', async t => {
+  const f = await fixture(t), app = {id:'native:new',backend:'native',identity:{pid:124,windowId:8}};
+  f.native.openApplication = async () => { f.calls.push(['launch']); return app; };
+  const request = {backend:'native',launch:true,path:'/Applications/Synthetic.app'};
+  ok(await f.c.openTarget(request));
+  await f.c.stop();
+  assert.equal((await f.c.openTarget(request)).error.code,'CONTROL_STOPPED');
+  assert.deepEqual(f.calls,[['launch']]);
+});
+
+test('cold native launch refuses unresolved hardware and invalid launch references', async t => {
+  const f = await fixture(t,{nativeFailure:true});
+  f.native.openApplication = async () => { f.calls.push(['launch']); };
+  assert.equal((await f.c.openTarget({backend:'native',launch:true,path:'/Applications/Synthetic.app'})).error.code,'RELEASE_FAILED');
+  assert.equal((await f.c.openTarget({backend:'native',launch:true,path:'guessed.app'})).error.code,'INVALID_TARGET');
+  assert.deepEqual(f.calls,[]);
+});
+
+for (const [name, createSession] of [['worker',createComputerSession],['REPL',createComputerRepl]])
+for (const native of [false,true]) test(`${name}: recovered ${native ? 'native' : 'browser'} input stays usable across reset and another session`,async t=>{
+  const f = native ? await nativeFixture(t) : await fixture(t);
+  const target = native ? f.app : f.live, backend = native ? f.native : f.browser;
+  const methods = {state:'getState',targets:'listTargets',select:'selectTarget'};
+  const request = (endpoint,args={}) => f.c[methods[endpoint]??endpoint](endpoint === 'select' ? args.reference : args);
+  const computer = createSession(request);
+  t.after(() => computer.close());
+  const run = code => computer.run({code,timeoutMs:3000});
+  const binding = `var target = await cua.${native ? 'getApp' : 'getTab'}(${JSON.stringify(target.id)});`;
+  await run(binding);
+  await run('await target.keyDown("Shift");');
+  const act = backend.act, releaseTarget = backend.releaseTarget;
+  backend.act = async () => { throw Error('Synthetic uncertain input'); };
+  if (!native) backend.releaseTarget = async () => ({released:false});
+  await assert.rejects(run('await target.click([10,10]);'),{code:'RELEASE_FAILED'});
+  backend.act = act; backend.releaseTarget = releaseTarget;
+  await run(`await cua.resume(${JSON.stringify(target.id)}); await target.getAXState();`);
+  await computer.reset();
+  assert.equal((await f.c.getState()).state.mode,'active');
+  assert.equal((await f.c.getState()).state.releasePending,true,'the unrelated old browser remains quarantined');
+  await run(binding);
+  await run('await target.click([10,10]);');
+  await computer.close();
+  const next = createSession(request);
+  try { await next.run({code:binding,timeoutMs:3000}); await next.run({code:'await target.click([10,10]);',timeoutMs:3000}); }
+  finally { await next.close(); }
+  assert.equal((await f.c.getState()).state.mode,'active');
+});
 
 test('an unrelated orphan remains quarantined while a freshly bound tab resumes and acts',async t=>{
   const f=await fixture(t);ok(await f.c.selectTarget(f.live));ok(await f.c.resume({targetId:f.live.id}));

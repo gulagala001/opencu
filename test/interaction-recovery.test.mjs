@@ -219,6 +219,36 @@ test('target release clears its held-input debt without forgetting other tabs or
   assert.equal(state.pending,false,'the old tab a receipt cannot recreate released input');
 });
 
+test('scoped recovery acknowledges only its own held and uncertain inputs',async()=>{
+  const state=createInputReleaseState(),ack=async()=>({ok:true,result:{inputDispatched:true}});
+  await state.request('act',{targetId:'a',action:'keyDown',key:'Shift'},ack);
+  await state.request('act',{targetId:'b',action:'click'},async()=>({ok:false,error:{code:'RELEASE_FAILED'}}));
+  const recovered=id=>async()=>({ok:true,release:{released:true},releasedTargetIds:[id],state:{mode:'active',releasePending:true,recoveryIsolated:true}});
+  await state.request('resume',{targetId:'a'},recovered('a'));
+  assert.equal(state.pending,true,'the uncertain input on b is still owed');
+  await state.request('resume',{targetId:'b'},recovered('b'));
+  assert.equal(state.pending,false,'unrelated historical targets are not input owned by this session');
+  const gate=Promise.withResolvers(),late=state.request('act',{targetId:'c',action:'click'},()=>gate.promise);
+  await state.request('resume',{targetId:'c'},recovered('c'));
+  gate.resolve({ok:false,error:{code:'RELEASE_FAILED'}});await late;
+  assert.equal(state.pending,false,'a late error cannot restore an acknowledged target obligation');
+});
+
+test('failed recovery without input does not create a new cleanup obligation',async()=>{
+  const state=createInputReleaseState();
+  await state.request('resume',{targetId:'a'},async()=>({ok:false,error:{code:'RELEASE_FAILED'},state:{mode:'release_failed',releasePending:true}}));
+  assert.equal(state.pending,false);
+});
+
+test('full recovery clears a failed global release but scoped recovery cannot erase it',async()=>{
+  const state=createInputReleaseState();
+  await state.request('stop',{},async()=>({ok:false,error:{code:'RELEASE_FAILED'}}));
+  await state.request('resume',{targetId:'a'},async()=>({ok:true,release:{released:true},releasedTargetIds:['a'],state:{releasePending:true}}));
+  assert.equal(state.pending,true);
+  await state.request('resume',{targetId:'a'},async()=>({ok:true,release:{released:true},releasedTargetIds:['a'],state:{releasePending:false,releaseErrors:[]}}));
+  assert.equal(state.pending,false);
+});
+
 
 test('native site tool terminal errors retain the binding without inferring business success',async t=>{
   const f=await fixture(t);
