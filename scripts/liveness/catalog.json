@@ -3548,14 +3548,14 @@
     {
       "file": "src/client/annotation-message-slot.jsx",
       "contract": "resources",
-      "sha256": "c4b7ce568a0f0ccf0610803829f07594d114252f5acda2eeaf5a5e04b5fc2cd9",
+      "sha256": "cee4a80e5474930d8fd39233af6f9461e289c6f45b593465fdc03709e9f01ecd",
       "kind": "javascript",
       "sites": []
     },
     {
       "file": "src/client/annotation-message.mjs",
       "contract": "resources",
-      "sha256": "1d4e7033008afd0a45ecaa47c2fc7c49c08820b825fc85f362276837bcf3a08d",
+      "sha256": "652b0a4dfd117e99aa1fc8d737e9bd2d984526c00e343aba515cab964c15d227",
       "kind": "javascript",
       "sites": []
     },
@@ -4724,7 +4724,7 @@
     {
       "file": "src/client/client-contract.mjs",
       "contract": "resources",
-      "sha256": "60a9a47e4995ca8ab990bad5c418a9ee2c0473e64e8a09b519fd5646b7be2de4",
+      "sha256": "358a83bc8986b793934452c09b8817e7921396b6d9612a8690c25a44c439169a",
       "kind": "javascript",
       "sites": []
     },
@@ -6203,7 +6203,7 @@
     {
       "file": "src/client/index.jsx",
       "contract": "resources",
-      "sha256": "8510e863b514660a459f265ce19831489a358ad6b582b754b6c7fc156616a385",
+      "sha256": "b6422b7ea505d7879b1fb2dc39b4d817e67dbcbbe32f75ead6aee490cab493ab",
       "kind": "javascript",
       "sites": [
         {

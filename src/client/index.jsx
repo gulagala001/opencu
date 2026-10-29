@@ -174,7 +174,7 @@ function mountClient(ctx, entry) {
       report: message => { const value = textAnnotations.state.getSnapshot(); const scope = value && ctx.sessions.scope(value.sessionId); if (scope) ctx.conversation.input.for(scope).notify('error', message); },
     }),
   }, TextAnnotationSlot)), 'opencu: REA selected text editor');
-  ctx.effect(() => ctx.slots.inject('conversation.chat.node', () => installAnnotationMessages(ctx.slots)), 'opencu: sent response annotation display');
+  ctx.effect(() => installAnnotationMessages(ctx.uiConversation.userText), 'opencu: annotation message display');
   const settings = createSettingsHost(client, sharedConfigForm(ctx.configForms, ['omd-ui-chat', 'ui-chat']));
   const capabilitiesConfig = sharedConfigForm(ctx.configForms, ['opencu', 'omd-opencu']);
   const addImageDrafts = (conversationId, images) => {
