@@ -38,7 +38,8 @@ jobs:
       - name: Verify CU/BU lifecycle and regression suite
         run: |
           npx playwright install --with-deps chromium
-          npm install --prefix .local/cu-dsh-sdk --no-audit --no-fund --save-exact @deepseek-ai/dsh@0.2.1-rc.3 @deepseek-ai/dsh-attachment-local@0.2.1-rc.3 @deepseek-ai/dsh-system-prompt@0.2.1-rc.3 @deepseek-ai/dsh-tools@0.2.1-rc.3
+          host=$(node -p 'require("./package.json").engines.dsh')
+          npm install --prefix .local/cu-dsh-sdk --no-audit --no-fund --save-exact "@deepseek-ai/dsh@$host" "@deepseek-ai/dsh-attachment-local@$host" "@deepseek-ai/dsh-system-prompt@$host" "@deepseek-ai/dsh-tools@$host"
           npm run cu:verify -- --profile full
       - name: Verify rebuilt frontend and public package contents
         run: |
