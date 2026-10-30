@@ -49,6 +49,26 @@ test('lost action receipt fails all pending input, asks EOF cleanup and never re
   assert.equal((await trace()).filter(value => value.method === 'act').length, 1);
 });
 
+test('a native read timeout does not close the helper or release another operation input',async t=>{
+ const {transport,trace}=await peer(t,{permissionDelay:80});
+ await transport.request('act');
+ await assert.rejects(transport.request('permissions',{}, {timeoutMs:10}),{code:'NATIVE_READ_TIMEOUT'});
+ assert.equal(transport.ended,false);assert.deepEqual((await transport.request('hello')).input.heldKeys,['SyntheticKey']);
+ await pause(100);assert.deepEqual(await transport.request('verify'),{valid:true});
+ assert.equal((await trace()).some(row=>row.eof||row.released),false);
+ await transport.close();
+});
+
+test('cancelled native reads discard late replies while the same helper remains usable',async t=>{
+ const {transport,trace}=await peer(t,{permissionDelay:80}),aborter=new AbortController();
+ const work=transport.request('permissions',{}, {signal:aborter.signal});
+ const rejected=assert.rejects(work,{code:'CONTROL_STOPPED'});
+ aborter.abort();await bounded(rejected);assert.equal(transport.ended,false);
+ await pause(100);assert.deepEqual(await transport.request('verify'),{valid:true});
+ assert.equal((await trace()).filter(row=>row.method==='permissions').length,1);
+ await transport.close();
+});
+
 test('helper stdout EOF rejects pending work promptly and requests release through stdin EOF', async t => {
   const {transport, trace} = await peer(t);
   await assert.rejects(bounded(transport.request('stdoutEOF')), {code: 'HELPER_EOF'});

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, mkdir, rename, rm} from 'node:fs/promises';
+import {mkdtemp, mkdir, rename, rm, readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {createController} from '../src/core/controller.mjs';
@@ -8,6 +8,8 @@ import {createBrowserHost} from '../src/dsh/browser-host.mjs';
 import {createBrowserTransport} from '../src/client/browser-transport.mjs';
 import {createCompositeBrowserBackend} from '../src/browser/composite.mjs';
 import {createPluginRuntime} from '../src/dsh/runtime.mjs';
+import {controlFailure} from '../src/protocol.mjs';
+import {toolReplError} from '../src/dsh/repl-output.mjs';
 
 const scratch = new URL('../.local/', import.meta.url);
 await mkdir(scratch, {recursive: true});
@@ -30,6 +32,26 @@ async function controllerFixture(t) {
   checked(await controller.selectTarget(target.id));
   return {dataDir, target, state, backend, controller};
 }
+
+test('explicit stop ownership survives automatic cleanup and is included in recovery diagnostics',async t=>{
+ const {controller:c,dataDir}=await controllerFixture(t);
+ const first=checked(await c.stop({source:'tool',sessionId:'synthetic-owner'}));
+ assert.equal(first.state.stopInfo.sessionId,'synthetic-owner');
+ checked(await c.interrupt());
+ const persisted=JSON.parse(await readFile(join(dataDir,'controller.json'),'utf8'));
+ assert.deepEqual(persisted.stopInfo,first.state.stopInfo);assert.equal(persisted.explicitlyStopped,true);
+ const failed=await c.act({action:'click'});assert.equal(failed.error.code,'CONTROL_STOPPED');
+ assert.match(toolReplError(controlFailure(failed)).message,/synthetic-owner/);
+});
+
+test('release diagnostics expose bounded distinct failing targets instead of one opaque group',()=>{
+ const failures=Array.from({length:8},(_,i)=>({targetId:`old-${i}`,code:'BROWSER_HOST_DISCONNECTED',message:'Reconnect this browser'}));
+ const error=toolReplError(controlFailure({error:{code:'CONTROL_STOPPED',message:'Stopped'},state:{mode:'stopped',explicitlyStopped:true,releasePending:true,
+  releaseErrors:[{backend:'browser',failures},{backend:'browser',result:{failures}}]}}));
+ const d=JSON.parse(error.message.split('OpenCU diagnostics: ')[1]).control;
+ assert.equal(d.releaseFailureCount,8);assert.equal(d.releaseFailures.length,6);assert.equal(d.releaseFailuresOmitted,2);
+ assert.equal(d.releaseFailures[0].backend,'browser');assert.equal(d.releaseFailures[0].targetId,'old-0');
+});
 
 for (const invalid of ['identity', 'closed-target']) test(`post-dispatch ${invalid} failure blocks control and releases input`, async t => {
   const {target, state, backend, controller} = await controllerFixture(t);

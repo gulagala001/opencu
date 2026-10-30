@@ -26,3 +26,19 @@ try {
 }finally{rejectRelease=false;await runtime.close();await rm(dir,{recursive:true,force:true});}
 
 });
+
+test('a cancelled caller leaves shared reconfiguration available to another session',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'opencu-reconfigure-cancel-'));
+ const entered=Promise.withResolvers(),gate=Promise.withResolvers();let delayed=false;
+ const backend={listTargets:async()=>[],release:async()=>{if(delayed){entered.resolve();await gate.promise;}return {released:true};},close:async()=>{}};
+ for(const method of ['observe','select','verify','act'])backend[method]=async()=>{throw Error('unused');};
+ let config={dataDir:dir,browser:backend,nativeEnabled:false,extensionEnabled:false,managedHeadless:false};
+ const runtime=createPluginRuntime({getConfig:()=>config});
+ try {
+  assert.equal((await runtime.request('state')).ok,true);delayed=true;config={...config,managedHeadless:true};
+  const aborter=new AbortController(),request=runtime.request('state',{}, {signal:aborter.signal});
+  const rejected=assert.rejects(request,e=>e.code==='CONTROL_STOPPED');await entered.promise;aborter.abort();
+  let timer;try{await Promise.race([rejected,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('cancelled caller waited for shared startup')),500);})]);}finally{clearTimeout(timer);}
+  delayed=false;gate.resolve();assert.equal((await runtime.request('state')).ok,true);
+ }finally{delayed=false;gate.resolve();await runtime.close();await rm(dir,{recursive:true,force:true});}
+});

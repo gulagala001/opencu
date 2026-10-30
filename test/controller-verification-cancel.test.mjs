@@ -71,6 +71,41 @@ async function setup(t,composed=false,releaseTimeoutMs=20){
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function settledWithin(promise,ms){return Promise.race([promise.then(()=>true,()=>true),sleep(ms).then(()=>false)]);}
+test('independent discovery cancels without waiting for another read or releasing its owner input', async t => {
+ const {controller:c,backend,A,events,ok}=await setup(t);
+ await ok(c.selectTarget(A));await ok(c.act({action:'keyDown',key:'Shift'}));
+ const entered=deferred(),gate=deferred(),original=backend.listTargets;let calls=0;
+ backend.listTargets=async options=>{if(++calls===1){entered.resolve();await gate.promise;}return original(options);};
+ const slow=c.listTargets();await entered.promise;
+ const aborter=new AbortController(),cancelled=c.listTargets({signal:aborter.signal});aborter.abort();
+ try {
+  assert.equal(await settledWithin(cancelled,500),true,'cancellation must not queue behind the earlier read');
+  assert.equal((await cancelled).error.code,'CONTROL_STOPPED');
+  const fresh=c.listTargets();assert.equal(await settledWithin(fresh,500),true,'a healthy read must remain usable');await ok(fresh);
+  assert.equal((await c.getState()).state.mode,'active');assert.equal(events.some(e=>e[1]==='up'),false);
+ }finally{backend.listTargets=original;gate.resolve();await slow;await cancelled;}
+});
+
+test('discovery stays responsive while a dispatched input still owns the serial lane', async t => {
+ const {controller:c,A,hooks,ok}=await setup(t);
+ await ok(c.selectTarget(A));const entered=deferred(),gate=deferred();
+ hooks.down=async()=>{entered.resolve();await gate.promise;};
+ const input=c.act({action:'keyDown',key:'Shift'});await entered.promise;
+ try {const read=c.listTargets();assert.equal(await settledWithin(read,500),true);await ok(read);}
+ finally{gate.resolve();await ok(input);}
+});
+
+test('an observation cancelled in the input queue cannot later run or release owner input',async t=>{
+ const {controller:c,backend,A,hooks,events,ok}=await setup(t);await ok(c.selectTarget(A));
+ const entered=deferred(),gate=deferred();hooks.down=async()=>{entered.resolve();await gate.promise;};
+ let observations=0;backend.observe=async()=>{observations++;return {ax:{nodes:[]}};};
+ const input=c.act({action:'keyDown',key:'Shift'});await entered.promise;
+ const aborter=new AbortController(),read=c.observe({targetId:A.id,signal:aborter.signal});aborter.abort();
+ try{assert.equal(await settledWithin(read,500),true);assert.equal((await read).error.code,'CONTROL_STOPPED');}
+ finally{gate.resolve();await ok(input);await read;}
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(observations,0);assert.equal(events.some(e=>e[1]==='up'),false);
+ await ok(c.observe({targetId:A.id}));assert.equal(observations,1);
+});
 for (const method of ['listTargets', 'selectTarget', 'openTarget', 'focus']) for (const stage of ['listTargets', 'listBrowsers']) {
  test(`stop releases held input during ${method} inventory ${stage}`, async t => {
   const {controller:c,backend,A,B,events,ok}=await setup(t,false,250);
