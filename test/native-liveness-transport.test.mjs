@@ -100,7 +100,7 @@ test('unserializable request fails before dispatch without poisoning a live peer
   await transport.close();
 });
 
-async function nativeBackend(t, onCursor, configurations = {}) {
+async function nativeBackend(t, onCursor, configurations = {}, transportOptions = {}) {
   const peers = [];
   await mkdir(join(root, '.local'), {recursive: true});
   const directory = await mkdtemp(join(root, '.local/native-backend-'));
@@ -122,7 +122,7 @@ async function nativeBackend(t, onCursor, configurations = {}) {
     else if (specifier === './macos-identity.mjs') exports = {checkMacHelperIdentity: async () => {}};
     else if (specifier === './transport.mjs') exports = {createHelperTransport: (_command, args, options) => {
       const role = args[0] === '--permissions' ? 'probe' : args[0] === '--installation-lock' ? 'lease' : `main${++mainCount}`;
-      const transport = createHelperTransport(process.execPath, [fixture], {...options, timeout: 800, exitTimeout: 80,
+      const transport = createHelperTransport(process.execPath, [fixture], {...options, timeout: 800, exitTimeout: 1000, ...transportOptions,
         env: {...process.env, OPENCU_TRANSPORT_FIXTURE: JSON.stringify({...(role.startsWith('main') ? {journal: join(directory, 'backend-journal.json')} : {}), ...configurations[role]})}});
       const item = {transport, role}, close = transport.close;
       transport.close = () => { item.closeStarted = true; return close(); };
@@ -189,7 +189,7 @@ test('release recovers a dead helper journal without replaying an uncertain acti
 });
 
 test('recovery never replaces a helper whose old process has not exited', async t => {
-  const {backend, peers} = await nativeBackend(t, undefined, {main1: {dropAct: true, eofDelay: 250}});
+  const {backend, peers} = await nativeBackend(t, undefined, {main1: {dropAct: true, eofDelay: 250}}, {exitTimeout: 80});
   await assert.rejects(backend.act({id: 'synthetic-target'}, {type: 'key_down', key: 'a'}), {code: 'HELPER_TIMEOUT'});
   await assert.rejects(backend.release(), {code: 'HELPER_EXIT_TIMEOUT'});
   assert.equal(peers.filter(peer => peer.role.startsWith('main')).length, 1);
