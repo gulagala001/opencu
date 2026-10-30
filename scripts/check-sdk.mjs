@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { readFile, mkdtemp } from 'node:fs/promises';
+import { readFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 const require = createRequire(resolve(process.argv[2], 'package.json'));
@@ -21,11 +21,13 @@ await scope.dispose();
 const { default: ToolRuntime } = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-tools')));
 const { default: SystemPrompt } = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-system-prompt')));
 const runtime = new Context();
-let owner;
+let owner, dataDir;
 try {
   await runtime.plugin(SystemPrompt, { includeHarnessIdentity: false, includeRuntimeContext: false });
   await runtime.plugin(ToolRuntime, { mode: 'native' });
-  const dataDir = await mkdtemp(join(resolve(process.argv[2]), 'opencu-runtime-'));
+  const scratch = join(resolve(process.argv[2]), '.local');
+  await mkdir(scratch, { recursive: true });
+  dataDir = await mkdtemp(join(scratch, 'opencu-runtime-'));
   const { default: LocalAttachmentStore } = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-attachment-local')));
   await runtime.plugin(LocalAttachmentStore, { dshHome: dataDir });
   // Verify registration/execution/disposal in the actual matching ToolRuntime, without GUI or system input.
@@ -40,5 +42,8 @@ try {
   for (const definition of TOOLS) if (tools.get(definition.name)) throw new Error(`Tool was not removed: ${definition.name}`);
   const retained = JSON.parse(await readFile(join(dataDir, 'controller.json'), 'utf8'));
   if (!retained.closed || retained.releasePending) throw new Error('OpenCU unload did not retain successful release state');
-} finally { if (owner) await owner.dispose(); await runtime.fiber.dispose(); }
+} finally {
+  try { if (owner) await owner.dispose(); }
+  finally { try { await runtime.fiber.dispose(); } finally { if (dataDir) await rm(dataDir, { recursive: true, force: true }); } }
+}
 console.log(`OpenCU matching Host SDK loaded; scope retained; ${TOOLS.length} real ToolRuntime registrations executed and disposed; core close state retained`);
