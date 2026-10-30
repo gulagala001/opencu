@@ -20269,7 +20269,7 @@
     {
       "file": "host/runtime-lifecycle.mjs",
       "contract": "sidebar",
-      "sha256": "48704bb306e42da7daeeb06d7d04ffa274b30b836977431ef90aaa7b3a5f8ebf",
+      "sha256": "2f45e1d53b8eb387dc9971906ab268cc367c3cd630f31bb9fef32b13c959c854",
       "kind": "javascript",
       "sites": [
         {
@@ -20287,6 +20287,18 @@
         {
           "id": "applyRuntimeLifecycle:await:patch():3",
           "line": 13,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "applyRuntimeLifecycle:await:patch():4",
+          "line": 17,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "applyRuntimeLifecycle:await:patch():5",
+          "line": 39,
           "kind": "await",
           "callee": "patch()"
         }
