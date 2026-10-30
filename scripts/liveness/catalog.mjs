@@ -1,8 +1,11 @@
 import fs from 'node:fs/promises';
 import {join,relative} from 'node:path';
 import {createHash} from 'node:crypto';
-import {parse} from '@babel/parser';
+import {dependencyRequire} from '../dependencies.mjs';
 import {contracts,contractFor,VERSION} from './contracts.mjs';
+
+// Host variants keep the verified SDK and frontend/tooling graphs separate.
+const {parse}=dependencyRequire()('@babel/parser');
 
 export const hash=value=>createHash('sha256').update(value).digest('hex');
 async function files(root, prefix='') {

@@ -6146,7 +6146,7 @@
     {
       "file": "src/client/host-target.mjs",
       "contract": "resources",
-      "sha256": "e96a423a36e5622fed0ecd323ddbaadf4f4a3eaa4840ca5c801c4a5fe162b5ce",
+      "sha256": "d1971f12a9d3983174d61afe335565035661325772e08fd6f060ba4c77304eea",
       "kind": "javascript",
       "sites": []
     },
@@ -6203,312 +6203,312 @@
     {
       "file": "src/client/index.jsx",
       "contract": "resources",
-      "sha256": "b6422b7ea505d7879b1fb2dc39b4d817e67dbcbbe32f75ead6aee490cab493ab",
+      "sha256": "b9926561fd3eb55cbbe346cd3c3ab12eca75021a48d2a38e4c222e0b31c930ee",
       "kind": "javascript",
       "sites": [
         {
           "id": "apply:await:entry.closing:1",
-          "line": 61,
+          "line": 63,
           "kind": "await",
           "callee": "entry.closing"
         },
         {
           "id": "apply:await:entry.beforeDispose():1",
-          "line": 71,
+          "line": 73,
           "kind": "await",
           "callee": "entry.beforeDispose()"
         },
         {
           "id": "apply:await:entry.fiber.dispose():1",
-          "line": 71,
+          "line": 73,
           "kind": "await",
           "callee": "entry.fiber.dispose()"
         },
         {
           "id": "apply:await:entry.closing:2",
-          "line": 72,
+          "line": 74,
           "kind": "await",
           "callee": "entry.closing"
         },
         {
           "id": "apply:await:entry.fiber:1",
-          "line": 76,
+          "line": 78,
           "kind": "await",
           "callee": "entry.fiber"
         },
         {
           "id": "mountClient:handoff:client.request().catch().then:1",
-          "line": 101,
+          "line": 103,
           "kind": "handoff",
           "callee": "client.request().catch().then"
         },
         {
           "id": "mountClient:handoff:client.request:1",
-          "line": 101,
+          "line": 103,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "mountClient:handoff:client.request:2",
-          "line": 108,
+          "line": 110,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "focus:await:ctx.uiWorkspace.openSession():1",
-          "line": 124,
+          "line": 126,
           "kind": "await",
           "callee": "ctx.uiWorkspace.openSession()"
         },
         {
           "id": "focus:await:ctx.uiWorkspace.openSession():2",
-          "line": 128,
+          "line": 130,
           "kind": "await",
           "callee": "ctx.uiWorkspace.openSession()"
         },
         {
           "id": "remove:await:ctx.sessions.scope().bail():1",
-          "line": 142,
+          "line": 144,
           "kind": "await",
           "callee": "ctx.sessions.scope().bail()"
         },
         {
           "id": "submit:await:ctx.sessions.sessionOf().prompt():1",
-          "line": 159,
+          "line": 161,
           "kind": "await",
           "callee": "ctx.sessions.sessionOf().prompt()"
         },
         {
           "id": "deliverAnnotations:await:Promise.all():1",
-          "line": 208,
+          "line": 210,
           "kind": "await",
           "callee": "Promise.all()"
         },
         {
           "id": "deliverAnnotations:await:client.request():1",
-          "line": 213,
+          "line": 215,
           "kind": "await",
           "callee": "client.request()"
         },
         {
           "id": "deliverAnnotations:handoff:client.request:1",
-          "line": 213,
+          "line": 215,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "deliverAnnotations:await:session.prompt():1",
-          "line": 222,
+          "line": 224,
           "kind": "await",
           "callee": "session.prompt()"
         },
         {
           "id": "mountClient:await:artifactDocuments.dispose():1",
-          "line": 276,
+          "line": 278,
           "kind": "await",
           "callee": "artifactDocuments.dispose()"
         },
         {
           "id": "add:await:client.request():1",
-          "line": 326,
+          "line": 328,
           "kind": "await",
           "callee": "client.request()"
         },
         {
           "id": "add:handoff:client.request:1",
-          "line": 326,
+          "line": 328,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "getAppApprovals:handoff:client.request().then:1",
-          "line": 331,
+          "line": 333,
           "kind": "handoff",
           "callee": "client.request().then"
         },
         {
           "id": "getAppApprovals:handoff:client.request:1",
-          "line": 331,
+          "line": 333,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "removeAppApproval:handoff:client.request().then:1",
-          "line": 332,
+          "line": 334,
           "kind": "handoff",
           "callee": "client.request().then"
         },
         {
           "id": "removeAppApproval:handoff:client.request:1",
-          "line": 332,
+          "line": 334,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "getPendingAppApprovals:handoff:client.request().then:1",
-          "line": 333,
+          "line": 335,
           "kind": "handoff",
           "callee": "client.request().then"
         },
         {
           "id": "getPendingAppApprovals:handoff:client.request:1",
-          "line": 333,
+          "line": 335,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "prepareRecovery:handoff:client.request:1",
-          "line": 349,
+          "line": 351,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "confirmRecovery:handoff:client.request:1",
-          "line": 350,
+          "line": 352,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "read:await:client.request():1",
-          "line": 352,
+          "line": 354,
           "kind": "await",
           "callee": "client.request()"
         },
         {
           "id": "read:handoff:client.request:1",
-          "line": 352,
+          "line": 354,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "connectBrowser:handoff:client.request:1",
-          "line": 355,
-          "kind": "handoff",
-          "callee": "client.request"
-        },
-        {
-          "id": "manageConnection:handoff:client.request:1",
-          "line": 356,
-          "kind": "handoff",
-          "callee": "client.request"
-        },
-        {
-          "id": "disconnectBrowser:handoff:client.request:1",
           "line": 357,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
-          "id": "forgetBrowser:handoff:client.request:1",
+          "id": "manageConnection:handoff:client.request:1",
           "line": 358,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
-          "id": "showExtensionFiles:await:client.request():1",
+          "id": "disconnectBrowser:handoff:client.request:1",
+          "line": 359,
+          "kind": "handoff",
+          "callee": "client.request"
+        },
+        {
+          "id": "forgetBrowser:handoff:client.request:1",
           "line": 360,
+          "kind": "handoff",
+          "callee": "client.request"
+        },
+        {
+          "id": "showExtensionFiles:await:client.request():1",
+          "line": 362,
           "kind": "await",
           "callee": "client.request()"
         },
         {
           "id": "showExtensionFiles:handoff:client.request:1",
-          "line": 360,
+          "line": 362,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "showExtensionFiles:await:desktop.files():1",
-          "line": 367,
+          "line": 369,
           "kind": "await",
           "callee": "desktop.files()"
         },
         {
           "id": "installBrowser:handoff:client.request:1",
-          "line": 374,
-          "kind": "handoff",
-          "callee": "client.request"
-        },
-        {
-          "id": "openPermissionSettings:handoff:client.request:1",
-          "line": 375,
-          "kind": "handoff",
-          "callee": "client.request"
-        },
-        {
-          "id": "requestPermission:handoff:client.request:1",
           "line": 376,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
-          "id": "revealPermissionHelper:handoff:client.request:1",
+          "id": "openPermissionSettings:handoff:client.request:1",
           "line": 377,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
+          "id": "requestPermission:handoff:client.request:1",
+          "line": 378,
+          "kind": "handoff",
+          "callee": "client.request"
+        },
+        {
+          "id": "revealPermissionHelper:handoff:client.request:1",
+          "line": 379,
+          "kind": "handoff",
+          "callee": "client.request"
+        },
+        {
           "id": "dock:await:ctx.uiWorkspace.openSession():1",
-          "line": 383,
+          "line": 385,
           "kind": "await",
           "callee": "ctx.uiWorkspace.openSession()"
         },
         {
           "id": "report:handoff:client.request:1",
-          "line": 396,
+          "line": 398,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "mountClient:handoff:transport.start().then:1",
-          "line": 424,
+          "line": 426,
           "kind": "handoff",
           "callee": "transport.start().then"
         },
         {
           "id": "mountClient:await:starting.catch():1",
-          "line": 428,
+          "line": 430,
           "kind": "await",
           "callee": "starting.catch()"
         },
         {
           "id": "mountClient:await:dispose():1",
-          "line": 431,
+          "line": 433,
           "kind": "await",
           "callee": "dispose()"
         },
         {
           "id": "mountClient:await:artifactDocuments.dispose():2",
-          "line": 433,
+          "line": 435,
           "kind": "await",
           "callee": "artifactDocuments.dispose()"
         },
         {
           "id": "deliverDocument:await:ctx.sessions.sessionOf().prompt():1",
-          "line": 467,
+          "line": 469,
           "kind": "await",
           "callee": "ctx.sessions.sessionOf().prompt()"
         },
         {
           "id": "deliverImage:await:fetch():1",
-          "line": 485,
+          "line": 487,
           "kind": "await",
           "callee": "fetch()"
         },
         {
           "id": "deliverImage:await:response.blob():1",
-          "line": 487,
+          "line": 489,
           "kind": "await",
           "callee": "response.blob()"
         },
         {
           "id": "deliverImage:await:fetch():2",
-          "line": 490,
+          "line": 492,
           "kind": "await",
           "callee": "fetch()"
         },
         {
           "id": "deliverImage:await:response.blob():2",
-          "line": 492,
+          "line": 494,
           "kind": "await",
           "callee": "response.blob()"
         }
@@ -8196,6 +8196,13 @@
           "callee": "overview.openResource()"
         }
       ]
+    },
+    {
+      "file": "src/client/session-time-zone.mjs",
+      "contract": "resources",
+      "sha256": "0110b818078a5e8b059c360cd4fafea8a07960b2ade40aabf2437206df9351ca",
+      "kind": "javascript",
+      "sites": []
     },
     {
       "file": "src/client/settings-host.mjs",
@@ -19111,7 +19118,7 @@
     {
       "file": "host/compatibility.mjs",
       "contract": "sidebar",
-      "sha256": "9a05bea04d9dc82de0c7681f81934487cd21fc0b7ff5c940b645614c7e73d52f",
+      "sha256": "bfbd2a7e3a7d74a58200e4f82eca7b517652fc769defabaaafedcc71409e7ccf",
       "kind": "javascript",
       "sites": []
     },

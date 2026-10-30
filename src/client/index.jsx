@@ -1,3 +1,4 @@
+import { applySessionTimeZone } from './session-time-zone.mjs';
 import { downloadExtensionZip } from './extension-download.mjs';
 import { resolveDesktopBrowserHost } from './host-compat.mjs';
 import { decodeBase64 } from './base64.mjs';
@@ -56,6 +57,7 @@ export function getOverviewSlot(ctx) {
 }
 
 export async function apply(ctx) {
+  ctx.inject(['remote.session', 'remote.subagents'], scope => applySessionTimeZone(scope));
   const root = ctx.root;
   let entry = clients.get(root);
   if (entry?.closing) { await entry.closing; entry = clients.get(root); }
