@@ -13,6 +13,11 @@
     "e6": "Host.services",
     "Pxi": "Host.ReaPortalMount"
   },
+  "app-initial-c468e3fd7f91.js": {
+    "QO": "Host.openBrowserLink",
+    "Gyn": "args => Host.openBrowserLink({ ...args, href: args.url, openTarget: 'in-app-browser', disposition: 'new-tab' })",
+    "dsa": "(_query, args) => Host.copyFileContents(args)"
+  },
   "browser-use-settings-61138c2e595e.js": { "vn": "Host.ReaSettingsPage" },
   "computer-use-settings-615f56c63d73.js": { "Lt": "Host.ReaComputerSettingsPage" },
   "browser-address-suggestion-overlay-185e242f325f.js": {

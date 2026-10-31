@@ -40,7 +40,7 @@ async function fixture({ connected = false } = {}) {
   const desktop = {
     onSurfaceEvent: callback => {listener = callback; return () => {};},
     async surface(operation, args) {
-      calls.push({operation,method:args.method,tabId:args.tabId});
+      calls.push({operation,method:args.method,tabId:args.tabId,args:args.args});
       if(operation === 'create') {if(failCreate)throw failCreate;live.add(args.tabId);if(createGate)await createGate.promise;return true;}
       if(operation === 'close') {if(failClose)throw Error('native close failed');live.delete(args.tabId);return true;}
       if(operation !== 'requestPage') return true;
@@ -74,6 +74,19 @@ test('closing a created surface retires its remote target without releasing a de
   const closed=f.calls.findIndex(call=>call.operation==='close');
   assert.equal(f.calls.slice(closed+1).some(call=>call.operation==='requestPage'),false);
   assert.equal(f.live.size,0);
+});
+
+test('main-window downloads forward REA arguments to the owning browser surface', async () => {
+  const f = await fixture();
+  try {
+    const tab = await f.surfaces.service.newTab({ conversationId: 's', url: 'about:blank' });
+    f.mounted = 'other';
+    assert.equal(await f.surfaces.service.downloadUrl({ conversationId: 's', url: 'https://example.test/file.zip' }), true);
+    const call = f.calls.find(row => row.method === 'downloadUrl');
+    assert.equal(call.tabId, tab.tabId);
+    assert.equal(call.args.conversationId, 's'); assert.equal(call.args.url, 'https://example.test/file.zip');
+    assert.equal(f.tabs.length, 1);
+  } finally { await f.surfaces.dispose(); await f.transport.dispose(); }
 });
 
 test('creation errors survive cleanup and failed native cleanup can be retried', async () => {

@@ -7,6 +7,7 @@ import * as compiler from 'react-compiler-runtime';
 export { React, jsxRuntime, ReactDOM, ReactDOMClient, compiler };
 import { services } from './rea-services.mjs';
 export { services };
+export { openBrowserLink, copyFileContents, readFileBytes, runFileAction, reportActionError } from './rea-actions.mjs';
 export { documentSourceBytes } from './document-source.mjs';
 export { findReaElement, reaPortalContainer, protectReaCarrier, prepareReaGuestRoot } from './portal-host.mjs';
 export function activeReaElement() {

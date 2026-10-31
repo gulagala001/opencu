@@ -7,9 +7,12 @@ export function createFilesHost({ client, desktop, sidebar, openSession }) {
   let disposed = false;
   function request(work) {
     const abort = new AbortController(); calls.add(abort);
-    const result = Promise.resolve().then(() => {
+    const result = Promise.resolve().then(async () => {
       if (disposed) throw new Error('The file host has been disposed');
-      return work(abort.signal);
+      abort.signal.throwIfAborted();
+      const value = await work(abort.signal);
+      abort.signal.throwIfAborted();
+      return value;
     }).finally(() => calls.delete(abort));
     result[Symbol.dispose] = () => abort.abort();
     return result;
@@ -30,8 +33,10 @@ export function createFilesHost({ client, desktop, sidebar, openSession }) {
   async function operate(operation, args, signal) {
     if (typeof desktop?.files !== 'function') throw new Error('This DSH desktop does not provide local file actions');
     if (args.hostId && args.hostId !== 'local') throw new Error('Only local files can be opened by this desktop');
-    const path = await resolve(args.path, signal);
+    let path = await resolve(args.path, signal);
+    if (!/^(?:[\\/]|[A-Za-z]:[\\/])/.test(path) && typeof args.cwd === 'string') path = `${args.cwd}/${path}`;
     signal.throwIfAborted();
+    if (disposed) throw new Error('The file host has been disposed');
     return desktop.files(operation, { ...args, path });
   }
   const workspaceFiles = {
@@ -64,7 +69,7 @@ export function createFilesHost({ client, desktop, sidebar, openSession }) {
         { id: 'fileManager', target: 'fileManager', kind: 'native', label: chinese ? '在文件夹中显示' : 'Show in folder', icon, resolvedIcon: icon, available: true },
       ] };
     }),
-    open: args => request(signal => operate('open', args, signal)),
+    open: args => request(signal => operate('open', { ...args, target: args.target ?? 'systemDefault' }, signal)),
   };
   return {
     openIn, workspaceFiles,

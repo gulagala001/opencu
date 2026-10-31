@@ -18994,7 +18994,7 @@
   },
   {
     "file": "tab-content-6a1dfa5c5ac1.js",
-    "source": "vendor/rea/ae612443612ef1a9f8d0a1baf71892e16daee4003fde7e780f0f68fc99d17d46-tab-content-6a1dfa5c5ac1.js",
+    "source": "vendor/build-inputs/rea/ae612443612ef1a9f8d0a1baf71892e16daee4003fde7e780f0f68fc99d17d46-tab-content-6a1dfa5c5ac1.js",
     "sha256": "ae612443612ef1a9f8d0a1baf71892e16daee4003fde7e780f0f68fc99d17d46",
     "symbols": [
       "C",
@@ -21931,6 +21931,9 @@
       "n",
       "wse",
       "Rqe",
+      "QO",
+      "Gyn",
+      "dsa",
       "__vite__mapDeps",
       "z0e",
       "V0e",
@@ -25690,7 +25693,6 @@
       "Eyn",
       "ZO",
       "Oyn",
-      "QO",
       "kyn",
       "Ayn",
       "jyn",
@@ -25709,7 +25711,6 @@
       "Hyn",
       "Uyn",
       "Wyn",
-      "Gyn",
       "Kyn",
       "qyn",
       "Jyn",
@@ -30655,7 +30656,6 @@
       "asa",
       "ssa",
       "usa",
-      "dsa",
       "fsa",
       "psa",
       "msa",
@@ -36844,7 +36844,11 @@
       "Kgl",
       "Ygl"
     ],
-    "hostBoundaries": []
+    "hostBoundaries": [
+      "QO",
+      "Gyn",
+      "dsa"
+    ]
   },
   {
     "file": "use-conversation-diff-comments-45863a26eb08.js",
@@ -41567,7 +41571,7 @@
   },
   {
     "file": "artifact-preview-header-464ed5168662.js",
-    "source": "vendor/rea/f7f371303b6a17b1c33d70c8f203cece4b9f6f448a021301198a6d4da04e7b9d-artifact-preview-header-464ed5168662.js",
+    "source": "vendor/build-inputs/rea/f7f371303b6a17b1c33d70c8f203cece4b9f6f448a021301198a6d4da04e7b9d-artifact-preview-header-464ed5168662.js",
     "sha256": "f7f371303b6a17b1c33d70c8f203cece4b9f6f448a021301198a6d4da04e7b9d",
     "symbols": [
       "c",

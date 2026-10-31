@@ -13470,7 +13470,7 @@ function lJr(){return(lJr=t(()=>{VKr();UKr();YX();OB();KKr();Nf();pq();Sq();EJ()
 function A2(e){return{[E2]:{chatgpt:`PROMPT_TEXT_AREA`,codex:`CODEX`,tpp:`TPP`}[e??`codex`]}}
 function uJr(){return(uJr=t(()=>{lJr();}))();}
 async function j2(e,t,n,r,i,a){let o=await fJr(e,t,n,r,i,a);return o==null?null:`data:${o.mimeType};base64,${o.base64}`}
-async function fJr(e,t,n,r,i,a){let o=mJr(e);if(o==null)return null;try{let e={path:o,hostId:t,conversationId:i,environmentId:a},s=await n.fetchQuery({queryFn:({signal:t})=>TJ(`read-file-binary`,{params:e,signal:r==null?t:AbortSignal.any([t,r])}),queryKey:SJ(`read-file-binary`,e),retry:!1,gcTime:fq.FIVE_MINUTES,staleTime:MM(t)&&i!=null&&a==null?0:fq.INFINITE});return s.contentsBase64?{base64:s.contentsBase64,mimeType:hJr(o)}:null}catch(e){return Mf.warning(`Failed to inline local image`,{safe:{},sensitive:{error:e,resolvedImagePath:o}}),null}}
+async function fJr(e,t,n,r,i,a){let o=mJr(e);if(o==null)return null;try{let e={path:o,hostId:t,conversationId:i,environmentId:a},s=await Host.readFileBytes(o,t,r);return s.contentsBase64?{base64:s.contentsBase64,mimeType:hJr(o)}:null}catch(e){return Mf.warning(`Failed to inline local image`,{safe:{},sensitive:{error:e,resolvedImagePath:o}}),null}}
 function mJr(e){if(e==null)return null;let t=e.trim();if(t.length===0)return null;let n=t.toLowerCase();if(n.startsWith(`data:`)||n.startsWith(`http:`)||n.startsWith(`https:`)||n.startsWith(`file:`)||n.startsWith(`vscode-resource:`)||n.startsWith(`vscode-webview:`)||n.startsWith(`vscode-file:`))return null;let r=JM(t);return QM(r)?r:null}
 function hJr(e){return _Jr[gJr.default.extname(e).toLowerCase()]??`application/octet-stream`}
 var gJr;

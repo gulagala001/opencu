@@ -11,6 +11,7 @@ async function fixture({automation,ensureInputMonitoring=async()=>{}}={}) {
     setAttribute(name,value){if(name==='src'){url=value;queueMicrotask(()=>{events.push('dom-ready');element.dispatchEvent(new Event('dom-ready'));});}},
     getURL:()=>url,getTitle:()=>'',isLoading:()=>false,canGoBack:()=>false,canGoForward:()=>false,
     getZoomFactor:()=>1,isAudioMuted:()=>false,isCurrentlyAudible:()=>false,
+    downloadURL:value=>events.push(['download',value]),
     async loadURL(value){events.push('navigate');url=value;},
   });
   const pageHost={webview:element,markRegistered(){registered=true;},dispose(){}};
@@ -36,7 +37,7 @@ async function fixture({automation,ensureInputMonitoring=async()=>{}}={}) {
   const host=module.namespace.createReaBrowserHost({
     desktop:{automation,acquireOpenCU:async()=>({lease:'original',partition:'isolated'}),release:async lease=>releases.push(lease),onOpenRequested:()=>noop},
     transport:{setTabOwner:noop,attach:async(_element,options)=>{automate=options.automate;attached=true;events.push('transport');return async()=>{};}},
-    client:{getSnapshot:()=>({sessions:[]}),subscribe:()=>noop},sidebar:{tabsIn:()=>[]},settings:{readAll:async()=>({values:{}})},history:{},
+    client:{getSnapshot:()=>({sessions:[]}),subscribe:()=>noop},sidebar:{tabsIn:()=>[],mounted:{getSnapshot:()=> 'other'}},settings:{readAll:async()=>({values:{}})},history:{},
     downloads:{async attach(){await new Promise(resolve=>setTimeout(resolve,5));configured=true;events.push('downloads');return noop;}},
   });
   host.mountTab({sessionId:'s',tabId:'t',initialUrl:'file:///synthetic.html',signal:lifetime.signal});
@@ -53,6 +54,17 @@ test('fast first navigation cannot outrun downloads setup, guest readiness or tr
     assert.deepEqual(f.events,['downloads','transport','dom-ready','navigate']);
   } finally {clearTimeout(timer);await f.host.dispose();}
   assert.deepEqual(f.releases,['original']);
+});
+
+test('REA download arguments keep their source conversation after switching chats', async () => {
+  const f = await fixture();
+  try {
+    await f.host.service.registerWebviewHostSession({ rendererInstanceId: 'renderer' });
+    await f.host.service.registerWebviewHost({ conversationId: 's', browserTabId: 't', rendererInstanceId: 'renderer' });
+    await f.host.readyFor('s', 't');
+    assert.equal(await f.host.service.downloadUrl({ conversationId: 's', url: 'https://example.test/file.zip' }), true);
+    assert.deepEqual(f.events.at(-1), ['download', 'https://example.test/file.zip']);
+  } finally { await f.host.dispose(); }
 });
 
 test('closed-state proof and cleanup reach the original lease when page monitoring is unavailable', async () => {

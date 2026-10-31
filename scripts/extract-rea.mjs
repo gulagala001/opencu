@@ -73,6 +73,12 @@ async function load(file) {
     source = source.replace(before, 's.findBrowserAddressSuggestion(t)?.scrollIntoView');
   }
   if (file === 'app-initial-c468e3fd7f91.js') {
+    const saveFailure = 'gr.warning(`Workspace file save failed`,{safe:{},sensitive:{error:e}})';
+    if (!source.includes(saveFailure)) throw new Error('REA file menu failure boundary changed');
+    source = source.replace(saveFailure, 'Host.reportActionError(e)');
+    const copyPath = 'dsa(e.queryClient,{hostId:o,path:f})';
+    if (!source.includes(copyPath)) throw new Error('REA file menu copy path changed');
+    source = source.replace(copyPath, 'dsa(e.queryClient,{hostId:o,path:C})');
     const viewerStart = source.indexOf('function _ii('), viewerEnd = source.indexOf('function vii(', viewerStart);
     let viewer = source.slice(viewerStart, viewerEnd);
     const inputs = 'i=Di(ws),a=G(CS),o=G(Cii),s=zd(),c=Zs(wP,`toggleMaximizeSidePanel`)';
@@ -120,7 +126,26 @@ async function load(file) {
       source = source.replace(before, after);
     }
   }
+  if (file === 'artifact-preview-header-464ed5168662.js') {
+    for (const [before, after] of [
+      // This entry uploads through Codex's Google account connector. DSH's
+      // actual local application targets and save actions remain available.
+      ['Tt=Ve(E)', 'Tt=null'],
+      ['At=e=>{let t=se?.();if(t==null){e();return}Promise.resolve(t).then(t=>{t!==!1&&e()},Qe)}',
+        'At=e=>Host.runFileAction(se,e)'],
+      ['jt=e=>{K(()=>{let t=()=>{if(T==null){e({hostId:x,path:E});return}T().then(e).catch(()=>{N.get(ie).danger(F.formatMessage({id:`artifactTab.preview.exportFailure`,defaultMessage:`Could not export artifact`,description:`Error shown when preparing the current artifact for another app fails`}),{errorAnalytics:{toastId:`artifactTab.preview.exportFailure`}})})},n=ue?.();if(n==null){t();return}Promise.resolve(n).then(t,t)})}',
+        'jt=e=>K(()=>Host.runFileAction(ue,async()=>e(T==null?{hostId:x,path:E}:await T())))'],
+      ['n!=null&&await nt({scope:u,analyticsMetadata:n,downloadFailureLabel:te,hostId:i,hostKind:f.kind,onBeforeDownload:a,path:l})',
+        'n!=null?await nt({scope:u,analyticsMetadata:n,downloadFailureLabel:te,hostId:i,hostKind:f.kind,onBeforeDownload:a,path:l}):(a==null||await a()!==!1)&&await ge.workspaceFiles.saveCopy({hostId:i,path:l})'],
+    ]) {
+      if (!source.includes(before)) throw new Error(`REA file action boundary changed: ${before}`);
+      source = source.replace(before, after);
+    }
+  }
   if (file === 'app-shared-2f2228189a8d.js') {
+    const imageRead = 's=await n.fetchQuery({queryFn:({signal:t})=>TJ(`read-file-binary`,{params:e,signal:r==null?t:AbortSignal.any([t,r])}),queryKey:SJ(`read-file-binary`,e),retry:!1,gcTime:fq.FIVE_MINUTES,staleTime:MM(t)&&i!=null&&a==null?0:fq.INFINITE})';
+    if (!source.includes(imageRead)) throw new Error('REA image file read boundary changed');
+    source = source.replace(imageRead, 's=await Host.readFileBytes(o,t,r)');
     // Clipboard writes belong to the DSH window. The original lazy RPC module
     // is Codex-only; keep REA's rich-content handling and failure notification.
     for (const [before, after] of [
@@ -577,6 +602,10 @@ for (const mod of modules.values()) {
     }
   }
   if (mod.file === 'tab-content-6a1dfa5c5ac1.js') {
+    const help = out.findIndex(source => source.startsWith('function ol()'));
+    const helpUrl = 'https://help.openai.com/articles/20001423';
+    if (help < 0 || !out[help].includes(helpUrl)) throw new Error('REA site tools help boundary changed');
+    out[help] = out[help].replace(helpUrl, 'https://github.com/gulagala001/opencu#readme');
     const cursor = out.findIndex(source => source.startsWith('function Hc('));
     const visibility = 'u=a&&(l!=null||!i)';
     if (cursor < 0 || !out[cursor].includes(visibility)) throw new Error('REA browser cursor visibility changed');

@@ -176,9 +176,11 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
     setAudioMuted: args => page(args, 'setAudioMuted'),
     runPageCommand: args => page(args, 'runPageCommand'),
     async detachTab(args) { const record = get(args); await record.ready; live(record); return wait(desktop.surface(record.detached ? 'dock' : 'detach', record.ids), record.lifetime.signal); },
-    async downloadUrl(url) {
-      const record = [...records.values()].find(value => value.ids.sessionId === sidebar.mounted.getSnapshot()) ?? get(await newTab({}));
-      await record.ready; return invoke(record, 'downloadUrl', url);
+    async downloadUrl(value) {
+      const args = typeof value === 'string' ? { url: value } : value;
+      const sessionId = args.conversationId ?? sidebar.mounted.getSnapshot();
+      const record = [...records.values()].find(value => value.ids.sessionId === sessionId) ?? get(await newTab({ conversationId: sessionId }));
+      await record.ready; return invoke(record, 'downloadUrl', { url: args.url, conversationId: sessionId });
     },
     async manageExtensions() { const record = [...records.values()][0] ?? get(await newTab({})); await record.ready; return invoke(record, 'manageExtensions'); },
     async siteSettings(operation = 'settings', args = {}) {
@@ -213,6 +215,7 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
         window.open(url.href, '_blank', 'noopener,noreferrer'); return true;
       }
       case 'openSettings': return services.openSettings(args.path);
+      case 'openLink': return services.navigation.open({ ...args, conversationId: record.ids.sessionId });
       case 'openSources': return services.sources.open({ sessionId: record.ids.sessionId });
       default: throw new Error('Unknown browser surface owner request: ' + method);
     }

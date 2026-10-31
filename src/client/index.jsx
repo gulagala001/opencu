@@ -11,6 +11,7 @@ import { createDownloadsHost } from './downloads-host.mjs';
 import { createBrowserTransport } from './browser-transport.mjs';
 import { createReaBrowserHost } from './rea-browser-host.mjs';
 import { createBrowserSurfaces } from './browser-surfaces.mjs';
+import { createNavigationHost } from './navigation-host.mjs';
 import { initializeRea } from './rea-root.jsx';
 import { installReaServices } from './rea-services.mjs';
 import { BrowserSlot } from './browser-slot.jsx';
@@ -319,6 +320,11 @@ function mountClient(ctx, entry) {
         report: message => ctx.conversation.input.for(ctx.sessions.scope(sessionId)).notify('error', message) };
     },
   }, BrowserAddressSlot)), 'opencu: REA composer address suggestions');
+  const navigation = createNavigationHost({ settings, browser: host.service,
+    currentSession: () => ctx.sidebarRight.mounted.getSnapshot(),
+    openExternal: url => { window.open(url, '_blank', 'noopener,noreferrer'); },
+  });
+  ctx.effect(() => () => navigation.dispose(), 'opencu: browser link actions');
   const uninstall = installReaServices({ browserAddressAutocomplete, browserHost: host.service, browserSettings, settings, downloads: downloads.service, browsingHistory: history.browsingHistory, browserAutocomplete: history.browserAutocomplete,
     files, sources, artifactDocuments, openIn: files.openIn, workspaceFiles: files.workspaceFiles, openSettings, settingsRoute,
     images: {
@@ -342,6 +348,7 @@ function mountClient(ctx, entry) {
       }),
     },
     clipboard: { writeText: text => navigator.clipboard.writeText(text) },
+    navigation,
     notify(tone, message) {
       const scope = ctx.sessions.scope(ctx.sidebarRight.mounted.getSnapshot());
       if (scope) ctx.conversation.input.for(scope).notify(tone, message);

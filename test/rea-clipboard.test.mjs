@@ -8,7 +8,7 @@ import { dependencyRequire } from '../scripts/dependencies.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = dependencyRequire();
 
-test('REA copy uses the host clipboard and only confirms completed writes', { timeout: 60000 }, async t => {
+test('REA copy, navigation and file actions use DSH services and honor failure results', { timeout: 60000 }, async t => {
   const { outputFiles } = await require('esbuild').build({
     absWorkingDir: root,
     stdin: { resolveDir: root, loader: 'jsx', contents: `
@@ -19,11 +19,29 @@ test('REA copy uses the host clipboard and only confirms completed writes', { ti
       import { createReaPortal } from './src/client/portal-host.mjs';
       import { Ia } from './src/client/rea/mcp-tool-item-content-f32f64d93b42.js';
       import * as Shared from './src/client/rea/app-shared-2f2228189a8d.js';
+      import * as Initial from './src/client/rea/app-initial-c468e3fd7f91.js';
+      import { Ze as FileActions, tt as DownloadButton, U } from './src/client/rea/artifact-preview-header-464ed5168662.js';
       import { reaIntl } from './src/client/rea-locale.mjs';
       import styles from './src/client/rea-styles.css';
       const fixture = window.copyFixture = { calls: [], confirmed: 0, mode: 'native',
-        copy: (...args) => Shared.TNi(...args), locale: () => reaIntl() };
-      installReaServices({ clipboard: { writeText(text) {
+        links: [], files: [], guard: 'ready', guarded: 0, notices: [],
+        copy: (...args) => Shared.TNi(...args), locale: () => reaIntl(),
+        open: Initial.QO, newTab: Initial.Gyn, copyFile: args => Initial.dsa(null, args),
+        image: path => Shared.j2(path, 'local', null), downloadLink: Initial.qyn };
+      installReaServices({
+        navigation: { open: async args => { fixture.links.push(args); } },
+        downloads: { downloadUrl: async args => { fixture.files.push(['downloadUrl', args]); return true; } },
+        workspaceFiles: {
+          read: async args => { fixture.files.push(['read', args]); return args.representation === 'text' ? { text: 'current file' } : { blob: 'image-bytes' }; },
+          saveCopy: async args => { fixture.files.push(['saveCopy', args]); return { path: '/saved/fixture.xlsx' }; },
+        },
+        openIn: {
+          getTargets: async () => ({ mode: 'native', preferredTarget: 'systemDefault', availableTargets: ['systemDefault'],
+            targets: [{ id: 'systemDefault', target: 'systemDefault', kind: 'native', label: 'Default application', available: true }] }),
+          open: async args => { fixture.files.push(['open', args]); return { success: true }; },
+        },
+        notify: (_tone, message) => { fixture.notices.push(message); Shared.WFt().danger(message); },
+        clipboard: { writeText(text) {
         fixture.calls.push(text);
         if (fixture.mode === 'throw') throw new Error('Clipboard denied');
         if (fixture.mode === 'pending') return new Promise((resolve, reject) => {
@@ -31,11 +49,18 @@ test('REA copy uses the host clipboard and only confirms completed writes', { ti
         });
         return navigator.clipboard.writeText(text);
       } } });
-      initializeRea(); Ia();
+      initializeRea(); Ia(); U();
       const mount = document.createElement('div'); document.body.append(mount);
       const { portal } = createReaPortal(styles, { reaRoot: '', codexWindowType: 'electron' }, 60);
       createRoot(mount).render(<ReaProviders portal={portal} path="/clipboard-test">
+        <Shared._lt scope={Shared.jX} value={{ clientThreadId: 'local:fixture', routeConversationId: 'fixture' }}>
+        <Shared._lt scope={Shared.h1} value={{ routeKind: 'local-thread', pathname: '/ca/fixture', conversationId: 'fixture', hostId: 'local' }}>
+        <Shared._lt scope={Shared.j0r} value={{ kind: 'local', placement: 'main', conversationId: 'fixture', clientThreadId: 'local:fixture', routeConversationId: 'fixture' }}>
         <Shared.kqi content={'{"result":"中文🙂"}'} language="plaintext" onCopyCode={() => fixture.confirmed++} />
+        <div id="file-actions"><FileActions hostId="local" path="/fixture.xlsx" title="fixture.xlsx" showLabel
+          onBeforeOpen={() => { fixture.guarded++; if (fixture.guard === 'throw') throw Error('Preparation failed'); return fixture.guard !== 'blocked'; }} /></div>
+        <div id="download-action"><DownloadButton hostId="local" path="/fixture.xlsx" /></div>
+        </Shared._lt></Shared._lt></Shared._lt>
       </ReaProviders>);
     ` },
     bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2022', minify: true,
@@ -104,5 +129,33 @@ test('REA copy uses the host clipboard and only confirms completed writes', { ti
   assert.doesNotMatch(await page.evaluate(() => {
     document.documentElement.lang = 'en'; return window.copyFixture.locale().messages['clipboard.copyError.description'];
   }), /ChatGPT|Codex|focused/);
+
+  await page.evaluate(() => { window.copyFixture.mode = 'native'; });
+  assert.equal(await page.evaluate(() => window.copyFixture.copyFile({ hostId: 'local', path: '/fixture.txt' })), true);
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'current file');
+  assert.equal(await page.evaluate(() => window.copyFixture.image('/fixture.png')), 'data:image/png;base64,image-bytes');
+  await page.evaluate(async () => {
+    window.copyFixture.open({ href: 'https://example.test/a', conversationId: 'A' });
+    window.copyFixture.newTab({ url: 'https://example.test/b', conversationId: 'B' });
+    await window.copyFixture.downloadLink({ url: 'https://example.test/file', conversationId: 'C' });
+  });
+  await page.waitForFunction(() => window.copyFixture.links.length === 2);
+  assert.deepEqual(await page.evaluate(() => window.copyFixture.links.map(value => value.conversationId)), ['A', 'B']);
+  assert.equal(await page.evaluate(() => window.copyFixture.files.find(([kind]) => kind === 'downloadUrl')[1].conversationId), 'C');
+
+  const open = page.locator('#file-actions button').first();
+  await page.evaluate(() => { window.copyFixture.guard = 'blocked'; }); await open.click();
+  await page.waitForFunction(() => window.copyFixture.guarded === 1);
+  assert.equal(await page.evaluate(() => window.copyFixture.files.filter(([kind]) => kind === 'open').length), 0);
+  await page.evaluate(() => { window.copyFixture.guard = 'throw'; }); await open.click();
+  await page.getByText('Preparation failed', { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => window.copyFixture.files.filter(([kind]) => kind === 'open').length), 0);
+  await page.evaluate(() => { window.copyFixture.guard = 'ready'; }); await open.click();
+  await page.waitForFunction(() => window.copyFixture.files.some(([kind]) => kind === 'open'));
+  await page.locator('#download-action button').click();
+  await page.waitForFunction(() => window.copyFixture.files.some(([kind]) => kind === 'saveCopy'));
+  await page.locator('#file-actions button').last().click();
+  await page.getByRole('menu').waitFor();
+  assert.doesNotMatch(await page.getByRole('menu').innerText(), /Google|ChatGPT|Codex/);
   assert.deepEqual(errors, []);
 });

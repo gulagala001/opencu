@@ -143,7 +143,7 @@ async function mount() {
   const history = createBrowserHistoryHost(client, desktop);
   const downloads = createDownloadsHost({ desktop, client, settings, downloadUrl: url => host.service.downloadUrl(url) });
   host = createReaBrowserHost({ desktop, transport, client, sidebar, openSession: () => owner('focusPage'), settings, history, downloads,
-    createExtensionTab: url => owner('extensionTab', { url }), focusSurface: () => owner('focusPage'), openExternal: url => owner('openExternal', { url }),
+    createExtensionTab: url => owner('extensionTab', { url }), focusSurface: () => owner('focusPage'),
     isPagePresented: () => physicalVisible,
     deliverAnnotations: args => owner('deliverAnnotations', args),
     deliverScreenshot: (_session, dataURL, title) => owner('deliverScreenshot', { dataURL, title }),
@@ -163,6 +163,7 @@ async function mount() {
   const uninstall = installReaServices({ browserHost: host.service, browserSettings, settings, downloads: downloads.service,
     browsingHistory: history.browsingHistory, browserAutocomplete: history.browserAutocomplete,
     clipboard: { writeText: text => navigator.clipboard.writeText(text) },
+    navigation: { open: args => owner('openLink', args) },
     sources, openSettings: path => owner('openSettings', { path }), notify: (_tone, message) => Shared.WFt().danger(message),
   });
   initializeRea(); initializeHiddenHost(); Initial.dBn(); Shared.yHi(); Shared.n5();

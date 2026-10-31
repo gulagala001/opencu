@@ -17,7 +17,7 @@ const sameNavigationURL = (left, right) => {
 };
 
 /** Translates REA's browser service into DSH's approved Electron guest leases. */
-export function createReaBrowserHost({ desktop, transport, client, sidebar, openSession, settings, history, downloads, deliverAnnotations, deliverScreenshot, createExtensionTab, focusSurface, openExternal, isPagePresented }) {
+export function createReaBrowserHost({ desktop, transport, client, sidebar, openSession, settings, history, downloads, deliverAnnotations, deliverScreenshot, createExtensionTab, focusSurface, isPagePresented }) {
   const editorListeners = new Set(), pageListeners = new Set(), retainedPages = new Map(), cursorMoves = new Map(), viewportWaits = new Map();
   let pageSnapshot = [], cursorSequence = 0;
   function finishCursor(sequence, error) {
@@ -264,19 +264,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
     if (failures.length) throw new AggregateError(failures, 'OpenCU guest cleanup failed');
   }
   async function openLink(message) {
-    const url = new URL(message.url);
-    if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Unsupported browser URL');
-    const preferences = (await settings.readAll()).values;
-    const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) || url.hostname.endsWith('.localhost');
-    const destination = message.openTarget ?? preferences[local ? 'open-local-url-in-target-preference' : 'open-link-in-target-preference'];
-    if (message.useExternalBrowser || destination === 'external-browser') {
-      if (openExternal) await openExternal(url.href); else window.open(url.href, '_blank', 'noopener,noreferrer');
-    }
-    else {
-      const conversationId = message.conversationId ?? sidebar.mounted.getSnapshot();
-      if (!conversationId) throw new Error('Open a conversation before opening its browser');
-      sidebar.openTabIn(conversationId, 'browser', { params: { url: url.href }, revealIfOpened: false });
-    }
+    return Shared.e6.navigation.open({ ...message, href: message.url });
   }
   const onMessage = event => {
     const message = event.detail;
@@ -366,9 +354,10 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
     },
     isPageFocused(args) { return document.activeElement === registrations.get(keyFor(args.conversationId, args.browserTabId))?.element; },
     async downloadUrl(value) {
-      const url = new URL(value);
+      const args = typeof value === 'string' ? { url: value } : value;
+      const url = new URL(args.url);
       if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Unsupported download URL');
-      const sessionId = sidebar.mounted.getSnapshot();
+      const sessionId = args.conversationId ?? sidebar.mounted.getSnapshot();
       let record = [...registrations.values()].find(record => record.ids.conversationId === sessionId && record.element.isConnected);
       if (!record) {
         if (!sessionId) throw new Error('Open a conversation before starting a download');
