@@ -121,6 +121,17 @@ async function load(file) {
     }
   }
   if (file === 'app-shared-2f2228189a8d.js') {
+    // Clipboard writes belong to the DSH window. The original lazy RPC module
+    // is Codex-only; keep REA's rich-content handling and failure notification.
+    for (const [before, after] of [
+      ['let{appServices:t}=await Lf(async()=>{let{appServices:e}=await import(`./rpc-3bb28a540ed3.js`);return{appServices:e}},[],import.meta.url),n=typeof e==`string`?e:await e;c=Promise.resolve(t.clipboard.writeText(n))',
+        'let n=typeof e==`string`?e:await e;c=Host.services.clipboard.writeText(n)'],
+      ['n?.();try{return await c,!0}catch(e){return s(e)}', 'try{await c}catch(e){return s(e)}n?.();return!0'],
+      ['ae=e=>{TNi(u??m,e),w?.()}', 'ae=e=>TNi(u??m,e,w)'],
+    ]) {
+      if (!source.includes(before)) throw new Error(`REA clipboard boundary changed: ${before}`);
+      source = source.replace(before, after);
+    }
     // These original carriers retain native guests in document.body. Their
     // geometry and hit transparency cannot depend on the host's utility CSS.
     for (const [name, variable, browser] of [['MRi', 't', false], ['zRi', 'n', true]]) {

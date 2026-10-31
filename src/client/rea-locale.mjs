@@ -2,6 +2,7 @@ import { ue as chinese, de as initializeChinese } from './rea/zh-CN-b05cfd55c534
 
 initializeChinese();
 const english = Object.freeze({
+  'clipboard.copyError.description': 'The content wasn’t copied. Check clipboard access and try again.',
   'opencu.monitor.lastFrame': 'Showing the last available frame ({time}). Preview updates are temporarily unavailable.',
   'opencu.monitor.capturedImages': 'Video preview is unavailable. Showing captured images.',
   'opencu.capabilities.downloadExtension': "Download extension ZIP",
@@ -44,6 +45,7 @@ const english = Object.freeze({
   'thread.browser.siteAnnotationPermission.summaryWithDomain': 'Annotation mode lets you leave comments for the AI on the page. {domain} can suggest comments and add context but cannot read or submit your prompts.',
 });
 const zh = Object.freeze({ ...chinese, ...english,
+  'clipboard.copyError.description': '内容未复制。请检查剪贴板访问权限后重试。',
   'opencu.monitor.lastFrame': '正在显示 {time} 的最后可用画面，预览更新暂时中断。',
   'opencu.monitor.capturedImages': '视频预览暂不可用，正在显示捕获的图像。',
   'opencu.capabilities.downloadExtension': "下载扩展 ZIP",
