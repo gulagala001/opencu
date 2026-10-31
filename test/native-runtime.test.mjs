@@ -73,6 +73,26 @@ test('Mach-O executables retain execute permission without changing addon librar
   assert.equal((await stat(join(f.root, 'node_modules/addon.node'))).mode & 0o111, 0);
 });
 
+test('Office native engine paths use physical unpacked directories in Electron only', async t => {
+  const f = await fixture(t), kit = join(f.root, 'node_modules/@deepseek-ai/libreoffice-kit');
+  await mkdir(join(kit, 'lib'), { recursive: true });
+  await writeFile(join(kit, 'package.json'), JSON.stringify({ name: '@deepseek-ai/libreoffice-kit', version: '0.1.5' }));
+  for (const file of ['index.js', 'cli.js']) await writeFile(join(kit, 'lib', file), 'async function readEngine(packageFile, backend, target) { return packageFile; }');
+  const result = await prepareNativeRuntime(f.root, { platform: 'win32' });
+  assert.equal(result.changed, 2);
+  assert.equal((await stat(f.helpers[0])).mode & 0o111, 0);
+  for (const file of ['index.js', 'cli.js']) {
+    const source = await readFile(join(kit, 'lib', file), 'utf8');
+    for (const electron of [undefined, '44.7.0']) {
+      const context = { process: { versions: { electron } } }; vm.runInNewContext(source, context);
+      for (const path of ['/app/app.asar/kit/package.json', '/app/app.asar.unpacked/kit/package.json', 'C:\\app\\app.asar\\kit\\package.json']) {
+        assert.equal(await context.readEngine(path, 'native'), electron ? path.replace(/\.asar([/\\])/, '.asar.unpacked$1') : path);
+        assert.equal(await context.readEngine(path, 'wasm'), path);
+      }
+    }
+  }
+});
+
 test('native preparation rejects unreviewed packages and escaped staging paths', async t => {
   const f = await fixture(t);
   await writeFile(join(f.koffi, 'package.json'), JSON.stringify({ name: 'koffi', version: '99.0.0' }));

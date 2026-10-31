@@ -24,6 +24,10 @@ function opencuLoadNativeKoffi(requireBinding, name) {
 const spawnCheck = `// opencu-terminal-helper:v1
         if (process.platform === 'darwin') fs.accessSync(helperPath, fs.constants.X_OK);
         var term = pty.fork(`;
+const engineSignature = 'async function readEngine(packageFile, backend, target) {';
+const enginePath = `${engineSignature}
+\t// opencu-physical-native-engine:v1
+\tif (backend === "native" && process.versions.electron) packageFile = packageFile.replace(/([\\\\/])([^\\\\/]+\\.asar)(?=[\\\\/])/g, "$1$2.unpacked");`;
 
 function replaceOnce(source, before, after, file) {
   if (source.split(before).length !== 2) throw Error(`Native runtime input changed: ${file}`);
@@ -64,7 +68,6 @@ async function isMacExecutable(path) {
 
 /** Prepare a private, materialized runtime before its manifest, ASAR and signing steps. */
 export async function prepareNativeRuntime(directory, { platform = process.platform, check = false } = {}) {
-  if (platform !== 'darwin') return { platform, packages: 0, helpers: 0, changed: 0 };
   const root = await realpath(directory), visited = new Set(), packages = [], helpers = [], executables = new Map();
   const inside = path => { const rel = relative(root, path); return rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel); };
   async function owned(path) {
@@ -82,17 +85,26 @@ export async function prepareNativeRuntime(directory, { platform = process.platf
       if (info.isDirectory()) await scan(file);
       else if (info.isFile() && entry.name === 'package.json') {
         const metadata = JSON.parse(await readFile(file, 'utf8'));
-        if (['koffi', 'node-pty'].includes(metadata.name)) packages.push({ ...metadata, root: path });
-      } else if (info.isFile() && await isMacExecutable(file)) executables.set(file, (await stat(file)).mode & 0o777);
+        if (['koffi', 'node-pty', '@deepseek-ai/libreoffice-kit'].includes(metadata.name)) packages.push({ ...metadata, root: path });
+      } else if (platform === 'darwin' && info.isFile() && await isMacExecutable(file)) executables.set(file, (await stat(file)).mode & 0o777);
     }
   }
   await scan(join(root, 'node_modules'));
-  if (!packages.some(pkg => pkg.name === 'koffi') || !packages.some(pkg => pkg.name === 'node-pty')) throw Error('Native runtime must contain Koffi and node-pty');
+  if (platform === 'darwin' && (!packages.some(pkg => pkg.name === 'koffi') || !packages.some(pkg => pkg.name === 'node-pty'))) throw Error('Native runtime must contain Koffi and node-pty');
   const changes = new Map();
   for (const pkg of packages) {
-    const expected = pkg.name === 'koffi' ? '3.1.1' : '1.2.0-beta.15';
+    if (pkg.name !== '@deepseek-ai/libreoffice-kit' && platform !== 'darwin') continue;
+    const expected = pkg.name === 'koffi' ? '3.1.1' : pkg.name === 'node-pty' ? '1.2.0-beta.15' : '0.1.5';
     if (pkg.version !== expected) throw Error(`Unreviewed native runtime version: ${pkg.name}@${pkg.version}`);
-    if (pkg.name === 'koffi') {
+    if (pkg.name === '@deepseek-ai/libreoffice-kit') {
+      for (const entry of ['lib/index.js', 'lib/cli.js']) {
+        const file = await owned(join(pkg.root, entry));
+        const source = await readFile(file, 'utf8');
+        if (source.includes('// opencu-physical-native-engine:v1')) {
+          if (!source.includes(enginePath)) throw Error(`Incomplete native engine path correction: ${file}`);
+        } else changes.set(file, replaceOnce(source, engineSignature, enginePath, file));
+      }
+    } else if (pkg.name === 'koffi') {
       for (const variant of ['index.js', 'index.cjs', 'indirect.js', 'indirect.cjs']) {
         const file = await owned(join(pkg.root, 'src/koffi', variant));
         const source = await readFile(file, 'utf8');
