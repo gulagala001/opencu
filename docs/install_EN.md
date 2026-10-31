@@ -1,5 +1,7 @@
 # Install and upgrade OpenCU
 
+The terminal, search and Office helper fixes for older desktop packages require updating the matching host. Installing the plugin alone does not repair permissions inside an older app. See the [2.2.7 release notes](releases.md#en-227).
+
 [简体中文](install.md) · [Home](../README_EN.md)
 
 **Already using OMD? Do not install OpenCU separately.** OMD includes it. Follow the [OMD installation and upgrade guide](https://github.com/gulagala001/oh-my-dsh/blob/main/docs/install_EN.md).

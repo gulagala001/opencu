@@ -1,5 +1,7 @@
 # OpenCU 安装与升级
 
+旧桌面包中的终端、搜索和 Office 助手修复需要同时更新匹配宿主；仅安装本版插件不会修复旧应用的文件权限。详见 [2.2.7 更新说明](releases.md#zh-227)。
+
 [English](install_EN.md) · [返回首页](../README.md)
 
 **已经安装 OMD？不用再装 OpenCU。** OMD 已内置；请使用 [OMD 安装与升级指南](https://github.com/gulagala001/oh-my-dsh/blob/main/docs/install.md)。
