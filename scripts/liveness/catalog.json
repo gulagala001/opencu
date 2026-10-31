@@ -17494,7 +17494,7 @@
     {
       "file": "host/apply.mjs",
       "contract": "sidebar",
-      "sha256": "7d8dee242de48ba9a18b8fe8a88f1ee95576bd2752446c90914ebdfe55b42b0a",
+      "sha256": "f4bf1effb550f6b0349e7da160ad934e058b04d84ddec8d2f505bcc1e9b09912",
       "kind": "javascript",
       "sites": [
         {
@@ -17948,14 +17948,50 @@
           "callee": "applyRuntimeLifecycle()"
         },
         {
+          "id": "<module>:await:patch():44",
+          "line": 476,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:patch():45",
+          "line": 480,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:patch():46",
+          "line": 484,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
           "id": "<module>:await:readFile():9",
-          "line": 477,
+          "line": 488,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
+          "id": "<module>:await:readFile():10",
+          "line": 489,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
+          "id": "<module>:await:readFile():11",
+          "line": 490,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
+          "id": "<module>:await:readFile():12",
+          "line": 495,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "<module>:await:writeFile():1",
-          "line": 478,
+          "line": 496,
           "kind": "await",
           "callee": "writeFile()"
         }
@@ -19192,6 +19228,98 @@
       ]
     },
     {
+      "file": "host/check-native-runtime.mjs",
+      "contract": "sidebar",
+      "sha256": "af584c80ef6ec3640496e8bb18db04025e253bdcf3b219f81d253e12cf94ee4d",
+      "kind": "javascript",
+      "sites": [
+        {
+          "id": "checkNativeRuntime:await:realpath():1",
+          "line": 15,
+          "kind": "await",
+          "callee": "realpath()"
+        },
+        {
+          "id": "checkNativeRuntime:await:prepareNativeRuntime():1",
+          "line": 17,
+          "kind": "await",
+          "callee": "prepareNativeRuntime()"
+        },
+        {
+          "id": "checkNativeRuntime:await:run():1",
+          "line": 21,
+          "kind": "await",
+          "callee": "run()"
+        },
+        {
+          "id": "exercise:await:Import():1",
+          "line": 36,
+          "kind": "await",
+          "callee": "Import()"
+        },
+        {
+          "id": "exercise:await:mkdtemp():1",
+          "line": 47,
+          "kind": "await",
+          "callee": "mkdtemp()"
+        },
+        {
+          "id": "exercise:await:copyFile():1",
+          "line": 50,
+          "kind": "await",
+          "callee": "copyFile()"
+        },
+        {
+          "id": "exercise:await:chmod():1",
+          "line": 51,
+          "kind": "await",
+          "callee": "chmod()"
+        },
+        {
+          "id": "exercise:await:Promise():1",
+          "line": 55,
+          "kind": "await",
+          "callee": "Promise()"
+        },
+        {
+          "id": "exercise:promise:Promise:1",
+          "line": 55,
+          "kind": "promise",
+          "callee": "Promise"
+        },
+        {
+          "id": "exercise:handoff:setTimeout:1",
+          "line": 60,
+          "kind": "handoff",
+          "callee": "setTimeout"
+        },
+        {
+          "id": "exercise:await:rm():1",
+          "line": 71,
+          "kind": "await",
+          "callee": "rm()"
+        },
+        {
+          "id": "<module>:await:realpath():1",
+          "line": 77,
+          "kind": "await",
+          "callee": "realpath()"
+        },
+        {
+          "id": "<module>:await:exercise():1",
+          "line": 80,
+          "kind": "await",
+          "callee": "exercise()"
+        },
+        {
+          "id": "<module>:await:checkNativeRuntime():1",
+          "line": 80,
+          "kind": "await",
+          "callee": "checkNativeRuntime()"
+        }
+      ]
+    },
+    {
       "file": "host/compatibility.mjs",
       "contract": "sidebar",
       "sha256": "bfbd2a7e3a7d74a58200e4f82eca7b517652fc769defabaaafedcc71409e7ccf",
@@ -19883,6 +20011,170 @@
           "line": 5,
           "kind": "await",
           "callee": "work()"
+        }
+      ]
+    },
+    {
+      "file": "host/native-runtime.mjs",
+      "contract": "sidebar",
+      "sha256": "976a099f3c47d54aac7cd7db0f93c2e589faf2e9d26de0bb7ae4254cf217d552",
+      "kind": "javascript",
+      "sites": [
+        {
+          "id": "isMacExecutable:await:open():1",
+          "line": 36,
+          "kind": "await",
+          "callee": "open()"
+        },
+        {
+          "id": "isMacExecutable:await:file.read():1",
+          "line": 39,
+          "kind": "await",
+          "callee": "file.read()"
+        },
+        {
+          "id": "isMacExecutable:await:file.read():2",
+          "line": 54,
+          "kind": "await",
+          "callee": "file.read()"
+        },
+        {
+          "id": "isMacExecutable:await:file.read():3",
+          "line": 58,
+          "kind": "await",
+          "callee": "file.read()"
+        },
+        {
+          "id": "isMacExecutable:await:file.close():1",
+          "line": 62,
+          "kind": "await",
+          "callee": "file.close()"
+        },
+        {
+          "id": "prepareNativeRuntime:await:realpath():1",
+          "line": 68,
+          "kind": "await",
+          "callee": "realpath()"
+        },
+        {
+          "id": "owned:await:realpath():1",
+          "line": 71,
+          "kind": "await",
+          "callee": "realpath()"
+        },
+        {
+          "id": "scan:await:owned():1",
+          "line": 76,
+          "kind": "await",
+          "callee": "owned()"
+        },
+        {
+          "id": "scan:await:readdir():1",
+          "line": 79,
+          "kind": "await",
+          "callee": "readdir()"
+        },
+        {
+          "id": "scan:await:stat():1",
+          "line": 81,
+          "kind": "await",
+          "callee": "stat()"
+        },
+        {
+          "id": "scan:await:owned():2",
+          "line": 81,
+          "kind": "await",
+          "callee": "owned()"
+        },
+        {
+          "id": "scan:await:scan():1",
+          "line": 82,
+          "kind": "await",
+          "callee": "scan()"
+        },
+        {
+          "id": "scan:await:readFile():1",
+          "line": 84,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
+          "id": "scan:await:isMacExecutable():1",
+          "line": 86,
+          "kind": "await",
+          "callee": "isMacExecutable()"
+        },
+        {
+          "id": "scan:await:stat():2",
+          "line": 86,
+          "kind": "await",
+          "callee": "stat()"
+        },
+        {
+          "id": "prepareNativeRuntime:await:scan():1",
+          "line": 89,
+          "kind": "await",
+          "callee": "scan()"
+        },
+        {
+          "id": "prepareNativeRuntime:await:owned():1",
+          "line": 97,
+          "kind": "await",
+          "callee": "owned()"
+        },
+        {
+          "id": "prepareNativeRuntime:await:readFile():1",
+          "line": 98,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
+          "id": "prepareNativeRuntime:await:owned():2",
+          "line": 109,
+          "kind": "await",
+          "callee": "owned()"
+        },
+        {
+          "id": "prepareNativeRuntime:await:readFile():2",
+          "line": 110,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
+          "id": "prepareNativeRuntime:await:lstat():1",
+          "line": 124,
+          "kind": "await",
+          "callee": "lstat()"
+        },
+        {
+          "id": "prepareNativeRuntime:await:owned():3",
+          "line": 126,
+          "kind": "await",
+          "callee": "owned()"
+        },
+        {
+          "id": "prepareNativeRuntime:await:writeFile():1",
+          "line": 137,
+          "kind": "await",
+          "callee": "writeFile()"
+        },
+        {
+          "id": "prepareNativeRuntime:await:chmod():1",
+          "line": 138,
+          "kind": "await",
+          "callee": "chmod()"
+        },
+        {
+          "id": "<module>:await:realpath():1",
+          "line": 145,
+          "kind": "await",
+          "callee": "realpath()"
+        },
+        {
+          "id": "<module>:await:prepareNativeRuntime():1",
+          "line": 147,
+          "kind": "await",
+          "callee": "prepareNativeRuntime()"
         }
       ]
     },

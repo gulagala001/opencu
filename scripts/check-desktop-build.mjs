@@ -5,12 +5,14 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { dependencyRequire } from './dependencies.mjs';
 import { targetFor } from '../host/compatibility.mjs';
+import { prepareNativeRuntime } from '../host/native-runtime.mjs';
 
 /** Check actual bundled preloads against the same validator the client runs. */
 export async function checkDesktopBuild(directory) {
   const root = resolve(directory);
   const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   targetFor(version);
+  if (version === '0.2.1-rc.5') await prepareNativeRuntime(join(root, 'dsh'), { check: true });
   const { parse } = dependencyRequire()('acorn');
   const unwrap = (await readFile(new URL('../src/client/ipc-result.mjs', import.meta.url), 'utf8')).replace('export function', 'function');
   const client = (await readFile(new URL('../src/client/host-compat.mjs', import.meta.url), 'utf8'))
