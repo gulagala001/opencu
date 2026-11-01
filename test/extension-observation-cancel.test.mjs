@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {createContext,runInContext} from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import { observeAccessibility, elementOperation, locatorOperation, invalidateElements } from '../extension/accessibility.js';
 import { createCDPFrameRouter } from '../extension/frame-router.js';
@@ -89,7 +90,7 @@ async function fixture(t) {
     clickParameters, locatorClickParameters, checkClickHeld, holdClick, pressParameters, checkPressHeld, sequentialTextKey, checkSequentialDeadline, keyboardInputTypes, scrollDeltas, checkScrollGeometry,
     createPairingClient: () => ({ start: async () => {events.push(['pairing.start']);}, pause: async () => {} }) };
   const worker = new Function(...Object.keys(imports), 'chrome', 'navigator', 'fetch', 'setTimeout', `${source}\nreturn {
-    ready: initialize(), restore, connect, watchPairing, attach, observe, act, releaseTab, releaseAll, controlToken, attached, observations, loop,
+    ready: initialize(), restore, connect, watchPairing, attach, tabInfo, content, observe, act, releaseTab, releaseAll, controlToken, attached, observations, loop,
     getStatus() { return status; }, getRunning() { return running; },
     setConnection(value) { connection = value; }, getConnection() { return connection; },
   };`)(...Object.values(imports), chrome, { platform: 'MacIntel' }, fetch, (callback, ms) => setTimeout(callback, ms === 500 ? 0 : hooks.deadlineMs ? Math.min(ms,hooks.deadlineMs) : ms));
@@ -105,6 +106,26 @@ async function fixture(t) {
   t.after(async () => { for (const key of Object.keys(hooks)) delete hooks[key]; await stop(); invalidateElements(73); });
   return { worker, identity, hooks, events, seed, queue, message, result, chrome, owner, sessionData, localData, stop };
 }
+
+test('MV3 startup preserves the browser document ID and original error until that same tab can initialize', async t => {
+  const f = await fixture(t), page = {id:73,status:'complete',url:'https://fixture.invalid/'};
+  const world = createContext({document:{title:'Fixture'},location:{href:page.url},innerWidth:800,innerHeight:600,
+    scrollX:0,scrollY:0,devicePixelRatio:1,addEventListener(){},MutationObserver:class { constructor(){throw Error('observer unavailable');} }});
+  let installations = 0;
+  f.chrome.scripting.executeScript = async ({func,args,target}) => {
+    if (func === installDocumentRuntime) { installations++;assert.deepEqual(target.documentIds,['browser-document']); }
+    const result = await runInContext(`(${func})(...${JSON.stringify(args)})`,world);
+    return [{frameId:0,documentId:'browser-document',result}];
+  };
+  const failed = await f.worker.tabInfo(page);
+  assert.equal(failed.supported,false);assert.equal(failed.error.code,'CONTENT_INIT_FAILED');
+  assert.match(failed.error.message,/observer unavailable/);assert.equal(failed.error.details.stage,'initialize');
+  world.MutationObserver = class { observe() {} };
+  const ready = await f.worker.tabInfo(page);
+  assert.equal(ready.supported,true);assert.equal(ready.documentId,failed.documentId);
+  assert.equal((await f.worker.content(73,'identity',{},ready.documentId)).documentId,ready.documentId);
+  assert.equal(installations,2,'successful reads reuse the initialized world');
+});
 
 test('MV3 human debugger detach invalidates only that tab and preserves another in-flight observation',async t=>{
   const f=await fixture(t),other={...f.identity,tabId:74},entered=deferred(),gate=deferred();

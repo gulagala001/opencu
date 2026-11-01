@@ -234,6 +234,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     },
     async act(args) {
       const inputStart = inputSequence;
+      const epoch = generation, occurrence = documentGeneration;
       const heldKeys = new Set(keys), heldButtons = new Set(buttons);
       try {
       if (!['background', 'foreground'].includes(args.inputMode ?? 'background')) fail('INVALID_ARGUMENT', 'inputMode must be background or foreground');
@@ -244,7 +245,6 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       }
       await assertNoDialog();
       if (!['navigate', 'reload', 'back', 'forward'].includes(args.action)) live();
-      const epoch = generation, occurrence = documentGeneration;
       const inputActionId=['click','doubleClick','move','mouseDown','scroll','drag','type','keyDown','press','paste','selectText','fill','selectOption'].includes(args.action) ? crypto.randomUUID() : undefined;
       const inputDocumentId=inputActionId ? (await evaluate('navigationState')).documentId : undefined;
       const check=()=>{if(epoch!==generation)fail('CONTROL_STOPPED','Input sequence was cancelled');if(inputActionId&&occurrence!==documentGeneration)fail('STALE_ELEMENT','The document changed during input; observe again');};

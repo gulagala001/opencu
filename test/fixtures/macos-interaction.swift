@@ -17,6 +17,19 @@ struct InteractionChecks {
             catch let error as NativeFailure { precondition(error.code == expected, "\(error.code) != \(expected)") }
             catch { fatalError("Unexpected error: \(error)") }
         }
+        var samples = 0, waits = 0
+        let mapped: Int = try resolveAXWindow(19, sample: {
+            samples += 1
+            return samples < 3 ? ([], 1) : ([19], 1)
+        }, settle: { waits += 1 })
+        expect(mapped == 19 && samples == 3 && waits == 2)
+        failure("WINDOW_AX_MAPPING_FAILED") {
+            _ = try resolveAXWindow(19, sample: { ([19, 20], 2) }, settle: {})
+        }
+        failure("TARGET_IDENTITY_CHANGED") {
+            let _: Int = try resolveAXWindow(19, sample: { throw NativeFailure("TARGET_IDENTITY_CHANGED", "closed") },
+                settle: { fatalError("A destroyed window must not be retried") })
+        }
         try expect(click(2)?.action == "AXPick")
         try expect(click(3)?.element == 2 && click(3)?.action == "AXPick")
         actions[2] = ["AXPick"]

@@ -213,3 +213,26 @@ test('a mismatched retirement receipt cannot settle another occurrence\'s pendin
   await host.handle('browser/result', { rendererId, id: command.id, result: { observed: true } });
   assert.deepEqual(await observation, { observed: true });
 });
+
+test('a slow guest does not retire a polling renderer or certify unacknowledged input', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const {host,rendererId,target}=await fixture(t);
+  const other={...target,id:'dsh:peer',identity:{...target.identity,guestId:'peer'}};
+  await host.handle('browser/publish',{rendererId,targets:[target,other]});
+  const poll=async()=> (await host.handle('browser/poll',{rendererId})).commands[0];
+  const ack=async(command,result)=>host.handle('browser/result',{rendererId,id:command.id,result});
+  const waiting=host.backend.verify(target);await poll();t.mock.timers.tick(30000);
+  assert.equal((await waiting).error.code,'VERIFICATION_UNAVAILABLE');
+  const sent=settle(host.backend.act(target,{action:'keyDown',key:'Shift'}));
+  const command=await poll();t.mock.timers.tick(30000);
+  const failure=(await sent).error;assert.equal(failure.code,'COMMAND_TIMEOUT');assert.equal(failure.details.dispatchUnknown,true);
+  assert.equal(failure.details.inputDispatched,undefined);
+  assert.equal((await ack(command,{release:{released:true}})).ignored,true);
+  const release=settle(host.backend.releaseTarget(target));await poll();t.mock.timers.tick(30000);
+  assert.equal((await release).error.code,'RELEASE_FAILED');
+  await assert.rejects(host.backend.act(target,{action:'click'}),{code:'RECOVERY_REQUIRED'});
+  const healthy=host.backend.act(other,{action:'click'});await ack(await poll(),{release:{released:true}});await healthy;
+  const confirmed=host.backend.releaseTarget(target);await ack(await poll(),{released:true});assert.equal((await confirmed).released,true);
+  const resumed=host.backend.act(target,{action:'click'});await ack(await poll(),{release:{released:true}});await resumed;
+  assert.equal(host.listBrowsers().length,1);
+});
