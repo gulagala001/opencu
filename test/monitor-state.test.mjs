@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createPresentationHost} from '../src/dsh/presentation.mjs';
 import {createPresentationClient} from '../src/client/presentation-host.mjs';
+import {createActivityFeed} from '../src/dsh/activity.mjs';
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const until = async check => { for (let i=0;i<100;i++) { if (check()) return; await tick(); } assert.fail('monitoring did not settle'); };
@@ -67,6 +68,29 @@ test('a closed browser tab disappears from the existing stack without a retry ca
   assert.deepEqual((await f.state()).frames.map(frame=>frame.presentationID), ['other-tab']);
   assert.ok(previews.every(frame => !frame.error));
   assert.equal(f.host.snapshot().visible, true);
+});
+
+test('confirmed navigation retires only the old monitored document and a fresh binding is shown normally', () => {
+  const feed=createActivityFeed();
+  const old={...target,provider:'extension',identity:{tabId:73,documentId:'before'}}, next={...old,id:'new',identity:{tabId:73,documentId:'after'}};
+  feed.finish(feed.begin('A','select',{}),{target:old});
+  feed.finish(feed.begin('A','act',{targetId:old.id}),{targetId:old.id,result:{reselectRequired:true,navigationObserved:{tabId:73,previousDocumentId:'before',documentId:'after'}}});
+  assert.deepEqual(feed.snapshot().sessions[0].targets,[]);
+  feed.finish(feed.begin('A','select',{}),{target:next});
+  assert.deepEqual(feed.snapshot().sessions[0].targets,[next]);feed.close();
+});
+
+test('a capture with no safe pixels keeps its diagnostic and can recover without showing a floating error page', async t => {
+  let code,visible=[];
+  const f=hostFixture({request:async(_,{targetId})=>targetId===target.id && code ? {ok:false,error:{code,message:'Unavailable'}} : {ok:true,preview:{dataUrl:image,width:20,height:20}},
+    present:async({frames})=>{visible=frames;return {visible:true};}});
+  t.after(()=>f.host.close());f.sessions[0].targets=[target,{...target,id:'other'}];f.changed();
+  await until(()=>visible.length===2);code='BROWSER_HOST_DISCONNECTED';
+  await f.host.event({rendererId:'owner',type:'retry',sessionId:'A',targetId:target.id});
+  await until(()=>visible.length===1);assert.equal(visible[0].presentationID,'other');
+  assert.equal((await f.state()).frames.find(frame=>frame.presentationID===target.id).errorCode,code);
+  code=null;await f.host.event({rendererId:'owner',type:'retry',sessionId:'A',targetId:target.id});await until(()=>visible.length===2);
+  assert.ok(visible.every(frame=>frame.imageDataURL&&!frame.error));
 });
 
 test('the initial built-in browser location is applied once per chat and manual preview choices win', async t => {

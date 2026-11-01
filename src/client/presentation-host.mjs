@@ -152,7 +152,7 @@ export function createPresentationClient({ client, transport, desktop, dock, not
           const expected = generation;
           if (desktop?.presentation && snapshot.frames.some(frame => frame.threadID === id && frame.imageDeferred)) await refresh([id]);
           if (disposed || expected !== generation) return;
-          const frames = snapshot.frames.filter(frame => frame.threadID === id);
+          const frames = snapshot.frames.filter(frame => frame.threadID === id && !frame.cacheInvalidated);
           if (frames.some(frame => frame.imageDeferred)) throw new Error('The monitoring handoff images are unavailable');
           if (!desktop?.presentation || !frames.length) {
             if (placement === 'home') await dock(id);

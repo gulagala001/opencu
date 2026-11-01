@@ -6759,7 +6759,7 @@
     {
       "file": "src/client/presentation-host.mjs",
       "contract": "presentation",
-      "sha256": "d056e9080ff62379adf7556d5681f103200abd480da4985083e37ba296aef059",
+      "sha256": "f17f123c869a72f69b9ff4ccc3044eb86f53f220c6b64d8020f597c667d59aa8",
       "kind": "javascript",
       "sites": [
         {
@@ -8517,7 +8517,7 @@
     {
       "file": "src/core/controller.mjs",
       "contract": "controller",
-      "sha256": "76f2f87dae164c5e07617b3f05760cb3785bdf06114d79378c2059554a36f2be",
+      "sha256": "e3f08cd300bff9d4a15884bc7be2393c9a02e7fb68db256ee79383e559f189f3",
       "kind": "javascript",
       "sites": [
         {
@@ -9283,24 +9283,24 @@
     {
       "file": "src/dsh/activity.mjs",
       "contract": "presentation",
-      "sha256": "dc6337f7467799172cc70224338f4a06847e1526f1016cf73ab0b652df43189f",
+      "sha256": "e38d901ea86cdefc17d630252387d1a452a320e3ba129683016d1196c9b8f8b6",
       "kind": "javascript",
       "sites": [
         {
           "id": "wait:await:Promise():1",
-          "line": 81,
+          "line": 85,
           "kind": "await",
           "callee": "Promise()"
         },
         {
           "id": "wait:promise:Promise:1",
-          "line": 81,
+          "line": 85,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "wait:handoff:setTimeout:1",
-          "line": 85,
+          "line": 89,
           "kind": "handoff",
           "callee": "setTimeout"
         }
@@ -11038,7 +11038,7 @@
     {
       "file": "src/dsh/presentation.mjs",
       "contract": "presentation",
-      "sha256": "f5ccf468d9ab515788ab57c70c95cdc4a22b19abb1bfe69958ecd1fe25c91ec6",
+      "sha256": "bb0a542010683c3783769c9290209b5d8034dd69ba5cac8e62250b22280a9070",
       "kind": "javascript",
       "sites": [
         {
@@ -11073,127 +11073,127 @@
         },
         {
           "id": "presentFrames:await:browserHost.present():1",
-          "line": 90,
+          "line": 93,
           "kind": "await",
           "callee": "browserHost.present()"
         },
         {
           "id": "presentFrames:await:browserHost.hidePresentation():1",
-          "line": 90,
+          "line": 93,
           "kind": "await",
           "callee": "browserHost.hidePresentation()"
         },
         {
           "id": "capture:handoff:Promise.resolve().then().then:1",
-          "line": 202,
+          "line": 205,
           "kind": "handoff",
           "callee": "Promise.resolve().then().then"
         },
         {
           "id": "capture:handoff:Promise.resolve().then:1",
-          "line": 202,
+          "line": 205,
           "kind": "handoff",
           "callee": "Promise.resolve().then"
         },
         {
           "id": "capture:handoff:runtime.request:1",
-          "line": 202,
+          "line": 205,
           "kind": "handoff",
           "callee": "runtime.request"
         },
         {
           "id": "refresh:await:presentFrames():1",
-          "line": 252,
+          "line": 255,
           "kind": "await",
           "callee": "presentFrames()"
         },
         {
           "id": "refresh:await:presentFrames():2",
-          "line": 278,
+          "line": 281,
           "kind": "await",
           "callee": "presentFrames()"
         },
         {
           "id": "refresh:await:browserHost.hidePresentation():1",
-          "line": 279,
+          "line": 282,
           "kind": "await",
           "callee": "browserHost.hidePresentation()"
         },
         {
           "id": "refresh:await:releaseUnusedVideo():1",
-          "line": 287,
+          "line": 290,
           "kind": "await",
           "callee": "releaseUnusedVideo()"
         },
         {
           "id": "sessionsChanged:await:presentFrames():1",
-          "line": 315,
+          "line": 318,
           "kind": "await",
           "callee": "presentFrames()"
         },
         {
           "id": "handle:handoff:runtime.request:1",
-          "line": 332,
+          "line": 335,
           "kind": "handoff",
           "callee": "runtime.request"
         },
         {
           "id": "handle:await:presentFrames():1",
-          "line": 364,
+          "line": 367,
           "kind": "await",
           "callee": "presentFrames()"
         },
         {
           "id": "handle:await:refresh():1",
-          "line": 366,
+          "line": 369,
           "kind": "await",
           "callee": "refresh()"
         },
         {
           "id": "event:await:presentFrames():1",
-          "line": 387,
+          "line": 390,
           "kind": "await",
           "callee": "presentFrames()"
         },
         {
           "id": "event:await:releaseUnusedVideo():1",
-          "line": 389,
+          "line": 392,
           "kind": "await",
           "callee": "releaseUnusedVideo()"
         },
         {
           "id": "event:await:runtime.request():1",
-          "line": 404,
+          "line": 407,
           "kind": "await",
           "callee": "runtime.request()"
         },
         {
           "id": "event:handoff:runtime.request:1",
-          "line": 404,
+          "line": 407,
           "kind": "handoff",
           "callee": "runtime.request"
         },
         {
           "id": "event:await:presentFrames():2",
-          "line": 414,
+          "line": 417,
           "kind": "await",
           "callee": "presentFrames()"
         },
         {
           "id": "event:await:presentFrames():3",
-          "line": 421,
+          "line": 424,
           "kind": "await",
           "callee": "presentFrames()"
         },
         {
           "id": "event:await:releaseUnusedVideo():2",
-          "line": 422,
+          "line": 425,
           "kind": "await",
           "callee": "releaseUnusedVideo()"
         },
         {
           "id": "close:await:Promise.allSettled():1",
-          "line": 450,
+          "line": 453,
           "kind": "await",
           "callee": "Promise.allSettled()"
         }
