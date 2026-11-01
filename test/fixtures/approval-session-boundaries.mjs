@@ -7,7 +7,7 @@ export const createScope = unused, scopeOf = unused, installToolDefinitions = un
 export const createComputerSession = unused;
 export const createActivityFeed = () => ({ begin: () => ({}), finish() {}, sessionEvent() {}, forget() {}, close() {} });
 export const createBrowserHost = () => ({ backend: {}, listBrowsers: () => [], close() {} });
-export const createPresentationHost = closedService;
+export const createPresentationHost = () => ({ ...closedService(), forgetSession() {} });
 export const createPreferences = closedService, createBrowserHistory = closedService;
 export const createBrowserResources = closedService, createSidebarDownloads = closedService, createDeliveryFiles = closedService;
 export const createImageRegistry = () => ({ ready: async () => {}, close: async () => {} });

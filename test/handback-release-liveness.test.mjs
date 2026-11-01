@@ -43,7 +43,7 @@ async function sharedFixture(t) {
     './computer.mjs':{createComputerSession:request=>{const computer=createComputerSession(request);computers.push(computer);return computer;}},
     './activity.mjs':{createActivityFeed:()=>({begin:noop,finish:noop,sessionEvent:noop,forget:noop,close:noop})},
     './browser-host.mjs':{createBrowserHost:()=>({backend:{},listBrowsers:()=>[],close:()=>{brokerClosed=true;}})},
-    './presentation.mjs':{createPresentationHost:()=>({snapshot:()=>({}),close:async()=>{f.calls.push('presentation-close');await f.hooks.presentationClose?.();}})},
+    './presentation.mjs':{createPresentationHost:()=>({snapshot:()=>({}),forgetSession:noop,close:async()=>{f.calls.push('presentation-close');await f.hooks.presentationClose?.();}})},
     './preferences.mjs':{createPreferences:()=>({close:async()=>{f.calls.push('preferences-close');await f.hooks.preferencesClose?.();}})},
     './browser-history.mjs':{createBrowserHistory:()=>({close})},'../extension/distribution.mjs':{registerExtensionDownload:noop},
   };

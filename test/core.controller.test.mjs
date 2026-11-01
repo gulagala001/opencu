@@ -137,6 +137,21 @@ test('pending monitor capture does not block input or cancellation', async () =>
   }
 });
 
+test('monitoring distinguishes a same-window reselection and a capture permission error from closure', async t => {
+  const {backend} = nativeFixture(), dir = await directory();
+  const started = Promise.withResolvers(), captured = Promise.withResolvers();
+  backend.preview = () => { started.resolve(); return captured.promise; };
+  const controller = await createController({dataDir:dir, browser:false, native:backend});
+  t.after(async () => { captured.resolve({}); await controller.close(); await rm(dir, {recursive:true, force:true}); });
+  ok(await controller.selectTarget('app:1'));
+  const preview = controller.preview({targetId:'app:1'});
+  await started.promise;
+  ok(await controller.selectTarget('app:1')); captured.resolve({});
+  assert.equal((await preview).error.code, 'STALE_OBSERVATION');
+  backend.verify = async () => ({valid:false, error:{code:'SCREEN_CAPTURE_PERMISSION_REQUIRED'}, reason:'Screen capture denied'});
+  assert.equal((await controller.preview({targetId:'app:1'})).error.code, 'SCREEN_CAPTURE_PERMISSION_REQUIRED');
+});
+
 test('browser-level creation selects the new occurrence and rejects unknown browsers without creation', async t => {
   const dataDir = await directory(), {state, backend} = nativeFixture();
   state.targets = []; let creations = 0, selections = 0;

@@ -6,7 +6,8 @@ import { xt as ControlList, Ot } from './rea/settings-plugin-controls-aa3e0c89c7
 import { Vr as ComputerSettings, ti as BrowserConnectionSettings, Xr as browserIcon, tr as ComputerBreadcrumb, xi } from './rea/computer-use-settings-615f56c63d73.js';
 import { V2s as PermissionCard, W2s as initializePermissionCard } from './rea/app-initial-c468e3fd7f91.js';
 import { ReaComputerSettingsPage } from './settings-page.jsx';
-import { vn as SettingsPage, J as Section, it as Group, Ee as Row, fe as useNavigate } from './rea/browser-use-settings-61138c2e595e.js';
+import { vn as SettingsPage, J as Section, it as Group, Ee as Row, fe as useNavigate, T as Menu, $t as MenuButton, _t as MenuItems,
+  C as useService, D as settingsScope, rt as useSetting, Mt as writeSetting, Ot as checkmark } from './rea/browser-use-settings-61138c2e595e.js';
 import { c as ExtensionStatus, f as initializeExtensionStatus } from './rea/browser-extension-connection-status-description-fb2767d472db.js';
 
 const Capabilities = React.createContext(null);
@@ -85,6 +86,28 @@ export function useSettingsPluginActions() {
   };
 }
 
+const browserInitialView = { key: 'browser-cu-initial-view', default: 'sidebar' };
+
+function InitialBrowserViewMenu() {
+  const intl = useIntl(), scope = useService(settingsScope), selected = useSetting(browserInitialView);
+  const [saving, setSaving] = React.useState(false);
+  const labels = {
+    sidebar: intl.formatMessage({ id: 'opencu.settings.browserSidebar', defaultMessage: 'Sidebar' }),
+    floating: intl.formatMessage({ id: 'opencu.settings.browserFloating', defaultMessage: 'Floating window' }),
+  };
+  async function select(value) {
+    if (saving || value === selected) return;
+    setSaving(true);
+    try { await writeSetting(scope, browserInitialView, value, { optimistic: false }); }
+    catch (error) { services.notify('error', error.message); }
+    finally { setSaving(false); }
+  }
+  return <Menu contentWidth="menuFixed" align="end" triggerButton={<MenuButton disabled={saving}>{labels[selected] ?? labels.sidebar}</MenuButton>}>
+    {Object.entries(labels).map(([value, label]) => <MenuItems.Item key={value} rightIconAsset={selected === value ? checkmark : undefined}
+      onSelect={() => select(value)}>{label}</MenuItems.Item>)}
+  </Menu>;
+}
+
 function Controls({ browser = false }) {
   const intl = useIntl(), navigate = useNavigate();
   const { state, error, pending, run, retry } = React.useContext(Capabilities);
@@ -94,7 +117,8 @@ function Controls({ browser = false }) {
   if (state) {
     if (browser) {
       items.push({ kind: 'app', id: 'in-app-browser', title: text('inApp', 'Built-in browser'), showEnableToggle: false, icon: <Icon asset={browserAsset} className="icon-md text-secondary" />,
-        description: state.inAppBrowser ? text('inAppReady', 'Uses the real browser tabs in this DSH window') : state.desktopAdapterError || text('desktopRequired', 'The desktop browser host is unavailable in this window') });
+        description: state.inAppBrowser ? text('inAppReady', 'Where the browser opens the first time the AI uses it in each chat') : state.desktopAdapterError || text('desktopRequired', 'The desktop browser host is unavailable in this window'),
+        action: state.inAppBrowser ? <InitialBrowserViewMenu /> : null });
       items.push({ kind: 'app', id: 'browserEnabled', title: text('managedBrowser', 'Managed browser'), icon: <Icon asset={browserAsset} className="icon-md text-secondary" />,
         enabled: state.config.browserEnabled, isPending: pending != null, onToggleEnabled: enabled => run('browserEnabled', () => services.capabilities.configure('browserEnabled', enabled)),
         toggleAriaLabel: text('managedBrowserToggle', 'Enable managed browser'),

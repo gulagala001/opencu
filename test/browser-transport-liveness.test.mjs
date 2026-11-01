@@ -5,7 +5,7 @@ import { createBrowserTransport } from '../src/client/browser-transport.mjs';
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const until = async check => { for (let i = 0; i < 100 && !check(); i++) await tick(); return check(); };
-async function fixture(t, { presentation, duplicate = false, beforeResult } = {}) {
+async function fixture(t, { presentation, sidebar, duplicate = false, beforeResult } = {}) {
   const host = createBrowserHost(); let connection, connections = 0, publishGate;
   const previousDocument = globalThis.document, previousStyle = globalThis.getComputedStyle;
   globalThis.document = { documentElement: { lang: 'en' } };
@@ -17,11 +17,30 @@ async function fixture(t, { presentation, duplicate = false, beforeResult } = {}
     if (method === 'browser/connect') { connection = args; connections++; }
     if (duplicate && method === 'browser/poll') value.commands = value.commands.flatMap(command => [command, command]);
     return value;
-  } }, presentation && { presentation });
+  } }, presentation && { presentation }, sidebar);
   transport.setSessionOwner(() => ['session']);
   t.after(() => { transport.quiesce(); host.close(); globalThis.document = previousDocument; globalThis.getComputedStyle = previousStyle; });
   return { host, transport, set publishGate(value) { publishGate = value; }, get connection() { return connection; }, get connections() { return connections; } };
 }
+
+test('revealing a browser tab stays in its owning chat and respects detached windows', async t => {
+  let mounted = 'session', expanded = false;
+  const selected = [], sidebar = {mounted:{getSnapshot:() => mounted}, tabsIn:() => [{id:'tab', kind:'browser'}],
+    focus:id => selected.push(id), active:() => ({id:selected.at(-1)}), isExpanded:() => expanded, toggleExpanded:() => { expanded = !expanded; }};
+  const f = await fixture(t, {sidebar});
+  await f.transport.start(); await until(() => f.connection);
+  const guest = f.transport.attachRemote({sessionId:'session', tabId:'tab', request:async method => {
+    assert.equal(method, 'release'); return {released:true};
+  }});
+  guest.update({}); await tick();
+  assert.deepEqual(await f.host.revealTab(guest.target, 'session'), {revealed:true});
+  assert.equal(expanded, true);
+  mounted = 'another'; assert.deepEqual(await f.host.revealTab(guest.target, 'session'), {revealed:false});
+  mounted = 'session'; guest.update({isDetached:true});
+  assert.deepEqual(await f.host.revealTab(guest.target, 'session'), {revealed:false});
+  assert.deepEqual(selected, ['tab']);
+  await f.transport.dispose();
+});
 
 test('monitoring session and cursor replies cannot block renderer connection or session ownership', async t => {
   const gate = Promise.withResolvers(), calls = [];

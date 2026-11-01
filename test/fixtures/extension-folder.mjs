@@ -69,7 +69,8 @@ export async function extensionFolderFixture(options = {}) {
     './rea/computer-use-settings-615f56c63d73.js': { Vr: noop, ti: noop, Xr: noop, tr: noop, xi: noop },
     './rea/app-initial-c468e3fd7f91.js': { V2s: noop, W2s: noop },
     './settings-page.jsx': { ReaComputerSettingsPage: noop },
-    './rea/browser-use-settings-61138c2e595e.js': { vn: noop, J: noop, it: noop, Ee: noop, fe: () => noop },
+    './rea/browser-use-settings-61138c2e595e.js': { vn: noop, J: noop, it: noop, Ee: noop, fe: () => noop,
+      T: noop, $t: noop, _t: { Item: noop }, C: noop, D: {}, rt: noop, Mt: noop, Ot: {} },
     './rea/browser-extension-connection-status-description-fb2767d472db.js': { c: noop, f: noop },
   };
   const focusListeners = new Set();

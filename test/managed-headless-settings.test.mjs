@@ -1,20 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { transform } from 'esbuild';
 import { configureCapability, sharedConfigForm } from '../src/client/configuration.mjs';
+import { createPreferences } from '../src/dsh/preferences.mjs';
 
-async function controls(config = {}, pending = null) {
+async function controls(config = {}, pending = null, preferences) {
   const calls = [];
-  const state = { config, inAppBrowser: false, browserResources: { installed: true } };
+  const state = { config, inAppBrowser: !!preferences, browserResources: { installed: true } };
   const context = vm.createContext({});
   const createElement = (type, props, ...children) => ({ type, props, children });
   const value = { state, pending, run: async (id, callback) => { calls.push(['run', id]); return callback(); } };
-  const React = { createElement, createContext: () => ({}), useContext: () => value };
+  const React = { createElement, createContext: () => ({}), useContext: () => value, useState: initial => [initial, () => {}] };
   const services = { capabilities: { configure: async (...args) => calls.push(['configure', ...args]) } };
   const useIntl = () => ({ formatMessage: descriptor => descriptor.defaultMessage });
   const noop = () => {};
+  const values = (await preferences?.read())?.values ?? {};
   const dependencies = {
     'react': { default: React }, './rea-services.mjs': { services },
     './rea/app-shared-2f2228189a8d.js': { lS: useIntl, SHe: noop, r5: noop, t5: noop, n5: noop, f$: '', p$: noop },
@@ -23,7 +27,9 @@ async function controls(config = {}, pending = null) {
     './rea/computer-use-settings-615f56c63d73.js': { Vr: noop, ti: noop, Xr: noop, tr: noop, xi: noop },
     './rea/app-initial-c468e3fd7f91.js': { V2s: noop, W2s: noop },
     './settings-page.jsx': { ReaComputerSettingsPage: noop },
-    './rea/browser-use-settings-61138c2e595e.js': { vn: noop, J: noop, it: noop, Ee: noop, fe: () => noop },
+    './rea/browser-use-settings-61138c2e595e.js': { vn: noop, J: noop, it: noop, Ee: noop, fe: () => noop,
+      T: noop, $t: noop, _t: { Item: noop }, C: noop, D: {}, rt: setting => values[setting.key] ?? setting.default,
+      Mt: (_, setting, next) => preferences.write(setting.key, next), Ot: {} },
     './rea/browser-extension-connection-status-description-fb2767d472db.js': { c: noop, f: noop },
   };
   const source = await readFile(new URL('../src/client/capability-settings.jsx', import.meta.url), 'utf8');
@@ -39,6 +45,23 @@ async function controls(config = {}, pending = null) {
   const wrapper = module.namespace.BrowserControls();
   return { items: wrapper.type(wrapper.props).props.items, calls };
 }
+
+test('the built-in browser location menu defaults to sidebar and persists either choice', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'opencu-browser-view-'));
+  t.after(() => rm(dir, { recursive:true, force:true }));
+  const menu = async () => {
+    const { items } = await controls({}, null, createPreferences(() => dir));
+    const trigger = items.find(item => item.id === 'in-app-browser').action;
+    return trigger.type(trigger.props);
+  };
+  async function choose(label, next) {
+    const result = await menu(); assert.deepEqual(Array.from(result.props.triggerButton.children), [label]);
+    await result.children[0].find(option => option.children[0] === next).props.onSelect();
+  }
+  await choose('Sidebar', 'Floating window'); await choose('Floating window', 'Sidebar');
+  assert.equal((await menu()).props.triggerButton.children[0], 'Sidebar');
+  assert.throws(() => createPreferences(() => dir).write('browser-cu-initial-view', 'other'), /Unsupported/);
+});
 
 test('headless option defaults off and rendering never writes configuration', async () => {
   const { items, calls } = await controls({ browserEnabled: true });

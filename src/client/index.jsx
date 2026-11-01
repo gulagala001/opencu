@@ -91,7 +91,7 @@ function mountClient(ctx, entry) {
     return () => { client.dispose(); unprovide(); };
   }, 'opencu: core events');
   const { desktop, error: desktopAdapterError } = resolveDesktopBrowserHost();
-  const transport = createBrowserTransport(client, desktop);
+  const transport = createBrowserTransport(client, desktop, ctx.sidebarRight);
   transport.setSessionOwner(() => [ctx.sidebarRight.mounted.getSnapshot()].filter(Boolean));
   ctx.effect(() => ctx.sidebarRight.mounted.subscribe(() => {
     void transport.updateSessions().catch(error => console.error('OpenCU presentation owner', error));

@@ -7,18 +7,78 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 const until = async check => { for (let i=0;i<100;i++) { if (check()) return; await tick(); } assert.fail('monitoring did not settle'); };
 const image = 'data:image/png;base64,c3ludGhldGlj';
 const target = {id:'synthetic-tab', backend:'browser', identity:{occurrence:1}, title:'Synthetic'};
-function hostFixture() {
+function hostFixture({ preferences, revealTab, request, present } = {}) {
   let changed, result = {ok:true, preview:{dataUrl:image,width:800,height:600,kind:'screenshot',timestamp:1}};
   const sessions = [{sessionId:'A',targets:[target]}];
   const host = createPresentationHost({
     activity:{snapshot:()=>({sessions}),subscribe:fn=>(changed=fn,()=>{})},
-    runtime:{request:async()=>result},
+    preferences, runtime:{request:request ?? (async()=>result)},
     browserHost:{presentationOwner:()=> 'owner',isPresentationSession:(owner,id)=>owner==='owner' && id==='A',
-      present:async()=>({visible:true}),hidePresentation:async()=>({visible:false}),closePresentations:async()=>{}},
+      revealTab, present:present ?? (async()=>({visible:true})),hidePresentation:async()=>({visible:false}),closePresentations:async()=>{}},
   });
   const state = async options => (await host.handle('state',{rendererId:'owner',...options})).state;
   return {host,state,sessions,changed:()=>changed(),result:value=>{result=value;}};
 }
+
+test('a closed application drops only its window, releases video and never publishes a retry frame', async t => {
+  const ended = new Map(), released = [], previews = [];
+  const f = hostFixture({
+    request: async (method, { targetId, targetIdentity }) => {
+      if (method === 'stopPreview') { released.push(targetId); return {ok:true}; }
+      assert.ok(targetIdentity);
+      if (ended.has(targetId)) return {ok:false, error:{code:ended.get(targetId), message:'Window closed'}};
+      return {ok:true, preview:{dataUrl:image, width:20, height:20}};
+    },
+    present: async ({ frames }) => { previews.push(...frames); return {visible:true}; },
+  });
+  t.after(() => f.host.close());
+  const windows = ['one','two'].map(id => ({id, backend:'native', identity:{window:id, process:1}}));
+  f.sessions[0].targets = windows;
+  f.changed(); await until(() => f.host.snapshot().visible);
+  for (const [id, code] of [['one','TARGET_IDENTITY_CHANGED'], ['two','TARGET_NOT_FOUND']]) {
+    ended.set(id, code);
+    await f.host.event({rendererId:'owner', type:'retry', sessionId:'A', targetId:id});
+    await until(() => released.includes(id));
+    assert.deepEqual((await f.state()).frames.map(frame => frame.presentationID), id === 'one' ? ['two'] : []);
+  }
+  assert.equal(f.host.snapshot().visible, false);
+  assert.deepEqual((await f.state()).activeTaskIds, []);
+  assert.ok(previews.every(frame => !frame.error));
+  ended.clear();
+  f.sessions[0].targets = [windows[0], {...windows[1], identity:{window:'two', process:2}}];
+  f.changed(); await until(() => f.host.snapshot().visible);
+  assert.deepEqual((await f.state()).frames.map(frame => frame.presentationID), ['two']);
+});
+
+test('the initial built-in browser location is applied once per chat and manual preview choices win', async t => {
+  const revealed = [], tab = {...target, provider:'dsh', sessionId:'A'}, gate = Promise.withResolvers();
+  let preferred, reads = 0;
+  const f = hostFixture({
+    preferences:{read:async () => { reads++; return {values:{'browser-cu-initial-view':preferred}}; }},
+    revealTab:async (target, id) => { revealed.push([target.id, id]); await gate.promise; return {revealed:true}; },
+  });
+  t.after(() => f.host.close());
+  f.sessions[0].targets = [tab];
+  f.changed(); await until(() => revealed.length === 1);
+  f.changed(); assert.equal(f.host.snapshot().visible, false);
+  gate.resolve(); await tick();
+  preferred = 'floating';
+  f.sessions[0].lastStarted = {id:'next-action'};
+  f.sessions[0].targets.push({...tab, id:'another-tab'});
+  f.changed(); await tick();
+  assert.equal((await f.state()).hiddenTargetCounts.A, 2);
+  assert.equal((await f.state()).placements.A, 'home');
+  assert.deepEqual((await f.state()).frames, []);
+  assert.deepEqual(revealed, [[tab.id, 'A']]); assert.equal(reads, 1);
+  await f.host.handle('placement', {rendererId:'owner', sessionId:'A', placement:'pinned'});
+  await until(() => f.host.snapshot().visible);
+  assert.equal((await f.state()).frames.length, 2);
+  f.sessions.length = 0; f.host.forgetSession('A'); f.changed(); await tick();
+  f.sessions.push({sessionId:'A', targets:[tab]}); f.changed();
+  await until(() => f.host.snapshot().visible);
+  assert.equal((await f.state()).frames[0].placement, 'pinned');
+  assert.equal(reads, 2); assert.equal(revealed.length, 1);
+});
 function documentFixture(t) {
   const document = new EventTarget(); document.hidden=false; document.documentElement={dataset:{platform:'darwin'}};
   const previous=globalThis.document;globalThis.document=document;

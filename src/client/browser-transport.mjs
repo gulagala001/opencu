@@ -2,7 +2,7 @@ import { createGuestDriver } from './guest-driver.mjs';
 import { inputReleased, sameIdentity } from '../protocol.mjs';
 import { restorePresentationImages } from '../presentation-images.mjs';
 
-export function createBrowserTransport(client, desktop) {
+export function createBrowserTransport(client, desktop, sidebar) {
   const guests = new Map(), executing = new Set(), receivedCommands = new Set(), creations = new Map();
   let openTab, closeTab, sessions = () => [];
   let rendererId, connectionId, aborter, connectionAborter, loop, closing = false, connectionEpoch = 0, pendingPublish = Promise.resolve(), pendingSessions = Promise.resolve();
@@ -190,6 +190,16 @@ export function createBrowserTransport(client, desktop) {
           throw Object.assign(new Error('Command refers to another sidebar occurrence'),{code:'TARGET_IDENTITY_CHANGED'});
         switch (command.method) {
           case 'select': case 'verify': result = guest.driver.metadata(); break;
+          case 'revealTab': {
+            const { sessionId, sidebarTabId, isDetached } = guest.driver.metadata();
+            if (isDetached || sidebar?.mounted.getSnapshot() !== sessionId || sessionId !== command.params.sessionId
+              || !sidebar.tabsIn(sessionId).some(tab => tab.id === sidebarTabId && tab.kind === 'browser')) {
+              result = { revealed: false }; break;
+            }
+            sidebar.focus(sidebarTabId);
+            if (!sidebar.isExpanded()) sidebar.toggleExpanded();
+            result = { revealed: sidebar.isExpanded() && sidebar.active()?.id === sidebarTabId }; break;
+          }
           case 'focus': result = { ...await wait(guest.focus(), deliverySignal), focused: true, target: guest.driver.metadata() }; break;
           case 'preview': result = await wait(guest.driver.preview(), deliverySignal); break;
           case 'observe': result = await wait(guest.driver.observe(command.params.options), deliverySignal); break;
