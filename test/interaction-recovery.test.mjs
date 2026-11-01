@@ -7,6 +7,7 @@ import {createComputerRepl} from '../src/dsh/computer-repl.mjs';
 import {createInputReleaseState} from '../src/dsh/input-release.mjs';
 import {createCompositeBrowserBackend} from '../src/browser/composite.mjs';
 import {inputFrameFailure} from '../extension/input-monitor.js';
+import {toolReplError} from '../src/dsh/repl-output.mjs';
 
 // Real controller, REPL and guest driver; DOM/CDP is the synthetic boundary.
 async function fixture(t) {
@@ -16,7 +17,8 @@ async function fixture(t) {
   const target = {id:'tab:original',kind:'tab',backend:'browser',provider:'dsh',browserId:'browser:original',
     title:'Fixture',url:'https://fixture.invalid/',identity:{occurrence:'original'}};
   let observation = 0, releases = 0, targetReleases = 0;
-  const element = {addEventListener(){},getURL:()=>target.url,getTitle:()=>target.title,isCrashed:()=>false};
+  const listeners = new Map();
+  const element = {addEventListener:(name, fn)=>listeners.set(name, fn),getURL:()=>target.url,getTitle:()=>target.title,isCrashed:()=>false};
   const driver = createGuestDriver(element,target,()=>{},()=>{},()=>{},async()=>({
     toDataURL:()=> 'data:image/png;base64,eA==',getSize:()=>({width:viewport.width,height:viewport.height}),
   }),async (operation,args) => {
@@ -26,7 +28,7 @@ async function fixture(t) {
     if (operation==='getDialog') return {dialog:null};
     if (operation==='navigationState') return {documentId:'0',url:target.url};
     if (operation==='inputMarker') return {};
-    if (operation==='input') { events.push(args.type); return {dispatched:true}; }
+    if (operation==='input') { events.push(args.type); hooks.onInput?.(args); return {dispatched:true}; }
     if (operation==='releaseInput') return {released:true};
     if (['cancelUpload','cancelSiteTool'].includes(operation)) return {};
     throw Error('Unexpected adapter operation: '+operation);
@@ -50,14 +52,85 @@ async function fixture(t) {
   t.after(async()=>{hooks.error=undefined;hooks.releaseFailure=false;await repl.close();await controller.close();await rm(dataDir,{recursive:true,force:true});});
   const run=code=>repl.run({code});
   await run('var tab = await cua.getTab("tab:original"); await tab.getScreenshot();');
-  return {controller,repl,run,viewport,events,hooks,get releases(){return releases;},get targetReleases(){return targetReleases;}};
+  const changeURL = url => {target.url=url; listeners.get('did-navigate-in-page')({url,isMainFrame:true});};
+  return {controller,repl,run,viewport,events,hooks,changeURL,get releases(){return releases;},get targetReleases(){return targetReleases;}};
 }
+
+test('DSH keeps image coordinates through a move, an AX read, a click and a drag', async t => {
+  const f = await fixture(t);
+  const points = [];
+  f.hooks.onInput = event => points.push([event.type, event.x, event.y, event.screenshot?.id]);
+  const result = await f.run('nodeRepl.write((await tab.move([50,30])).result.inputDispatched); await tab.getAXState(); await tab.click([70,40]); await tab.drag([[10,20],[30,40],[50,60]]);');
+  assert(result.outputs.includes('true'));
+  assert.deepEqual(points.slice(0, 4).map(point => point.slice(0, 3)), [
+    ['mouseMove',50,30], ['mouseMove',70,40], ['mouseDown',70,40], ['mouseUp',70,40],
+  ]);
+  assert.deepEqual(points.at(-1).slice(0, 3), ['mouseUp',50,60]);
+  const guarded = points.filter(([type]) => type !== 'mouseUp');
+  assert(guarded.length > 5);
+  assert(guarded.every(point => point[3] === '2'), 'all input uses the captured image, including after the newer AX observation');
+});
+
+test('each DSH binding uses its own last image and reports a replacement before dispatch', async t => {
+  const f = await fixture(t);
+  await f.run('var other = await cua.getTab("tab:original");');
+  const input = [];
+  f.hooks.onInput = event => input.push(event);
+  await f.run('await other.move([30,20]);');
+  assert.equal(input[0].screenshot, undefined, 'an AX-only binding keeps its viewport CSS coordinates');
+  await f.run('await other.getScreenshot();');
+  for (const code of ['await tab.move([30,20]);', 'await other.act({action:"move",observationId:"2",x:30,y:20});']) {
+    await assert.rejects(f.run(code), error => {
+      assert.equal(error.code, 'STALE_SCREENSHOT');
+      assert.equal(error.details.inputDispatched, false);
+      assert.equal(error.details.screenshot.reason, 'screenshot-replaced');
+      assert.equal(error.details.screenshot.requestedId, '2');
+      assert.equal(error.details.screenshot.latestId, '4');
+      return true;
+    });
+  }
+  assert.deepEqual(f.events, ['mouseMove']);
+});
+
+test('same-URL history updates retain coordinates but returning from another route invalidates them', async t => {
+  const f = await fixture(t), url = 'https://fixture.invalid/';
+  f.changeURL(url);
+  await f.run('await tab.move([30,20]);');
+  f.changeURL(url + '#elsewhere');
+  f.changeURL(url);
+  await assert.rejects(f.run('await tab.move([40,30]);'), error =>
+    error.code === 'STALE_SCREENSHOT' && error.details.screenshot.reason === 'url-changed' && error.details.inputDispatched === false);
+  assert.deepEqual(f.events, ['mouseMove']);
+});
+
+test('a viewport change after drag acquisition is reported as partial input and released once', async t => {
+  const f = await fixture(t);
+  f.hooks.onInput = event => { if (event.type === 'mouseDown') f.viewport.scrollX += 80; };
+  await assert.rejects(f.run('await tab.drag([[20,30],[90,80]]);'), error => {
+    assert.equal(error.code, 'STALE_SCREENSHOT');
+    assert.equal(error.details.action, 'drag');
+    assert.deepEqual(error.details.screenshot.changed, ['scrollX']);
+    assert.equal(error.details.inputDispatched, true);
+    assert.equal(error.details.release.released, true);
+    return true;
+  });
+  assert.deepEqual(f.events, ['mouseMove','mouseDown']);
+  assert.equal(f.targetReleases, 1);
+  await assert.rejects(f.run('await tab.move([30,20]);'), {code:'OBSERVATION_REQUIRED'});
+  await f.run('await tab.getScreenshot(); await tab.move([30,20]);');
+  assert.deepEqual(f.events, ['mouseMove','mouseDown','mouseMove']);
+});
 
 for (const [change,update] of [['expand preview',view=>{view.width=640;}],['scroll page',view=>{view.scrollY=300;}]]) {
   test(`${change}: stale screenshot preserves the same binding and resumes after observing`,async t=>{
     const f=await fixture(t);update(f.viewport);
     await assert.rejects(f.run('await tab.click([60,40]);'),error=>{
       assert.equal(error.code,'STALE_SCREENSHOT');assert.equal(error.details.control.mode,'active');
+      const {screenshot} = error.details, field = change === 'scroll page' ? 'scrollY' : 'width';
+      assert.equal(screenshot.reason, 'viewport-changed'); assert.deepEqual(screenshot.changed, [field]);
+      assert.equal(screenshot.requestedId, screenshot.latestId);
+      assert.notEqual(screenshot.capturedViewport[field], screenshot.currentViewport[field]);
+      assert.match(toolReplError(error).message, /"action":"click".*"reason":"viewport-changed"/s);
       assert.match(error.details.control.recovery,/binding.*retained|existing binding/);return true;
     });
     const state=(await f.controller.getState()).state;
