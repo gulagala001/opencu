@@ -299,7 +299,7 @@ export function BrowserConnectionControls() {
   const connected = state?.connections.length > 0;
   return <>
     <Group><Row variant="stacked" label={text('recoverClosed', 'Recover closed browser targets')}
-      description={text('recoverClosedHelp', 'Use only when an old connection blocks control. Close the original sidebar target or extension browser profile, then review its control references.')}
+      description={text('recoverClosedHelp', 'Review offline targets whose input release is unconfirmed. A usable current target does not release old targets. Close the original sidebar target or extension browser profile before confirming each reference.')}
       control={<Button color="secondary" size="toolbar" disabled={pending != null} loading={pending === 'recoverClosed'} onClick={recoverClosed}>{text('reviewRecovery', 'Review recovery')}</Button>} /></Group>
     {error && <Group><Row label={<span role="alert">{error}</span>} control={action('refresh', text('retry', 'Retry'), refresh)} /></Group>}
     {connected ? <Section><Section.Content><Group>

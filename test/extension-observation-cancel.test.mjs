@@ -373,6 +373,32 @@ test('MV3 locator modifiers reach actual CDP mouse events and release once acros
   }
 });
 
+test('completed link input survives obsolete marker cleanup and reports only verified top-level navigation', async t => {
+  for (const topLevel of [true,false]) {
+    const f=await fixture(t),dom=locatorInputFixture(); f.seed([],[]);
+    f.worker.attached.get(73).frameRouter=dom.router;
+    let detached=false;
+    dom.router.validate=async()=>{if(detached)throw Object.assign(Error('Frame document is no longer available; observe again'),{code:'FRAME_DETACHED'});};
+    f.hooks.send=(method,params)=>{if(method==='Input.dispatchMouseEvent'&&params.type==='mouseReleased')detached=true;};
+    f.chrome.webNavigation.getFrame=async()=>({documentId:topLevel?'next-document':f.identity.documentId,url:'https://fixture.invalid/next'});
+    const result=await f.worker.act(f.identity,{type:'locator',locator:[{kind:'css',value:'#target'}],method:'click',args:{}});
+    assert.equal(result.effectVerified,false);
+    assert.equal(Boolean(result.navigationObserved),topLevel);
+    if(topLevel){assert.equal(result.reselectRequired,true);assert.equal(result.inputDispatched,true);assert.equal(result.navigationObserved.previousDocumentId,'doc');}
+    assert.equal(f.events.filter(([name,params])=>name==='Input.dispatchMouseEvent'&&params.type==='mousePressed').length,1);
+    assert.equal(f.worker.attached.get(73).buttons.size,0);
+  }
+});
+
+test('a detached iframe before input still fails without dispatch', async t => {
+  const f=await fixture(t),dom=locatorInputFixture();f.seed([],[]);
+  f.worker.attached.get(73).frameRouter=dom.router;
+  dom.router.validate=async()=>{throw Object.assign(Error('Frame removed'),{code:'FRAME_DETACHED'});};
+  await assert.rejects(f.worker.act(f.identity,{type:'locator',locator:[{kind:'css',value:'#target'}],method:'click',args:{}}),
+    error=>error.code==='FRAME_DETACHED'&&error.details.inputDispatched===false);
+  assert.equal(f.events.some(([name])=>name.startsWith('Input.')),false);
+});
+
 test('MV3 locator modifiers reject held inputs before DOM resolution or mouse dispatch',async t => {
   const f = await fixture(t), dom = locatorInputFixture();f.seed(['Alt'],[]);
   f.worker.attached.get(73).frameRouter = dom.router;

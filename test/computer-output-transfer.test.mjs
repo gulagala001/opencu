@@ -7,6 +7,27 @@ import {createComputerSession} from '../src/dsh/computer.mjs';
 import {createPluginRuntime} from '../src/dsh/runtime.mjs';
 import {modelResult} from '../src/dsh/model-output.mjs';
 
+test('locator navigation receipts remain visible even when the locator returns no value', async t => {
+  const target={id:'extension:fixture',backend:'browser',provider:'extension',identity:{tabId:7,documentId:'old'}};
+  let actions=0;
+  const computer=createComputerSession(async(endpoint)=>{
+    if(endpoint==='targets')return {ok:true,targets:[target]};
+    if(endpoint==='select')return {ok:true,target};
+    if(endpoint==='resume')return {ok:true,target,release:{released:true}};
+    if(endpoint==='observe')return {ok:true,observation:{id:'ax',ax:{nodes:[]}}};
+    if(endpoint==='act'){actions++;return {ok:true,result:{value:null,inputDispatched:true,effectVerified:false,reselectRequired:true,observationRequired:true,
+      navigationObserved:{tabId:7,previousDocumentId:'old',documentId:'new',url:'https://fixture.invalid/next'},notice:'Bind the new document; do not repeat the trigger.'}};}
+    if(endpoint==='interrupt')return {ok:true,released:true};
+    throw Error(endpoint);
+  });
+  t.after(()=>computer.close());
+  await computer.run({code:`var tab=await cua.getTab('extension:fixture');`});
+  const result=await computer.run({code:`await tab.playwright.getByRole('link',{name:'Next'}).click();`});
+  assert.equal(actions,1);
+  assert.equal(result.outputs.filter(value=>value.includes('"navigationObserved"')).length,1);
+  assert.match(result.outputs.join('\n'),/do not repeat/);
+});
+
 test('worker progress transfers each displayed string once and resets between cells', async t => {
   const messages = [], emit = Worker.prototype.emit;
   Worker.prototype.emit = function(event, ...args) {

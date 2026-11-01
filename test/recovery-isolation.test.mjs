@@ -51,6 +51,9 @@ test('native recovery isolates unrelated orphaned browser targets after native i
   assert.equal(ok(await f.c.selectTarget(f.app)).target.verified,true);
   const {state} = await f.c.getState();
   assert.equal(state.releasePending,true);
+  assert.equal(state.inputReadiness.scope,'verified-targets-only');
+  assert.equal(state.inputReadiness.release,'unconfirmed-isolated');
+  assert.equal(state.inputReadiness.activeTarget.status,'ready-for-live-verification');
   assert.equal(state.targets.find(target => target.id === f.old.id).verified,false);
   assert.equal((await f.c.act({targetId:f.old.id,action:'click'})).ok,false);
   assert.deepEqual(f.calls,[['native','click']]);
@@ -475,4 +478,19 @@ test('browser resume requires its live connection recovery and exposes remaining
   ok(await f.c.openTarget({browserId:f.live.browserId,url:'https://fixture.invalid/'}));
   ok(await f.c.observe({targetId:f.live.id}));
   ok(await f.c.act({targetId:f.live.id,action:'click'}));
+});
+
+test('browser recovery reconciles only its exact connection while preserving other epochs and legacy debts', async t => {
+  const f=await fixture(t);
+  const connection={instanceId:'browser',browserInstanceId:'instance',epoch:'current'};
+  const old={...connection,epoch:'older'};
+  f.browser.release=async()=>({released:false,failures:[
+    {provider:'extension',result:{released:false,failures:[{connection,code:'RELEASE_FAILED'},{connection:old,code:'RELEASE_FAILED'},{code:'RELEASE_FAILED',message:'legacy unscoped'}]}}
+  ]});
+  assert.equal((await f.c.stop()).error.code,'RELEASE_FAILED');
+  f.browser.recoverBrowser=async()=>({ready:true,release:{released:true},isolatedTabs:[],connection});
+  const resumed=ok(await f.c.resume({browserId:f.live.browserId}));
+  const failures=resumed.state.releaseErrors[0].failures[0].result.failures;
+  assert.equal(failures.length,2);assert.deepEqual(failures[0].connection,old);assert.equal(failures[1].message,'legacy unscoped');
+  assert.equal(resumed.state.inputReadiness.release,'unconfirmed-isolated');
 });
