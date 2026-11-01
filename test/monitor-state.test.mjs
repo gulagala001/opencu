@@ -50,6 +50,25 @@ test('a closed application drops only its window, releases video and never publi
   assert.deepEqual((await f.state()).frames.map(frame => frame.presentationID), ['two']);
 });
 
+test('a closed browser tab disappears from the existing stack without a retry card and other previews remain', async t => {
+  const previews = [], ended = new Set();
+  const f = hostFixture({
+    request: async (_method, {targetId}) => ended.has(targetId)
+      ? {ok:false, error:{code:'TARGET_CLOSED', message:'No tab with id: 73.'}}
+      : {ok:true, preview:{dataUrl:image,width:800,height:600}},
+    present: async ({frames}) => { previews.push(...frames); return {visible:true}; },
+  });
+  t.after(() => f.host.close());
+  f.sessions[0].targets = [target, {...target,id:'other-tab'}];
+  f.changed(); await until(() => f.host.snapshot().visible);
+  ended.add(target.id);
+  await f.host.event({rendererId:'owner', type:'retry', sessionId:'A', targetId:target.id});
+  await until(() => f.host.snapshot().windows[0].targetIds.length === 1);
+  assert.deepEqual((await f.state()).frames.map(frame=>frame.presentationID), ['other-tab']);
+  assert.ok(previews.every(frame => !frame.error));
+  assert.equal(f.host.snapshot().visible, true);
+});
+
 test('the initial built-in browser location is applied once per chat and manual preview choices win', async t => {
   const revealed = [], tab = {...target, provider:'dsh', sessionId:'A'}, gate = Promise.withResolvers();
   let preferred, reads = 0;

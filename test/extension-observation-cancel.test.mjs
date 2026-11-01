@@ -107,6 +107,21 @@ async function fixture(t) {
   return { worker, identity, hooks, events, seed, queue, message, result, chrome, owner, sessionData, localData, stop };
 }
 
+test('a removed Chrome tab keeps a terminal error through selection, observation and preview without hiding unrelated API errors', async t => {
+  const f = await fixture(t);
+  f.hooks.get = async id => { if (id === 73) throw Error('No tab with id: 73.'); };
+  for (const method of ['verify', 'preview', 'select', 'observe']) {
+    f.queue(f.message('closed-' + method, method));
+    const reply = await f.result('closed-' + method);
+    assert.equal(reply.error.code, 'TARGET_CLOSED', method);
+    assert.equal(reply.error.details.tabId, 73);
+  }
+  assert.equal(f.events.some(([name]) => name.startsWith('Input.') || name === 'attach'), false);
+  f.hooks.get = async () => { throw Error('Temporary Chrome API failure'); };
+  f.queue(f.message('transient', 'verify'));
+  assert.equal((await f.result('transient')).error.code, 'BROWSER_FAILURE');
+});
+
 test('MV3 startup preserves the browser document ID and original error until that same tab can initialize', async t => {
   const f = await fixture(t), page = {id:73,status:'complete',url:'https://fixture.invalid/'};
   const world = createContext({document:{title:'Fixture'},location:{href:page.url},innerWidth:800,innerHeight:600,
