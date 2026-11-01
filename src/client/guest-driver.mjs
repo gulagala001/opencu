@@ -3,6 +3,7 @@ import { clickParameters, locatorClickParameters, checkClickHeld, holdClick } fr
 import { pressParameters, checkPressHeld } from '../../extension/key-options.js';
 import {scrollDeltas} from '../../extension/scroll.js';
 import { inputReleased } from '../protocol.mjs';
+import { checkScreenshotViewport } from '../../extension/frame-router.js';
 import { dragPath } from '../../extension/pointer-path.js';
 
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
@@ -31,15 +32,20 @@ export function watchGuestClosure(element, driver, closed, report) {
 
 export function createGuestDriver(element, target, changed, focus, cursor, capture = () => element.capturePage(), automate) {
   const keys = new Set(), buttons = new Set(), pending = new Set();
-  let inputSequence = 0, position = { x: 0, y: 0 }, lastObservation, generation = 0, documentGeneration = 0, moveSequence = 0, cancelNavigation;
-  let exited = false;
+  let inputSequence = 0, position = { x: 0, y: 0 }, lastScreenshot, captureSequence = 0, generation = 0, documentGeneration = 0, moveSequence = 0, cancelNavigation;
+  let exited = false, documentURL, urlRevision = 0;
   const rendererExited = () => { if (exited) return true; try { return element.isCrashed?.() === true; } catch { return false; } };
   const live = () => { if (rendererExited()) fail('BROWSER_GUEST_CRASHED', 'The browser page process exited; reload the page before observing or sending input'); };
-  const invalidate = () => { exited = true; generation++; lastObservation = null; keys.clear(); buttons.clear(); cancelNavigation?.(); };
+  const invalidate = () => { exited = true; generation++; lastScreenshot = null; keys.clear(); buttons.clear(); cancelNavigation?.(); };
   element.addEventListener('render-process-gone', invalidate);
   element.addEventListener('dom-ready', () => { exited = false; });
-  element.addEventListener('did-navigate',()=>{documentGeneration++;lastObservation=null;});
-  element.addEventListener('did-navigate-in-page',event=>{if(event.isMainFrame !== false)lastObservation=null;});
+  element.addEventListener('did-navigate', () => { documentGeneration++; documentURL = undefined; });
+  element.addEventListener('did-navigate-in-page', event => {
+    if (event.isMainFrame === false) return;
+    const url = event.url ?? element.getURL();
+    if (documentURL != null && documentURL !== url) urlRevision++;
+    documentURL = url;
+  });
   const navigate = action => new Promise((resolve, reject) => {
     let settled = false, started = false;
     const finish = error => {
@@ -69,7 +75,11 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
   const evaluate = async (operation, args = {}) => {
     if (!automate) fail('HOST_ADAPTER_REQUIRED', 'This DSH version needs the OpenCU accessibility and upload adapter');
     const writing = ['input', 'insertText', 'focus', 'selectAll', 'selectOption', 'upload', 'selectText', 'paste'].includes(operation);
-    try {const result = await automate(operation, args); if (writing) inputSequence++; return result;}
+    try {
+      const result = await automate(operation, args);
+      if (writing && result?.dispatched !== false) inputSequence++;
+      return result;
+    }
     catch (error) {
       if (operation === 'navigationState' && /Unsupported guest automation operation/u.test(error.message)) throw Object.assign(new Error('This DSH host lacks navigation waits and download attribution; build the matching OpenCU host adapter'),{code:'UNSUPPORTED_ACTION',details:{inputDispatched:false}});
       if (['selectText','paste'].includes(operation) && /Unsupported guest automation operation/u.test(error.message)) throw Object.assign(new Error('This DSH host lacks text selection and source paste; build the matching OpenCU host adapter'),{code:'UNSUPPORTED_ACTION',details:{inputDispatched:false}});
@@ -83,7 +93,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     const receipt = await evaluate('closedState', { waitForClose });
     if (receipt?.closed !== true) return null;
     if (!inputReleased(receipt) || receipt.retired !== true) fail('RELEASE_FAILED', 'The destroyed guest has not acknowledged input release');
-    generation++; capture.cancel?.(); lastObservation = null;
+    generation++; capture.cancel?.(); lastScreenshot = null;
     await Promise.allSettled([...pending]);
     keys.clear(); buttons.clear();
     return receipt;
@@ -100,14 +110,17 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     if (result?.dialog) throw Object.assign(new Error('A JavaScript dialog is open. Read this target.getJsDialog() before continuing.'),
       { code: 'JS_DIALOG_OPEN', details: { dialog: result.dialog, inputDispatched: false } });
   };
-  const verifyScreenshot = async observation => {
+  const verifyScreenshot = async (mapping, requestedId, capturing = false) => {
     const current = await evaluate('pageState');
-    if (current.documentId !== observation.documentId || current.url !== observation.url) fail('STALE_SCREENSHOT', 'The screenshot document changed; observe again');
-    if (['width', 'height', 'scrollX', 'scrollY'].some(key => current[key] !== observation.viewport[key])) fail('STALE_SCREENSHOT', 'Viewport or scroll changed; observe again');
+    const latestId = capturing ? mapping.id : lastScreenshot?.id ?? null;
+    let reason;
+    if (mapping && documentGeneration !== mapping.generation) reason = 'document-changed';
+    else if (mapping && urlRevision !== mapping.urlRevision) reason = 'url-changed';
+    checkScreenshotViewport(mapping, current, {requestedId, latestId, reason});
   };
   const modifiers = () => [...keys].flatMap(key => ({ Control: ['control'], Meta: ['meta'], Alt: ['alt'], Shift: ['shift'] })[key] ?? []);
   const expectInput = (events, pending = false) => evaluate('inputMarker', { method: 'expect', events, pending });
-  const send = async (event, observation, elementId) => {
+  const send = async (event, screenshot, elementId, requestedId) => {
     const epoch = generation;
     let marker, submitted = false, dispatched = false, failure;
     try {
@@ -118,14 +131,15 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         const inputTypes = keyboardInputTypes(guestKeySpec(event.keyCode).code,bits,/Mac/u.test(globalThis.navigator?.platform ?? ''));
         marker = await expectInput([{type:'keydown',key:keyEventKey(event.keyCode,keys.has('Shift') ? 8 : 0),...(inputTypes.length ? {inputTypes} : {})}]);
       }
-      if (['mouseMove', 'mouseDown', 'mouseWheel'].includes(event.type)) {
+      const pointerInput = ['mouseMove', 'mouseDown', 'mouseWheel'].includes(event.type);
+      if (pointerInput) {
         if (elementId != null) await evaluate('verifyElement', { elementId });
-        else if (observation) await verifyScreenshot(observation);
+        else if (screenshot) await verifyScreenshot(screenshot, requestedId);
       }
       if (epoch !== generation) fail('CONTROL_STOPPED', 'Input sequence was cancelled');
       const heldButtons = [...buttons].filter(button => event.type !== 'mouseUp' || event.button !== button);
       submitted = true;
-      await evaluate('input', { ...event, elementId, button: event.button ?? heldButtons[0] ?? 'none',
+      await evaluate('input', { ...event, elementId, ...(pointerInput && screenshot ? {screenshot} : {}), button: event.button ?? heldButtons[0] ?? 'none',
         buttons: heldButtons.reduce((mask, button) => mask | ({ left: 1, right: 2, middle: 4 }[button] ?? 0), 0), modifiers: modifiers() });
       dispatched = true;
     } catch (error) {
@@ -152,7 +166,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       if (!inputReleased(result)) throw Object.assign(new Error('Host input release was not acknowledged'),{code:'RELEASE_FAILED',details:result});
       keys.clear(); buttons.clear();
       if (result.closed === true && result.retired === true) {
-        await Promise.allSettled([...pending]); lastObservation = null; return result;
+        await Promise.allSettled([...pending]); lastScreenshot = null; return result;
       }
       if (result?.deferredFocus) return { released: true };
     }
@@ -162,7 +176,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     await Promise.allSettled([...pending]);
     const cleanupErrors = [];
     if (!rendererExited()) try { await evaluate('inputMarker', { method: 'clear' }); } catch (error) { cleanupErrors.push({code:error.code,message:error.message}); }
-    else { keys.clear(); buttons.clear(); lastObservation = null; }
+    else { keys.clear(); buttons.clear(); lastScreenshot = null; }
     failures.push(...cancelled.filter(result => result.status === 'rejected').map(result => result.reason));
     for (const key of [...keys].reverse()) {
       try { await send({ type: 'keyUp', keyCode: key }); keys.delete(key); } catch (error) { failures.push(error); }
@@ -174,15 +188,17 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     if (failures.length) throw new AggregateError(failures, 'Sidebar input release could not be fully acknowledged');
     return { released: true, ...(cleanupErrors.length ? {cleanupErrors} : {}) };
   };
-  const point = async args => {
+  const point = async (args, screenshot) => {
     if (args.elementId != null) return evaluate('point', args);
     if (!Number.isFinite(args.x) || !Number.isFinite(args.y)) fail('INVALID_COORDINATES', 'A finite viewport point is required');
     if (args.coordinateSpace?.includes('screenshot')) {
-      if (!lastObservation?.screenshot || args.observationId && args.observationId !== lastObservation.observationId || element.getURL() !== lastObservation.url) fail('STALE_SCREENSHOT', 'Observe the current viewport before using screenshot coordinates');
-      const shot = lastObservation.screenshot, width = args.previewWidth ?? shot.width, height = args.previewHeight ?? shot.height;
-      if (!(width > 0 && height > 0) || args.x < 0 || args.y < 0 || args.x >= width || args.y >= height) fail('INVALID_COORDINATES', 'Point is outside the displayed screenshot');
-      await verifyScreenshot(lastObservation);
-      return { x: args.x * shot.viewport.width / width, y: args.y * shot.viewport.height / height };
+      await verifyScreenshot(screenshot, args.screenshotId ?? args.observationId ?? screenshot?.id);
+      const { viewport } = screenshot;
+      if (viewport.visualScale != null && viewport.visualScale !== 1)
+        fail('UNSUPPORTED_PINCH_ZOOM', 'Reset pinch zoom before using screenshot coordinates');
+      const width = args.previewWidth ?? screenshot.width, height = args.previewHeight ?? screenshot.height;
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || args.x < 0 || args.y < 0 || args.x >= width || args.y >= height) fail('INVALID_COORDINATES', 'Point is outside the displayed screenshot');
+      return { x: args.x * viewport.width / width, y: args.y * viewport.height / height };
     }
     return { x: args.x, y: args.y };
   };
@@ -196,15 +212,24 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
     },
     async observe(options = {}) {
       live();
+      const capturing = options.format !== 'ax';
+      const sequence = capturing ? ++captureSequence : undefined;
+      const occurrence = documentGeneration, revision = urlRevision, epoch = generation;
       await assertNoDialog();
       const observation = await evaluate('observe', { format: options.format ?? 'both' });
-      if (options.format !== 'ax') {
-        const image = await capture();
-        const dataUrl = image.toDataURL(), size = image.getSize();
-        observation.screenshot = { base64: dataUrl.slice(dataUrl.indexOf(',') + 1), mediaType: 'image/png', ...size, viewport: observation.viewport };
-        await verifyScreenshot(observation);
+      if (capturing) {
+        const image = await capture(), size = image.getSize();
+        const { observationId: id, documentId, url, viewport } = observation;
+        documentURL ??= url;
+        const mapping = { id, documentId, generation: occurrence, urlRevision: revision, url, viewport, ...size };
+        await verifyScreenshot(mapping, id, true);
+        if (epoch !== generation) fail('CONTROL_STOPPED', 'Screenshot capture was cancelled');
+        if (sequence !== captureSequence) checkScreenshotViewport(mapping, null, {latestId: lastScreenshot?.id ?? null, reason: 'capture-superseded'});
+        const dataUrl = image.toDataURL();
+        observation.screenshot = { id, base64: dataUrl.slice(dataUrl.indexOf(',') + 1), mediaType: 'image/png', ...size, viewport };
+        // Retain geometry and identity only. AX reads and ordinary input do not replace the image.
+        lastScreenshot = mapping;
       }
-      lastObservation = observation;
       return observation;
     },
     async act(args) {
@@ -224,8 +249,8 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
       const inputDocumentId=inputActionId ? (await evaluate('navigationState')).documentId : undefined;
       const check=()=>{if(epoch!==generation)fail('CONTROL_STOPPED','Input sequence was cancelled');if(inputActionId&&occurrence!==documentGeneration)fail('STALE_ELEMENT','The document changed during input; observe again');};
       check();
-      const screenshot = args.elementId == null && args.coordinateSpace?.includes('screenshot') ? lastObservation : null;
-      const sendInput = event => send({...event,keyboardEditable:args.keyboardEditable,inputDocumentId,inputActionId}, screenshot, args.elementId);
+      const screenshot = args.elementId == null && args.coordinateSpace?.includes('screenshot') ? lastScreenshot : null;
+      const sendInput = event => send({...event,keyboardEditable:args.keyboardEditable,inputDocumentId,inputActionId}, screenshot, args.elementId, args.screenshotId ?? args.observationId);
       const step = async (work, navigationAfter = false) => {
         check();
         const task = Promise.resolve().then(() => {check();return work();});
@@ -245,7 +270,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         }
       };
       const move = async (value, animateMovement = true, resolved = false) => {
-        position = resolved ? value : await step(() => point(value));
+        position = resolved ? value : await step(() => point(value, screenshot));
         await step(() => cursor?.({ ...position, visible: true, animateMovement, moveSequence: ++moveSequence, sessionConversationId: target.sessionId }));
         await step(() => sendInput({ type: 'mouseMove', ...position }));
       };
@@ -310,7 +335,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
           const plan=dragPath(args.path,args.durationMs),waypoints=[],button=args.button ?? 'left';
           if (!['left','middle','right'].includes(button)) fail('INVALID_ARGUMENT','Drag button must be left, middle, or right');
           if (buttons.has(button)) fail('INPUT_ALREADY_HELD','Drag cannot acquire an already held mouse button');
-          for (const value of plan.waypoints) waypoints.push(await step(() => point({...args,...value,elementId:undefined})));
+          for (const value of plan.waypoints) waypoints.push(await step(() => point({...args,...value,elementId:undefined}, screenshot)));
           const {points,intervalMs}=dragPath(waypoints,args.durationMs);
           await move(points[0],true,true); await down(button);
           for (const value of points.slice(1)) {
@@ -365,7 +390,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
         case 'selectText':
         case 'paste': {
           const result = await step(() => evaluate(args.action,args));
-          lastObservation=null;changed();
+          changed();
           return {action:args.action,...result,target:metadata(),inputMode:'background',delivery:'target-cdp'};
         }
         case 'fill':
@@ -390,19 +415,21 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
               sourceHostname: new URL(tool.origin).hostname, readOnlyHint: tool.annotations?.readOnlyHint ?? tool.annotations?.readOnly,
               inputJson: JSON.stringify(args.input), outputJson: JSON.stringify(result.output ?? null),
             } };
-          } finally { lastObservation = null; changed(); }
+          } finally { changed(); }
         }
-        case 'hitTest': return { action: args.action, element: await step(async () => evaluate('hitTest', await point(args))) };
+        case 'hitTest': return { action: args.action, element: await step(async () => evaluate('hitTest', await point(args, screenshot))) };
         case 'getDOM': return { action: args.action, element: await step(() => evaluate('describe', args)) };
         case 'setText': case 'setStyle': case 'designTweak': return { action: args.action, element: await step(() => evaluate('patch', args)) };
         default: fail('UNSUPPORTED_ACTION', `Sidebar guest does not support ${args.action}`);
       }
-      lastObservation = null; changed();
+      changed();
       return { action: args.action, target: metadata(), inputMode: 'background', delivery: 'target-cdp', effectVerified: false,
+        ...(inputActionId && {inputDispatched: inputSequence !== inputStart}),
         ...(inputActionId && occurrence !== documentGeneration ? {observationRequired:true} : {}),
         ...(!keys.size && !buttons.size ? {release:{released:true}} : {}) };
       } catch (error) {
-        error.details = {...error.details,inputDispatched:error.details?.inputDispatched === true || inputSequence !== inputStart};
+        error.details = {...error.details, inputDispatched: error.details?.inputDispatched === true || inputSequence !== inputStart};
+        if (error.code === 'STALE_SCREENSHOT') error.details.action = args.action;
         if (error.details.inputDispatched) {
           const closed = await closedRelease().catch(() => null);
           if (closed) return {action:args.action,closedTargetId:target.id,inputDispatched:true,effectVerified:false,release:closed};
@@ -412,7 +439,7 @@ export function createGuestDriver(element, target, changed, focus, cursor, captu
           for (const button of buttons) if (!heldButtons.has(button)) buttons.delete(button);
         }
         if (error.code === 'JS_DIALOG_OPEN' && error.details.inputDispatched && error.details.dialog) {
-          lastObservation = null; changed();
+          lastScreenshot = null; changed();
           return { action: args.action, pendingDialog: error.details.dialog, inputDispatched: true, effectVerified: false };
         }
         throw error;

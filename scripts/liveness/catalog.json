@@ -5472,624 +5472,624 @@
     {
       "file": "src/client/guest-driver.mjs",
       "contract": "sidebar",
-      "sha256": "a72b5be5525e2ced642395d8880c98ff89f85c3d991db1516580144cc494dd44",
+      "sha256": "2d72c820de6f96a0b3231c03e48e4e1d067857eefb4b9f424170c679e7bc2e12",
       "kind": "javascript",
       "sites": [
         {
           "id": "check:await:driver.closedRelease():1",
-          "line": 20,
+          "line": 21,
           "kind": "await",
           "callee": "driver.closedRelease()"
         },
         {
           "id": "check:await:closed():1",
-          "line": 23,
+          "line": 24,
           "kind": "await",
           "callee": "closed()"
         },
         {
           "id": "navigate:promise:Promise:1",
-          "line": 43,
+          "line": 49,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "navigate:handoff:setTimeout:1",
-          "line": 57,
+          "line": 63,
           "kind": "handoff",
           "callee": "setTimeout"
         },
         {
           "id": "evaluate:await:automate():1",
-          "line": 72,
+          "line": 79,
           "kind": "await",
           "callee": "automate()"
         },
         {
           "id": "closedRelease:await:evaluate():1",
-          "line": 83,
+          "line": 93,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
           "id": "closedRelease:await:Promise.allSettled():1",
-          "line": 87,
+          "line": 97,
           "kind": "await",
           "callee": "Promise.allSettled()"
         },
         {
           "id": "assertNoDialog:await:evaluate():1",
-          "line": 95,
+          "line": 105,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
           "id": "verifyScreenshot:await:evaluate():1",
-          "line": 104,
+          "line": 114,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
           "id": "send:await:expectInput():1",
-          "line": 114,
+          "line": 127,
           "kind": "await",
           "callee": "expectInput()"
         },
         {
           "id": "send:await:expectInput():2",
-          "line": 115,
+          "line": 128,
           "kind": "await",
           "callee": "expectInput()"
         },
         {
           "id": "send:await:expectInput():3",
-          "line": 119,
+          "line": 132,
           "kind": "await",
           "callee": "expectInput()"
         },
         {
           "id": "send:await:evaluate():1",
-          "line": 122,
+          "line": 136,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
           "id": "send:await:verifyScreenshot():1",
-          "line": 123,
+          "line": 137,
           "kind": "await",
           "callee": "verifyScreenshot()"
         },
         {
           "id": "send:await:evaluate():2",
-          "line": 128,
+          "line": 142,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
           "id": "send:await:evaluate():3",
-          "line": 134,
+          "line": 148,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
           "id": "release:await:evaluate():1",
-          "line": 150,
-          "kind": "await",
-          "callee": "evaluate()"
-        },
-        {
-          "id": "release:await:closedRelease().catch():1",
-          "line": 151,
-          "kind": "await",
-          "callee": "closedRelease().catch()"
-        },
-        {
-          "id": "release:await:Promise.allSettled():1",
-          "line": 155,
-          "kind": "await",
-          "callee": "Promise.allSettled()"
-        },
-        {
-          "id": "release:await:Promise.allSettled():2",
-          "line": 161,
-          "kind": "await",
-          "callee": "Promise.allSettled()"
-        },
-        {
-          "id": "release:handoff:Promise.resolve().then:1",
-          "line": 161,
-          "kind": "handoff",
-          "callee": "Promise.resolve().then"
-        },
-        {
-          "id": "release:await:Promise.allSettled():3",
-          "line": 162,
-          "kind": "await",
-          "callee": "Promise.allSettled()"
-        },
-        {
-          "id": "release:await:evaluate():2",
           "line": 164,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
+          "id": "release:await:closedRelease().catch():1",
+          "line": 165,
+          "kind": "await",
+          "callee": "closedRelease().catch()"
+        },
+        {
+          "id": "release:await:Promise.allSettled():1",
+          "line": 169,
+          "kind": "await",
+          "callee": "Promise.allSettled()"
+        },
+        {
+          "id": "release:await:Promise.allSettled():2",
+          "line": 175,
+          "kind": "await",
+          "callee": "Promise.allSettled()"
+        },
+        {
+          "id": "release:handoff:Promise.resolve().then:1",
+          "line": 175,
+          "kind": "handoff",
+          "callee": "Promise.resolve().then"
+        },
+        {
+          "id": "release:await:Promise.allSettled():3",
+          "line": 176,
+          "kind": "await",
+          "callee": "Promise.allSettled()"
+        },
+        {
+          "id": "release:await:evaluate():2",
+          "line": 178,
+          "kind": "await",
+          "callee": "evaluate()"
+        },
+        {
           "id": "release:await:send():1",
-          "line": 168,
+          "line": 182,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "release:handoff:send:1",
-          "line": 168,
+          "line": 182,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "release:await:send():2",
-          "line": 171,
+          "line": 185,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "release:handoff:send:2",
-          "line": 171,
+          "line": 185,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "point:await:verifyScreenshot():1",
-          "line": 184,
+          "line": 195,
           "kind": "await",
           "callee": "verifyScreenshot()"
         },
         {
           "id": "preview:await:assertNoDialog():1",
-          "line": 193,
+          "line": 209,
           "kind": "await",
           "callee": "assertNoDialog()"
         },
         {
           "id": "preview:await:capture():1",
-          "line": 194,
+          "line": 210,
           "kind": "await",
           "callee": "capture()"
         },
         {
           "id": "preview:await:evaluate():1",
-          "line": 195,
+          "line": 211,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
           "id": "observe:await:assertNoDialog():1",
-          "line": 199,
+          "line": 218,
           "kind": "await",
           "callee": "assertNoDialog()"
         },
         {
           "id": "observe:await:evaluate():1",
-          "line": 200,
+          "line": 219,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
           "id": "observe:await:capture():1",
-          "line": 202,
+          "line": 221,
           "kind": "await",
           "callee": "capture()"
         },
         {
           "id": "observe:await:verifyScreenshot():1",
-          "line": 205,
+          "line": 225,
           "kind": "await",
           "callee": "verifyScreenshot()"
         },
         {
           "id": "act:await:evaluate():1",
-          "line": 216,
+          "line": 241,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
           "id": "act:await:assertNoDialog():1",
-          "line": 220,
+          "line": 245,
           "kind": "await",
           "callee": "assertNoDialog()"
         },
         {
           "id": "act:await:evaluate():2",
-          "line": 224,
+          "line": 249,
           "kind": "await",
           "callee": "evaluate()"
         },
         {
           "id": "sendInput:handoff:send:1",
-          "line": 228,
+          "line": 253,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "step:handoff:Promise.resolve().then:1",
-          "line": 231,
+          "line": 256,
           "kind": "handoff",
           "callee": "Promise.resolve().then"
         },
         {
           "id": "step:await:task:1",
-          "line": 233,
+          "line": 258,
           "kind": "await",
           "callee": "task"
         },
         {
           "id": "navigationStep:await:step():1",
-          "line": 237,
+          "line": 262,
           "kind": "await",
           "callee": "step()"
         },
         {
           "id": "navigationStep:await:release():1",
-          "line": 241,
+          "line": 266,
           "kind": "await",
           "callee": "release()"
         },
         {
           "id": "move:await:step():1",
-          "line": 248,
+          "line": 273,
           "kind": "await",
           "callee": "step()"
         },
         {
           "id": "move:await:step():2",
-          "line": 249,
+          "line": 274,
           "kind": "await",
           "callee": "step()"
         },
         {
           "id": "move:await:step():3",
-          "line": 250,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "down:await:step():1",
-          "line": 252,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "up:await:step():1",
-          "line": 256,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():1",
-          "line": 259,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():2",
-          "line": 260,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():3",
-          "line": 265,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:this.act():1",
-          "line": 271,
-          "kind": "await",
-          "callee": "this.act()"
-        },
-        {
-          "id": "act:await:step():4",
           "line": 275,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:navigationStep():1",
-          "line": 280,
+          "id": "down:await:step():1",
+          "line": 277,
           "kind": "await",
-          "callee": "navigationStep()"
+          "callee": "step()"
         },
         {
-          "id": "act:await:navigationStep():2",
+          "id": "up:await:step():1",
           "line": 281,
           "kind": "await",
-          "callee": "navigationStep()"
+          "callee": "step()"
         },
         {
-          "id": "act:await:navigationStep():3",
-          "line": 282,
-          "kind": "await",
-          "callee": "navigationStep()"
-        },
-        {
-          "id": "act:await:navigationStep():4",
-          "line": 283,
-          "kind": "await",
-          "callee": "navigationStep()"
-        },
-        {
-          "id": "act:await:step():5",
+          "id": "act:await:step():1",
           "line": 284,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:move():1",
+          "id": "act:await:step():2",
           "line": 285,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:step():3",
+          "line": 290,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:this.act():1",
+          "line": 296,
+          "kind": "await",
+          "callee": "this.act()"
+        },
+        {
+          "id": "act:await:step():4",
+          "line": 300,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:navigationStep():1",
+          "line": 305,
+          "kind": "await",
+          "callee": "navigationStep()"
+        },
+        {
+          "id": "act:await:navigationStep():2",
+          "line": 306,
+          "kind": "await",
+          "callee": "navigationStep()"
+        },
+        {
+          "id": "act:await:navigationStep():3",
+          "line": 307,
+          "kind": "await",
+          "callee": "navigationStep()"
+        },
+        {
+          "id": "act:await:navigationStep():4",
+          "line": 308,
+          "kind": "await",
+          "callee": "navigationStep()"
+        },
+        {
+          "id": "act:await:step():5",
+          "line": 309,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:move():1",
+          "line": 310,
           "kind": "await",
           "callee": "move()"
         },
         {
           "id": "act:await:move():2",
-          "line": 289,
+          "line": 314,
           "kind": "await",
           "callee": "move()"
         },
         {
           "id": "act:await:step():6",
-          "line": 291,
+          "line": 316,
           "kind": "await",
           "callee": "step()"
         },
         {
           "id": "act:await:step():7",
-          "line": 293,
+          "line": 318,
           "kind": "await",
           "callee": "step()"
         },
         {
           "id": "act:await:step():8",
-          "line": 294,
+          "line": 319,
           "kind": "await",
           "callee": "step()"
         },
         {
           "id": "act:await:step():9",
-          "line": 295,
+          "line": 320,
           "kind": "await",
           "callee": "step()"
         },
         {
           "id": "act:await:step():10",
-          "line": 297,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:move():3",
-          "line": 300,
-          "kind": "await",
-          "callee": "move()"
-        },
-        {
-          "id": "act:await:down():1",
-          "line": 300,
-          "kind": "await",
-          "callee": "down()"
-        },
-        {
-          "id": "act:await:up():1",
-          "line": 301,
-          "kind": "await",
-          "callee": "up()"
-        },
-        {
-          "id": "act:await:move():4",
-          "line": 304,
-          "kind": "await",
-          "callee": "move()"
-        },
-        {
-          "id": "act:await:step():11",
-          "line": 305,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():12",
-          "line": 306,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():13",
-          "line": 313,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:move():5",
-          "line": 315,
-          "kind": "await",
-          "callee": "move()"
-        },
-        {
-          "id": "act:await:down():2",
-          "line": 315,
-          "kind": "await",
-          "callee": "down()"
-        },
-        {
-          "id": "act:await:step():14",
-          "line": 317,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:move():6",
-          "line": 318,
-          "kind": "await",
-          "callee": "move()"
-        },
-        {
-          "id": "act:await:up():2",
-          "line": 320,
-          "kind": "await",
-          "callee": "up()"
-        },
-        {
-          "id": "act:await:step():15",
           "line": 322,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():16",
-          "line": 327,
+          "id": "act:await:move():3",
+          "line": 325,
+          "kind": "await",
+          "callee": "move()"
+        },
+        {
+          "id": "act:await:down():1",
+          "line": 325,
+          "kind": "await",
+          "callee": "down()"
+        },
+        {
+          "id": "act:await:up():1",
+          "line": 326,
+          "kind": "await",
+          "callee": "up()"
+        },
+        {
+          "id": "act:await:move():4",
+          "line": 329,
+          "kind": "await",
+          "callee": "move()"
+        },
+        {
+          "id": "act:await:step():11",
+          "line": 330,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():17",
-          "line": 336,
+          "id": "act:await:step():12",
+          "line": 331,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():18",
-          "line": 339,
+          "id": "act:await:step():13",
+          "line": 338,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():19",
+          "id": "act:await:move():5",
+          "line": 340,
+          "kind": "await",
+          "callee": "move()"
+        },
+        {
+          "id": "act:await:down():2",
+          "line": 340,
+          "kind": "await",
+          "callee": "down()"
+        },
+        {
+          "id": "act:await:step():14",
           "line": 342,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():20",
+          "id": "act:await:move():6",
           "line": 343,
+          "kind": "await",
+          "callee": "move()"
+        },
+        {
+          "id": "act:await:up():2",
+          "line": 345,
+          "kind": "await",
+          "callee": "up()"
+        },
+        {
+          "id": "act:await:step():15",
+          "line": 347,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():21",
+          "id": "act:await:step():16",
           "line": 352,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():22",
-          "line": 353,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():23",
-          "line": 359,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():24",
+          "id": "act:await:step():17",
           "line": 361,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():25",
-          "line": 362,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():26",
+          "id": "act:await:step():18",
           "line": 364,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():27",
+          "id": "act:await:step():19",
           "line": 367,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():28",
-          "line": 372,
+          "id": "act:await:step():20",
+          "line": 368,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():29",
-          "line": 373,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():30",
-          "line": 374,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():31",
-          "line": 376,
-          "kind": "await",
-          "callee": "step()"
-        },
-        {
-          "id": "act:await:step():32",
+          "id": "act:await:step():21",
           "line": 377,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():33",
+          "id": "act:await:step():22",
           "line": 378,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():34",
-          "line": 380,
+          "id": "act:await:step():23",
+          "line": 384,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():35",
+          "id": "act:await:step():24",
           "line": 386,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():36",
-          "line": 395,
+          "id": "act:await:step():25",
+          "line": 387,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:point():1",
-          "line": 395,
-          "kind": "await",
-          "callee": "point()"
-        },
-        {
-          "id": "act:await:step():37",
-          "line": 396,
+          "id": "act:await:step():26",
+          "line": 389,
           "kind": "await",
           "callee": "step()"
         },
         {
-          "id": "act:await:step():38",
+          "id": "act:await:step():27",
+          "line": 392,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:step():28",
           "line": 397,
           "kind": "await",
           "callee": "step()"
         },
         {
+          "id": "act:await:step():29",
+          "line": 398,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:step():30",
+          "line": 399,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:step():31",
+          "line": 401,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:step():32",
+          "line": 402,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:step():33",
+          "line": 403,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:step():34",
+          "line": 405,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:step():35",
+          "line": 411,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:step():36",
+          "line": 420,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:point():1",
+          "line": 420,
+          "kind": "await",
+          "callee": "point()"
+        },
+        {
+          "id": "act:await:step():37",
+          "line": 421,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
+          "id": "act:await:step():38",
+          "line": 422,
+          "kind": "await",
+          "callee": "step()"
+        },
+        {
           "id": "act:await:closedRelease().catch():1",
-          "line": 407,
+          "line": 434,
           "kind": "await",
           "callee": "closedRelease().catch()"
         }
@@ -9940,14 +9940,14 @@
     {
       "file": "src/dsh/computer-docs.mjs",
       "contract": "execution",
-      "sha256": "734339cb8d212682c041987f33156bcf7891c1ba506a73ee00325eb7bb50cb40",
+      "sha256": "884b0cbc29d3c89ab9e99d19bda864fa20b605a259d51053e1a2705abac7697e",
       "kind": "javascript",
       "sites": []
     },
     {
       "file": "src/dsh/computer-repl.mjs",
       "contract": "execution",
-      "sha256": "a3e008d784776ad67438d8a0a563ac4a7586afcf21595ce94593d57437ad3057",
+      "sha256": "1c1cf6efd435a6e49190a260fa5f1639fcdf28f9614b488e8b52ce298331f616",
       "kind": "javascript",
       "sites": [
         {
@@ -10000,253 +10000,253 @@
         },
         {
           "id": "act:await:call():1",
-          "line": 116,
+          "line": 118,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getJsDialog:await:call():1",
-          "line": 201,
+          "line": 203,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "state:await:act():1",
-          "line": 227,
+          "line": 229,
           "kind": "await",
           "callee": "act()"
         },
         {
           "id": "downloads:await:call():1",
-          "line": 232,
+          "line": 234,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getAXState:await:observe():1",
-          "line": 243,
-          "kind": "await",
-          "callee": "observe()"
-        },
-        {
-          "id": "getScreenshot:await:observe():1",
-          "line": 244,
-          "kind": "await",
-          "callee": "observe()"
-        },
-        {
-          "id": "getAXStateAndScreenshot:await:observe():1",
           "line": 245,
           "kind": "await",
           "callee": "observe()"
         },
         {
+          "id": "getScreenshot:await:observe():1",
+          "line": 246,
+          "kind": "await",
+          "callee": "observe()"
+        },
+        {
+          "id": "getAXStateAndScreenshot:await:observe():1",
+          "line": 247,
+          "kind": "await",
+          "callee": "observe()"
+        },
+        {
           "id": "targetAPI:await:act():1",
-          "line": 278,
+          "line": 280,
           "kind": "await",
           "callee": "act()"
         },
         {
           "id": "select:await:call():1",
-          "line": 285,
+          "line": 287,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "select:await:call():2",
-          "line": 286,
+          "line": 288,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "select:await:target.getAXState():1",
-          "line": 291,
+          "line": 293,
           "kind": "await",
           "callee": "target.getAXState()"
         },
         {
           "id": "createTab:await:call():1",
-          "line": 303,
+          "line": 305,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "createTab:await:select():1",
-          "line": 306,
+          "line": 308,
           "kind": "await",
           "callee": "select()"
         },
         {
           "id": "createTab:await:target.focus():1",
-          "line": 307,
+          "line": 309,
           "kind": "await",
           "callee": "target.focus()"
         },
         {
           "id": "getNativeApp:await:realpath().catch():1",
-          "line": 328,
+          "line": 330,
           "kind": "await",
           "callee": "realpath().catch()"
         },
         {
           "id": "nativeInventory:await:call():1",
-          "line": 331,
+          "line": 333,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getNativeApp:await:nativeInventory():1",
-          "line": 357,
+          "line": 359,
           "kind": "await",
           "callee": "nativeInventory()"
         },
         {
           "id": "getNativeApp:await:call():1",
-          "line": 366,
+          "line": 368,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getNativeApp:await:nativeInventory():2",
-          "line": 368,
+          "line": 370,
           "kind": "await",
           "callee": "nativeInventory()"
         },
         {
           "id": "getNativeApp:await:choose():1",
-          "line": 370,
+          "line": 372,
           "kind": "await",
           "callee": "choose()"
         },
         {
           "id": "inventory:await:call():1",
-          "line": 381,
+          "line": 383,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "listTabs:await:call():1",
-          "line": 386,
+          "line": 388,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getState:await:call():1",
-          "line": 395,
+          "line": 397,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getState:await:call():2",
-          "line": 395,
+          "line": 397,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "listApps:await:inventory():1",
-          "line": 397,
+          "line": 399,
           "kind": "await",
           "callee": "inventory()"
         },
         {
           "id": "listBrowsers:await:call():1",
-          "line": 398,
+          "line": 400,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "connectBrowser:await:call():1",
-          "line": 401,
-          "kind": "await",
-          "callee": "call()"
-        },
-        {
-          "id": "getBrowser:await:call():1",
           "line": 403,
           "kind": "await",
           "callee": "call()"
         },
         {
-          "id": "getBrowser:await:call():2",
-          "line": 404,
-          "kind": "await",
-          "callee": "call()"
-        },
-        {
-          "id": "getBrowser:await:call():3",
+          "id": "getBrowser:await:call():1",
           "line": 405,
           "kind": "await",
           "callee": "call()"
         },
         {
+          "id": "getBrowser:await:call():2",
+          "line": 406,
+          "kind": "await",
+          "callee": "call()"
+        },
+        {
+          "id": "getBrowser:await:call():3",
+          "line": 407,
+          "kind": "await",
+          "callee": "call()"
+        },
+        {
           "id": "list:await:call():1",
-          "line": 416,
+          "line": 418,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "reset:await:Promise.allSettled():1",
-          "line": 446,
+          "line": 448,
           "kind": "await",
           "callee": "Promise.allSettled()"
         },
         {
           "id": "close:await:Promise.allSettled():1",
-          "line": 465,
+          "line": 467,
           "kind": "await",
           "callee": "Promise.allSettled()"
         },
         {
           "id": "close:await:tail:1",
-          "line": 466,
+          "line": 468,
           "kind": "await",
           "callee": "tail"
         },
         {
           "id": "run:handoff:tail.then:1",
-          "line": 476,
+          "line": 478,
           "kind": "handoff",
           "callee": "tail.then"
         },
         {
           "id": "run:promise:Promise:1",
-          "line": 501,
+          "line": 503,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "run:promise:Promise:2",
-          "line": 506,
+          "line": 508,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "run:await:Promise.race().then():1",
-          "line": 510,
+          "line": 512,
           "kind": "await",
           "callee": "Promise.race().then()"
         },
         {
           "id": "run:handoff:Promise.race().then:1",
-          "line": 510,
+          "line": 512,
           "kind": "handoff",
           "callee": "Promise.race().then"
         },
         {
           "id": "run:await:Promise.race():1",
-          "line": 517,
+          "line": 519,
           "kind": "await",
           "callee": "Promise.race()"
         },
         {
           "id": "run:await:reset():1",
-          "line": 537,
+          "line": 539,
           "kind": "await",
           "callee": "reset()"
         },
         {
           "id": "run:handoff:work.then:1",
-          "line": 544,
+          "line": 546,
           "kind": "handoff",
           "callee": "work.then"
         }
@@ -11134,7 +11134,7 @@
     {
       "file": "src/dsh/repl-output.mjs",
       "contract": "execution",
-      "sha256": "7c790ca02c6e9fef195bf82d70a08cf85550d50a462ed0ff50c7c69d8e93b6f2",
+      "sha256": "f157d24897826badd7c7e935b00ebaf843713da8f1f54ad0a894e4d3c2f1bdf8",
       "kind": "javascript",
       "sites": []
     },
@@ -16146,14 +16146,14 @@
     {
       "file": "extension/frame-router.d.ts",
       "contract": "extension",
-      "sha256": "a05e0e6a38fa609079b08bfc506caf3ccd1d519c9c8689c9516b77c8f4e70959",
+      "sha256": "ee92f20a8c418a9d337bccc8c1247025570d9da0e8b3c4e514d5bba03bd23d22",
       "kind": "javascript",
       "sites": []
     },
     {
       "file": "extension/frame-router.js",
       "contract": "extension",
-      "sha256": "ead20f58213499162e7e6c0b509790de85882c61f1e0bd8561683e17d97bcf52",
+      "sha256": "45134b2853310f9358d2b54ed0dd2bc5fca0d04b8c6960c5e06f22ffbe67f164",
       "kind": "javascript",
       "sites": [
         {
@@ -16176,631 +16176,631 @@
         },
         {
           "id": "readCDPFrameOwners:await:route.send():1",
-          "line": 11,
+          "line": 36,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "readCDPFrameOwners:handoff:route.send:1",
-          "line": 11,
+          "line": 36,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "readCDPFrameOwners:await:route.send():2",
-          "line": 16,
+          "line": 41,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "readCDPFrameOwners:handoff:route.send:2",
-          "line": 16,
+          "line": 41,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "readCDPFrameOwners:await:route.send().catch():1",
-          "line": 29,
+          "line": 54,
           "kind": "await",
           "callee": "route.send().catch()"
         },
         {
           "id": "readCDPFrameOwners:handoff:route.send:3",
-          "line": 29,
+          "line": 54,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "main:await:router.main():1",
-          "line": 49,
+          "line": 74,
           "kind": "await",
           "callee": "router.main()"
         },
         {
           "id": "child:await:router.child():1",
-          "line": 50,
+          "line": 75,
           "kind": "await",
           "callee": "router.child()"
         },
         {
           "id": "focused:await:router.focused():1",
-          "line": 56,
+          "line": 81,
           "kind": "await",
           "callee": "router.focused()"
         },
         {
           "id": "atPoint:await:router.atPoint():1",
-          "line": 57,
+          "line": 82,
           "kind": "await",
           "callee": "router.atPoint()"
         },
         {
           "id": "listen:await:session.send():1",
-          "line": 107,
+          "line": 132,
           "kind": "await",
           "callee": "session.send()"
         },
         {
           "id": "listen:handoff:session.send:1",
-          "line": 107,
+          "line": 132,
           "kind": "handoff",
           "callee": "session.send"
         },
         {
           "id": "listen:await:prepareSession():1",
-          "line": 108,
+          "line": 133,
           "kind": "await",
           "callee": "prepareSession()"
         },
         {
           "id": "listen:await:session.send():2",
-          "line": 109,
+          "line": 134,
           "kind": "await",
           "callee": "session.send()"
         },
         {
           "id": "listen:handoff:session.send:2",
-          "line": 109,
+          "line": 134,
           "kind": "handoff",
           "callee": "session.send"
         },
         {
           "id": "listen:await:session.send():3",
-          "line": 112,
+          "line": 137,
           "kind": "await",
           "callee": "session.send()"
         },
         {
           "id": "listen:handoff:session.send:3",
-          "line": 112,
+          "line": 137,
           "kind": "handoff",
           "callee": "session.send"
         },
         {
           "id": "childSend:promise:Promise:1",
-          "line": 148,
+          "line": 173,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "childSend:handoff:setTimeout:1",
-          "line": 149,
+          "line": 174,
           "kind": "handoff",
           "callee": "setTimeout"
         },
         {
           "id": "makeRoute:await:send():1",
-          "line": 160,
+          "line": 185,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "makeRoute:handoff:send:1",
-          "line": 160,
+          "line": 185,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "makeRoute:await:send():2",
-          "line": 164,
+          "line": 189,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "makeRoute:handoff:send:2",
-          "line": 164,
+          "line": 189,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "makeRoute:await:prepareRoute():1",
-          "line": 167,
+          "line": 192,
           "kind": "await",
           "callee": "prepareRoute()"
         },
         {
           "id": "validateDocument:await:route.send():1",
-          "line": 174,
+          "line": 199,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "validateDocument:handoff:route.send:1",
-          "line": 174,
+          "line": 199,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "validate:await:validateDocument():1",
-          "line": 190,
+          "line": 215,
           "kind": "await",
           "callee": "validateDocument()"
         },
         {
           "id": "validate:await:owner.parent.send():1",
-          "line": 192,
+          "line": 217,
           "kind": "await",
           "callee": "owner.parent.send()"
         },
         {
           "id": "validate:handoff:owner.parent.send:1",
-          "line": 192,
+          "line": 217,
           "kind": "handoff",
           "callee": "owner.parent.send"
         },
         {
           "id": "validate:await:validateDocument():2",
-          "line": 200,
+          "line": 225,
           "kind": "await",
           "callee": "validateDocument()"
         },
         {
           "id": "main:await:AssignmentExpression:1",
-          "line": 209,
+          "line": 234,
           "kind": "await",
           "callee": "AssignmentExpression"
         },
         {
           "id": "main:await:sendRoot():1",
-          "line": 210,
+          "line": 235,
           "kind": "await",
           "callee": "sendRoot()"
         },
         {
           "id": "child:await:validate():1",
-          "line": 214,
+          "line": 239,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "child:await:makeRoute():1",
-          "line": 218,
+          "line": 243,
           "kind": "await",
           "callee": "makeRoute()"
         },
         {
           "id": "child:await:session.ready:1",
-          "line": 226,
+          "line": 251,
           "kind": "await",
           "callee": "session.ready"
         },
         {
           "id": "child:await:sendRoot():1",
-          "line": 232,
+          "line": 257,
           "kind": "await",
           "callee": "sendRoot()"
         },
         {
           "id": "child:await:sendRoot():2",
-          "line": 238,
+          "line": 263,
           "kind": "await",
           "callee": "sendRoot()"
         },
         {
           "id": "child:await:validate():2",
-          "line": 241,
+          "line": 266,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "child:await:parent.send():1",
-          "line": 242,
+          "line": 267,
           "kind": "await",
           "callee": "parent.send()"
         },
         {
           "id": "child:handoff:parent.send:1",
-          "line": 242,
+          "line": 267,
           "kind": "handoff",
           "callee": "parent.send"
         },
         {
           "id": "child:await:sendRoot():3",
-          "line": 244,
+          "line": 269,
           "kind": "await",
           "callee": "sendRoot()"
         },
         {
           "id": "child:await:makeRoute():2",
-          "line": 250,
+          "line": 275,
           "kind": "await",
           "callee": "makeRoute()"
         },
         {
           "id": "remoteElement:await:validate():1",
-          "line": 257,
+          "line": 282,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "remoteElement:await:route.send():1",
-          "line": 258,
+          "line": 283,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "remoteElement:handoff:route.send:1",
-          "line": 258,
+          "line": 283,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "hit:await:hitTestViewport():1",
-          "line": 269,
+          "line": 294,
           "kind": "await",
           "callee": "hitTestViewport()"
         },
         {
           "id": "hit:await:remoteElement():1",
-          "line": 272,
+          "line": 297,
           "kind": "await",
           "callee": "remoteElement()"
         },
         {
           "id": "hit:await:route.send():1",
-          "line": 273,
+          "line": 298,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "hit:handoff:route.send:1",
-          "line": 273,
+          "line": 298,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "hit:await:route.send():2",
-          "line": 274,
+          "line": 299,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "hit:handoff:route.send:2",
-          "line": 274,
+          "line": 299,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "hit:await:route.send().catch():1",
-          "line": 276,
+          "line": 301,
           "kind": "await",
           "callee": "route.send().catch()"
         },
         {
           "id": "hit:handoff:route.send:3",
-          "line": 276,
+          "line": 301,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "stable:await:validate():1",
-          "line": 284,
+          "line": 309,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "stable:await:element.route.send():1",
-          "line": 286,
+          "line": 311,
           "kind": "await",
           "callee": "element.route.send()"
         },
         {
           "id": "stable:handoff:element.route.send:1",
-          "line": 286,
+          "line": 311,
           "kind": "handoff",
           "callee": "element.route.send"
         },
         {
           "id": "stable:await:Promise():1",
-          "line": 290,
+          "line": 315,
           "kind": "await",
           "callee": "Promise()"
         },
         {
           "id": "stable:promise:Promise:1",
-          "line": 290,
+          "line": 315,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "stable:handoff:setTimeout:1",
-          "line": 290,
+          "line": 315,
           "kind": "handoff",
           "callee": "setTimeout"
         },
         {
           "id": "currentPoint:await:validate():1",
-          "line": 295,
+          "line": 320,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "currentPoint:await:entry.route.send():1",
-          "line": 296,
+          "line": 321,
           "kind": "await",
           "callee": "entry.route.send()"
         },
         {
           "id": "currentPoint:handoff:entry.route.send:1",
-          "line": 296,
+          "line": 321,
           "kind": "handoff",
           "callee": "entry.route.send"
         },
         {
           "id": "currentPoint:await:hit():1",
-          "line": 299,
+          "line": 324,
           "kind": "await",
           "callee": "hit()"
         },
         {
           "id": "currentPoint:await:current.send():1",
-          "line": 303,
+          "line": 328,
           "kind": "await",
           "callee": "current.send()"
         },
         {
           "id": "currentPoint:handoff:current.send:1",
-          "line": 303,
+          "line": 328,
           "kind": "handoff",
           "callee": "current.send"
         },
         {
           "id": "currentPoint:await:crossing.parent.send():1",
-          "line": 304,
+          "line": 329,
           "kind": "await",
           "callee": "crossing.parent.send()"
         },
         {
           "id": "currentPoint:handoff:crossing.parent.send:1",
-          "line": 304,
+          "line": 329,
           "kind": "handoff",
           "callee": "crossing.parent.send"
         },
         {
           "id": "currentPoint:await:hit():2",
-          "line": 308,
+          "line": 333,
           "kind": "await",
           "callee": "hit()"
         },
         {
           "id": "currentPoint:await:validate():2",
-          "line": 310,
+          "line": 335,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "point:await:validate():1",
-          "line": 314,
+          "line": 339,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "point:await:owner.parent.send():1",
-          "line": 315,
+          "line": 340,
           "kind": "await",
           "callee": "owner.parent.send()"
         },
         {
           "id": "point:handoff:owner.parent.send:1",
-          "line": 315,
+          "line": 340,
           "kind": "handoff",
           "callee": "owner.parent.send"
         },
         {
           "id": "point:await:entry.route.send():1",
-          "line": 316,
+          "line": 341,
           "kind": "await",
           "callee": "entry.route.send()"
         },
         {
           "id": "point:handoff:entry.route.send:1",
-          "line": 316,
+          "line": 341,
           "kind": "handoff",
           "callee": "entry.route.send"
         },
         {
           "id": "point:await:stable():1",
-          "line": 317,
+          "line": 342,
           "kind": "await",
           "callee": "stable()"
         },
         {
           "id": "checkPoint:await:currentPoint():1",
-          "line": 321,
+          "line": 346,
           "kind": "await",
           "callee": "currentPoint()"
         },
         {
           "id": "focus:await:validate():1",
-          "line": 324,
+          "line": 349,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "focus:await:entry.route.send():1",
-          "line": 324,
+          "line": 349,
           "kind": "await",
           "callee": "entry.route.send()"
         },
         {
           "id": "focus:handoff:entry.route.send:1",
-          "line": 324,
+          "line": 349,
           "kind": "handoff",
           "callee": "entry.route.send"
         },
         {
           "id": "focus:await:validate():2",
-          "line": 324,
+          "line": 349,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "focused:await:main():1",
-          "line": 326,
+          "line": 351,
           "kind": "await",
           "callee": "main()"
         },
         {
           "id": "focused:await:validate():1",
-          "line": 328,
+          "line": 353,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "focused:await:route.send():1",
-          "line": 329,
+          "line": 354,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "focused:handoff:route.send:1",
-          "line": 329,
+          "line": 354,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "focused:await:route.send():2",
-          "line": 333,
+          "line": 358,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "focused:handoff:route.send:2",
-          "line": 333,
+          "line": 358,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "focused:await:route.send().catch():1",
-          "line": 334,
+          "line": 359,
           "kind": "await",
           "callee": "route.send().catch()"
         },
         {
           "id": "focused:handoff:route.send:3",
-          "line": 334,
+          "line": 359,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "focused:await:child():1",
-          "line": 337,
+          "line": 362,
           "kind": "await",
           "callee": "child()"
         },
         {
           "id": "atPoint:await:main():1",
-          "line": 342,
+          "line": 367,
           "kind": "await",
           "callee": "main()"
         },
         {
           "id": "find:await:readCDPFrameOwners():1",
-          "line": 346,
+          "line": 371,
           "kind": "await",
           "callee": "readCDPFrameOwners()"
         },
         {
           "id": "find:await:child():1",
-          "line": 347,
+          "line": 372,
           "kind": "await",
           "callee": "child()"
         },
         {
           "id": "find:await:find():1",
-          "line": 348,
+          "line": 373,
           "kind": "await",
           "callee": "find()"
         },
         {
           "id": "atPoint:await:validate():1",
-          "line": 352,
+          "line": 377,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "atPoint:await:hitTestViewport():1",
-          "line": 353,
+          "line": 378,
           "kind": "await",
           "callee": "hitTestViewport()"
         },
         {
           "id": "atPoint:await:find():1",
-          "line": 354,
+          "line": 379,
           "kind": "await",
           "callee": "find()"
         },
         {
           "id": "atPoint:await:validate():2",
-          "line": 356,
+          "line": 381,
           "kind": "await",
           "callee": "validate()"
         },
         {
           "id": "atPoint:await:ownerRoute.send():1",
-          "line": 357,
+          "line": 382,
           "kind": "await",
           "callee": "ownerRoute.send()"
         },
         {
           "id": "atPoint:handoff:ownerRoute.send:1",
-          "line": 357,
+          "line": 382,
           "kind": "handoff",
           "callee": "ownerRoute.send"
         },
         {
           "id": "atPoint:await:ownerRoute.send():2",
-          "line": 360,
+          "line": 385,
           "kind": "await",
           "callee": "ownerRoute.send()"
         },
         {
           "id": "atPoint:handoff:ownerRoute.send:2",
-          "line": 360,
+          "line": 385,
           "kind": "handoff",
           "callee": "ownerRoute.send"
         },
         {
           "id": "atPoint:await:child():1",
-          "line": 373,
+          "line": 398,
           "kind": "await",
           "callee": "child()"
         },
         {
           "id": "atPoint:await:next.send():1",
-          "line": 375,
+          "line": 400,
           "kind": "await",
           "callee": "next.send()"
         },
         {
           "id": "atPoint:handoff:next.send:1",
-          "line": 375,
+          "line": 400,
           "kind": "handoff",
           "callee": "next.send"
         },
         {
           "id": "close:await:Promise.allSettled():1",
-          "line": 385,
+          "line": 410,
           "kind": "await",
           "callee": "Promise.allSettled()"
         }
@@ -16816,7 +16816,7 @@
     {
       "file": "extension/input-monitor.js",
       "contract": "extension",
-      "sha256": "cdccc038d272a5bebcb81cbdde97e75b540c0c1d398e30e25c1f87e46644c16e",
+      "sha256": "7a10a72c1d21f8b529ac479ac51f76c0cd61cd7850992c497536a70731dbc650",
       "kind": "javascript",
       "sites": [
         {
@@ -16827,19 +16827,19 @@
         },
         {
           "id": "pointerDefault:handoff:setTimeout:1",
-          "line": 30,
+          "line": 32,
           "kind": "handoff",
           "callee": "setTimeout"
         },
         {
           "id": "activity:handoff:setTimeout:1",
-          "line": 99,
+          "line": 101,
           "kind": "handoff",
           "callee": "setTimeout"
         },
         {
           "id": "activity:handoff:setTimeout:2",
-          "line": 135,
+          "line": 137,
           "kind": "handoff",
           "callee": "setTimeout"
         }
@@ -18140,906 +18140,918 @@
     {
       "file": "host/automation.ts",
       "contract": "sidebar",
-      "sha256": "91a8f5ce885d64321989d449f3003298b8cd8105fb9a04cd42d511c70faf3013",
+      "sha256": "77039e053cf8e72594ec15a03c2376b76a9bab099312afb4159a6f5bfdedb9f4",
       "kind": "javascript",
       "sites": [
         {
           "id": "releaseOpenCUInput:await:openCUAutomation():1",
-          "line": 96,
+          "line": 98,
           "kind": "await",
           "callee": "openCUAutomation()"
         },
         {
           "id": "settleDestroyedOpenCUInput:await:Promise.race():1",
-          "line": 110,
+          "line": 112,
           "kind": "await",
           "callee": "Promise.race()"
         },
         {
           "id": "settleDestroyedOpenCUInput:promise:Promise:1",
-          "line": 112,
+          "line": 114,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "settleDestroyedOpenCUInput:handoff:setTimeout:1",
-          "line": 112,
+          "line": 114,
           "kind": "handoff",
           "callee": "setTimeout"
         },
         {
           "id": "settleDestroyedOpenCUInput:await:current.frameRouter.close().catch():1",
-          "line": 116,
+          "line": 118,
           "kind": "await",
           "callee": "current.frameRouter.close().catch()"
         },
         {
           "id": "openCUAutomation:handoff:openCUAutomation().then:1",
-          "line": 152,
+          "line": 154,
           "kind": "handoff",
           "callee": "openCUAutomation().then"
         },
         {
           "id": "verifyElement:await:TSNonNullExpression.validate():1",
-          "line": 200,
+          "line": 202,
           "kind": "await",
           "callee": "TSNonNullExpression.validate()"
         },
         {
           "id": "openCUAutomation:handoff:ConditionalExpression.then:1",
-          "line": 212,
+          "line": 214,
           "kind": "handoff",
           "callee": "ConditionalExpression.then"
         },
         {
           "id": "openCUAutomation:promise:Promise:1",
-          "line": 216,
+          "line": 218,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "guard:handoff:Promise.resolve().then:1",
-          "line": 225,
+          "line": 227,
           "kind": "handoff",
           "callee": "Promise.resolve().then"
         },
         {
           "id": "execute:handoff:restored.then:1",
-          "line": 242,
+          "line": 244,
           "kind": "handoff",
           "callee": "restored.then"
         },
         {
           "id": "execute:handoff:navigation.then:1",
-          "line": 244,
+          "line": 246,
           "kind": "handoff",
           "callee": "navigation.then"
         },
         {
           "id": "execute:await:restored:1",
-          "line": 245,
+          "line": 247,
           "kind": "await",
           "callee": "restored"
         },
         {
           "id": "dispatch:promise:Promise:1",
-          "line": 269,
+          "line": 271,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "dispatch:handoff:guest.once:1",
-          "line": 273,
+          "line": 275,
           "kind": "handoff",
           "callee": "guest.once"
         },
         {
           "id": "dispatch:handoff:guest.debugger.sendCommand().then:1",
-          "line": 280,
+          "line": 282,
           "kind": "handoff",
           "callee": "guest.debugger.sendCommand().then"
         },
         {
           "id": "dispatch:handoff:ack.then:1",
-          "line": 287,
+          "line": 289,
           "kind": "handoff",
           "callee": "ack.then"
         },
         {
           "id": "sendSession:handoff:send:1",
-          "line": 302,
+          "line": 304,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "prepareSession:await:sessionSend():1",
-          "line": 307,
+          "line": 309,
           "kind": "await",
           "callee": "sessionSend()"
         },
         {
           "id": "prepareSession:await:sessionSend():2",
-          "line": 308,
+          "line": 310,
           "kind": "await",
           "callee": "sessionSend()"
         },
         {
           "id": "monitorRoute:await:frameRouter().validate():1",
-          "line": 321,
+          "line": 323,
           "kind": "await",
           "callee": "frameRouter().validate()"
         },
         {
           "id": "monitorRoute:await:route.send():1",
-          "line": 323,
+          "line": 325,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "monitorRoute:handoff:route.send:1",
-          "line": 323,
+          "line": 325,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "monitorRoute:await:route.send():2",
-          "line": 326,
+          "line": 328,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "monitorRoute:handoff:route.send:2",
-          "line": 326,
+          "line": 328,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "monitorRoute:await:frameRouter().validate():2",
-          "line": 327,
+          "line": 329,
           "kind": "await",
           "callee": "frameRouter().validate()"
         },
         {
           "id": "monitorRoute:await:frameFailure():1",
-          "line": 330,
+          "line": 332,
           "kind": "await",
           "callee": "frameFailure()"
         },
         {
           "id": "finishMarker:await:monitorRoute():1",
-          "line": 333,
+          "line": 335,
           "kind": "await",
           "callee": "monitorRoute()"
         },
         {
           "id": "dispatchMarked:await:dispatch():1",
-          "line": 337,
+          "line": 339,
           "kind": "await",
           "callee": "dispatch()"
         },
         {
           "id": "dispatchMarked:await:finishMarker():1",
-          "line": 341,
+          "line": 343,
           "kind": "await",
           "callee": "finishMarker()"
         },
         {
           "id": "markInput:await:monitorRoute():1",
-          "line": 349,
+          "line": 351,
           "kind": "await",
           "callee": "monitorRoute()"
         },
         {
           "id": "markInput:await:frameRouter().remoteElement():1",
-          "line": 351,
+          "line": 353,
           "kind": "await",
           "callee": "frameRouter().remoteElement()"
         },
         {
           "id": "markInput:await:route.send():1",
-          "line": 353,
+          "line": 355,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "markInput:handoff:route.send:1",
-          "line": 353,
+          "line": 355,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "markInput:await:route.send().catch():1",
-          "line": 356,
+          "line": 358,
           "kind": "await",
           "callee": "route.send().catch()"
         },
         {
           "id": "markInput:handoff:route.send:2",
-          "line": 356,
+          "line": 358,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "markInput:await:monitorRoute():2",
-          "line": 358,
+          "line": 360,
           "kind": "await",
           "callee": "monitorRoute()"
         },
         {
           "id": "markInput:await:frameFailure():1",
-          "line": 360,
+          "line": 362,
           "kind": "await",
           "callee": "frameFailure()"
         },
         {
           "id": "insertMarkedText:await:frameRouter().focused():1",
-          "line": 365,
+          "line": 367,
           "kind": "await",
           "callee": "frameRouter().focused()"
         },
         {
           "id": "insertMarkedText:await:monitorRoute():1",
-          "line": 366,
+          "line": 368,
           "kind": "await",
           "callee": "monitorRoute()"
         },
         {
           "id": "insertMarkedText:await:send():1",
-          "line": 367,
+          "line": 369,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "insertMarkedText:handoff:send:1",
-          "line": 367,
+          "line": 369,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "insertMarkedText:await:verify():1",
-          "line": 370,
+          "line": 372,
           "kind": "await",
           "callee": "verify()"
         },
         {
           "id": "insertMarkedText:await:send():2",
-          "line": 372,
+          "line": 374,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "insertMarkedText:handoff:send:2",
-          "line": 372,
+          "line": 374,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "insertMarkedText:await:finishMarker():1",
-          "line": 379,
+          "line": 381,
           "kind": "await",
           "callee": "finishMarker()"
         },
         {
           "id": "insertMarkedText:await:send():3",
-          "line": 380,
+          "line": 382,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "insertMarkedText:handoff:send:3",
-          "line": 380,
+          "line": 382,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "execute:await:captureAXTree():1",
-          "line": 397,
+          "line": 399,
           "kind": "await",
           "callee": "captureAXTree()"
         },
         {
           "id": "execute:await:captured.validate():1",
-          "line": 398,
+          "line": 400,
           "kind": "await",
           "callee": "captured.validate()"
         },
         {
           "id": "execute:await:verifyElement():1",
-          "line": 409,
+          "line": 411,
           "kind": "await",
           "callee": "verifyElement()"
         },
         {
           "id": "execute:await:send():1",
-          "line": 413,
+          "line": 415,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "execute:handoff:send:1",
-          "line": 413,
+          "line": 415,
           "kind": "handoff",
           "callee": "send"
         },
         {
-          "id": "execute:await:send():2",
-          "line": 425,
+          "id": "readPageState:await:send():1",
+          "line": 427,
           "kind": "await",
           "callee": "send()"
         },
         {
-          "id": "execute:handoff:send:2",
-          "line": 425,
+          "id": "readPageState:handoff:send:1",
+          "line": 427,
           "kind": "handoff",
           "callee": "send"
         },
         {
+          "id": "execute:await:readPageState():1",
+          "line": 428,
+          "kind": "await",
+          "callee": "readPageState()"
+        },
+        {
           "id": "execute:await:Promise.all():1",
-          "line": 437,
+          "line": 439,
           "kind": "await",
           "callee": "Promise.all()"
         },
         {
           "id": "execute:await:script.send():1",
-          "line": 439,
+          "line": 441,
           "kind": "await",
           "callee": "script.send()"
         },
         {
           "id": "execute:handoff:script.send:1",
-          "line": 439,
+          "line": 441,
           "kind": "handoff",
           "callee": "script.send"
         },
         {
           "id": "disposeFrame:await:route.send():1",
-          "line": 446,
+          "line": 448,
           "kind": "await",
           "callee": "route.send()"
         },
         {
           "id": "disposeFrame:handoff:route.send:1",
-          "line": 446,
+          "line": 448,
           "kind": "handoff",
           "callee": "route.send"
         },
         {
           "id": "disposeFrame:await:readCDPFrameOwners():1",
-          "line": 448,
+          "line": 450,
           "kind": "await",
           "callee": "readCDPFrameOwners()"
         },
         {
           "id": "disposeFrame:await:disposeFrame():1",
-          "line": 449,
+          "line": 451,
           "kind": "await",
           "callee": "disposeFrame()"
         },
         {
           "id": "disposeFrame:await:frameRouter().child():1",
-          "line": 449,
+          "line": 451,
           "kind": "await",
           "callee": "frameRouter().child()"
         },
         {
           "id": "execute:await:disposeFrame():1",
-          "line": 453,
+          "line": 455,
           "kind": "await",
           "callee": "disposeFrame()"
         },
         {
           "id": "execute:await:frameRouter().main():1",
-          "line": 453,
+          "line": 455,
           "kind": "await",
           "callee": "frameRouter().main()"
         },
         {
           "id": "execute:await:current.frameRouter.close():1",
-          "line": 455,
+          "line": 457,
           "kind": "await",
           "callee": "current.frameRouter.close()"
         },
         {
           "id": "visit:await:monitorRoute():1",
-          "line": 471,
+          "line": 473,
           "kind": "await",
           "callee": "monitorRoute()"
         },
         {
           "id": "visit:await:readCDPFrameOwners():1",
-          "line": 479,
+          "line": 481,
           "kind": "await",
           "callee": "readCDPFrameOwners()"
         },
         {
           "id": "visit:await:visit():1",
-          "line": 480,
+          "line": 482,
           "kind": "await",
           "callee": "visit()"
         },
         {
           "id": "visit:await:frameRouter().child():1",
-          "line": 480,
+          "line": 482,
           "kind": "await",
           "callee": "frameRouter().child()"
         },
         {
           "id": "visit:await:frameRouter().validate():1",
-          "line": 482,
+          "line": 484,
           "kind": "await",
           "callee": "frameRouter().validate()"
         },
         {
           "id": "execute:await:visit():1",
-          "line": 485,
+          "line": 487,
           "kind": "await",
           "callee": "visit()"
         },
         {
           "id": "execute:await:frameRouter().main():2",
-          "line": 485,
+          "line": 487,
           "kind": "await",
           "callee": "frameRouter().main()"
         },
         {
           "id": "execute:await:script.send():2",
-          "line": 488,
+          "line": 490,
           "kind": "await",
           "callee": "script.send()"
         },
         {
           "id": "execute:handoff:script.send:2",
-          "line": 488,
+          "line": 490,
           "kind": "handoff",
           "callee": "script.send"
         },
         {
-          "id": "execute:await:send():3",
-          "line": 506,
+          "id": "execute:await:send():2",
+          "line": 508,
           "kind": "await",
           "callee": "send()"
         },
         {
-          "id": "execute:handoff:send:3",
-          "line": 506,
+          "id": "execute:handoff:send:2",
+          "line": 508,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "validate:await:TSNonNullExpression.validate():1",
-          "line": 520,
+          "line": 522,
           "kind": "await",
           "callee": "TSNonNullExpression.validate()"
         },
         {
           "id": "execute:await:runTextEdit():1",
-          "line": 523,
+          "line": 525,
           "kind": "await",
           "callee": "runTextEdit()"
         },
         {
           "id": "beforeFocus:await:guest.hostWebContents.executeJavaScript():1",
-          "line": 527,
+          "line": 529,
           "kind": "await",
           "callee": "guest.hostWebContents.executeJavaScript()"
         },
         {
           "id": "beforeFocus:await:send():1",
-          "line": 528,
+          "line": 530,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "beforeFocus:handoff:send:1",
-          "line": 528,
+          "line": 530,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "checkOccurrence:await:frameRouter().validate():1",
-          "line": 540,
+          "line": 542,
           "kind": "await",
           "callee": "frameRouter().validate()"
         },
         {
           "id": "execute:await:checkOccurrence():1",
-          "line": 543,
+          "line": 545,
           "kind": "await",
           "callee": "checkOccurrence()"
         },
         {
           "id": "execute:await:guest.hostWebContents.executeJavaScript():1",
-          "line": 547,
+          "line": 549,
           "kind": "await",
           "callee": "guest.hostWebContents.executeJavaScript()"
         },
         {
-          "id": "execute:await:send():4",
-          "line": 549,
+          "id": "execute:await:send():3",
+          "line": 551,
           "kind": "await",
           "callee": "send()"
         },
         {
-          "id": "execute:handoff:send:4",
-          "line": 549,
+          "id": "execute:handoff:send:3",
+          "line": 551,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "execute:await:TSNonNullExpression.validate():1",
-          "line": 555,
+          "line": 557,
           "kind": "await",
           "callee": "TSNonNullExpression.validate()"
         },
         {
           "id": "execute:await:TSNonNullExpression.focus():1",
-          "line": 556,
+          "line": 558,
           "kind": "await",
           "callee": "TSNonNullExpression.focus()"
         },
         {
           "id": "execute:await:insertMarkedText():1",
-          "line": 562,
+          "line": 564,
           "kind": "await",
           "callee": "insertMarkedText()"
         },
         {
           "id": "execute:await:TSNonNullExpression.validate():2",
-          "line": 563,
+          "line": 565,
           "kind": "await",
           "callee": "TSNonNullExpression.validate()"
         },
         {
           "id": "execute:await:markInput():1",
-          "line": 575,
+          "line": 577,
           "kind": "await",
           "callee": "markInput()"
         },
         {
           "id": "execute:await:frameRouter().focused():1",
-          "line": 575,
+          "line": 577,
           "kind": "await",
           "callee": "frameRouter().focused()"
         },
         {
           "id": "execute:await:dispatchMarked():1",
-          "line": 577,
+          "line": 579,
           "kind": "await",
           "callee": "dispatchMarked()"
         },
         {
           "id": "execute:await:checkOccurrence():2",
-          "line": 578,
+          "line": 580,
           "kind": "await",
           "callee": "checkOccurrence()"
         },
         {
-          "id": "execute:handoff:send:5",
-          "line": 579,
+          "id": "execute:handoff:send:4",
+          "line": 581,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "execute:await:TSNonNullExpression.checkPoint():1",
-          "line": 594,
+          "line": 596,
           "kind": "await",
           "callee": "TSNonNullExpression.checkPoint()"
         },
         {
           "id": "execute:await:TSNonNullExpression.checkPoint():2",
-          "line": 595,
+          "line": 597,
           "kind": "await",
           "callee": "TSNonNullExpression.checkPoint()"
         },
         {
           "id": "execute:await:verifyElement():2",
-          "line": 597,
+          "line": 599,
           "kind": "await",
           "callee": "verifyElement()"
         },
         {
           "id": "execute:await:readElementScrollGeometry():1",
-          "line": 598,
+          "line": 600,
           "kind": "await",
           "callee": "readElementScrollGeometry()"
         },
         {
           "id": "execute:await:frameRouter().atPoint():1",
-          "line": 605,
+          "line": 607,
           "kind": "await",
           "callee": "frameRouter().atPoint()"
         },
         {
           "id": "execute:await:markInput():2",
-          "line": 608,
+          "line": 610,
           "kind": "await",
           "callee": "markInput()"
         },
         {
           "id": "execute:await:markInput():3",
-          "line": 613,
+          "line": 615,
           "kind": "await",
           "callee": "markInput()"
         },
         {
           "id": "execute:await:finishMarker():1",
-          "line": 614,
+          "line": 616,
           "kind": "await",
           "callee": "finishMarker()"
         },
         {
           "id": "execute:await:dispatchMarked():2",
-          "line": 617,
+          "line": 619,
           "kind": "await",
           "callee": "dispatchMarked()"
         },
         {
           "id": "execute:await:checkOccurrence():3",
-          "line": 618,
+          "line": 620,
           "kind": "await",
           "callee": "checkOccurrence()"
         },
         {
+          "id": "execute:await:readPageState():2",
+          "line": 621,
+          "kind": "await",
+          "callee": "readPageState()"
+        },
+        {
+          "id": "execute:handoff:send:5",
+          "line": 622,
+          "kind": "handoff",
+          "callee": "send"
+        },
+        {
+          "id": "execute:await:send():4",
+          "line": 639,
+          "kind": "await",
+          "callee": "send()"
+        },
+        {
           "id": "execute:handoff:send:6",
-          "line": 619,
+          "line": 639,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "execute:await:send():5",
-          "line": 636,
+          "line": 646,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "execute:handoff:send:7",
-          "line": 636,
+          "line": 646,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "execute:await:send():6",
-          "line": 643,
+          "line": 650,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "execute:handoff:send:8",
-          "line": 643,
-          "kind": "handoff",
-          "callee": "send"
-        },
-        {
-          "id": "execute:await:send():7",
-          "line": 647,
-          "kind": "await",
-          "callee": "send()"
-        },
-        {
-          "id": "execute:handoff:send:9",
-          "line": 647,
+          "line": 650,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "execute:await:monitorRoute().catch():1",
-          "line": 649,
+          "line": 652,
           "kind": "await",
           "callee": "monitorRoute().catch()"
         },
         {
           "id": "execute:await:current.frameRouter.close():2",
-          "line": 650,
+          "line": 653,
           "kind": "await",
           "callee": "current.frameRouter.close()"
         },
         {
           "id": "execute:await:readPageImage():1",
-          "line": 653,
+          "line": 656,
           "kind": "await",
           "callee": "readPageImage()"
         },
         {
           "id": "execute:await:inspectSiteTools():1",
-          "line": 654,
+          "line": 657,
           "kind": "await",
           "callee": "inspectSiteTools()"
         },
         {
           "id": "execute:await:invokeSiteTool():1",
-          "line": 655,
+          "line": 658,
           "kind": "await",
           "callee": "invokeSiteTool()"
         },
         {
           "id": "execute:await:Promise.race().finally():1",
-          "line": 658,
+          "line": 661,
           "kind": "await",
           "callee": "Promise.race().finally()"
         },
         {
-          "id": "execute:handoff:send:10",
-          "line": 659,
+          "id": "execute:handoff:send:9",
+          "line": 662,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "execute:promise:Promise:1",
-          "line": 660,
+          "line": 663,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "execute:handoff:setTimeout:1",
-          "line": 661,
+          "line": 664,
           "kind": "handoff",
           "callee": "setTimeout"
         },
         {
           "id": "execute:await:runCDPLocator():1",
-          "line": 676,
+          "line": 679,
           "kind": "await",
           "callee": "runCDPLocator()"
         },
         {
-          "id": "execute:await:send():8",
-          "line": 695,
+          "id": "execute:await:send():7",
+          "line": 698,
           "kind": "await",
           "callee": "send()"
         },
         {
-          "id": "execute:handoff:send:11",
-          "line": 695,
+          "id": "execute:handoff:send:10",
+          "line": 698,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "execute:await:captureAXTree():2",
-          "line": 706,
+          "line": 709,
           "kind": "await",
           "callee": "captureAXTree()"
         },
         {
           "id": "execute:await:captured.validate():2",
-          "line": 707,
+          "line": 710,
           "kind": "await",
           "callee": "captured.validate()"
         },
         {
           "id": "execute:await:hitTestViewport():1",
-          "line": 742,
+          "line": 745,
           "kind": "await",
           "callee": "hitTestViewport()"
         },
         {
           "id": "execute:await:TSNonNullExpression.validate():3",
-          "line": 755,
+          "line": 758,
           "kind": "await",
           "callee": "TSNonNullExpression.validate()"
         },
         {
           "id": "execute:await:readElementScrollGeometry():2",
-          "line": 757,
+          "line": 760,
           "kind": "await",
           "callee": "readElementScrollGeometry()"
         },
         {
           "id": "execute:await:TSNonNullExpression.validate():4",
-          "line": 760,
+          "line": 763,
           "kind": "await",
           "callee": "TSNonNullExpression.validate()"
         },
         {
           "id": "execute:await:TSNonNullExpression.focus():2",
-          "line": 764,
+          "line": 767,
           "kind": "await",
           "callee": "TSNonNullExpression.focus()"
         },
         {
           "id": "execute:await:elementSend():1",
-          "line": 766,
+          "line": 769,
           "kind": "await",
           "callee": "elementSend()"
         },
         {
           "id": "execute:await:elementSend():2",
-          "line": 768,
+          "line": 771,
           "kind": "await",
           "callee": "elementSend()"
         },
         {
           "id": "execute:await:elementSend():3",
-          "line": 773,
+          "line": 776,
           "kind": "await",
           "callee": "elementSend()"
         },
         {
           "id": "execute:await:stat():1",
-          "line": 785,
+          "line": 788,
           "kind": "await",
           "callee": "stat()"
         },
         {
           "id": "execute:await:validateFileInput():1",
-          "line": 789,
+          "line": 792,
           "kind": "await",
           "callee": "validateFileInput()"
         },
         {
           "id": "execute:await:markInput():4",
-          "line": 791,
+          "line": 794,
           "kind": "await",
           "callee": "markInput()"
         },
         {
           "id": "execute:await:frameRouter().main():3",
-          "line": 791,
+          "line": 794,
           "kind": "await",
           "callee": "frameRouter().main()"
         },
         {
           "id": "execute:await:elementSend():4",
-          "line": 792,
+          "line": 795,
           "kind": "await",
           "callee": "elementSend()"
         },
         {
           "id": "execute:await:validateFileInput():2",
-          "line": 795,
+          "line": 798,
           "kind": "await",
           "callee": "validateFileInput()"
         },
         {
           "id": "execute:await:writeFileInput():1",
-          "line": 797,
+          "line": 800,
           "kind": "await",
           "callee": "writeFileInput()"
         },
         {
           "id": "execute:await:finishMarker():2",
-          "line": 799,
+          "line": 802,
           "kind": "await",
           "callee": "finishMarker()"
         },
         {
           "id": "execute:await:elementSend():5",
-          "line": 801,
+          "line": 804,
           "kind": "await",
           "callee": "elementSend()"
         },
         {
           "id": "execute:await:elementSend():6",
-          "line": 808,
+          "line": 811,
           "kind": "await",
           "callee": "elementSend()"
         },
         {
           "id": "execute:await:elementSend():7",
-          "line": 816,
+          "line": 819,
           "kind": "await",
           "callee": "elementSend()"
         },
         {
           "id": "execute:await:frameFailure():1",
-          "line": 842,
+          "line": 845,
           "kind": "await",
           "callee": "frameFailure()"
         },
         {
           "id": "execute:await:releaseSend():1",
-          "line": 849,
+          "line": 852,
           "kind": "await",
           "callee": "releaseSend()"
         },
         {
           "id": "openCUAutomation:await:operations.run():1",
-          "line": 859,
+          "line": 862,
           "kind": "await",
           "callee": "operations.run()"
         },
         {
           "id": "openCUAutomation:handoff:work.then:1",
-          "line": 871,
+          "line": 874,
           "kind": "handoff",
           "callee": "work.then"
         }

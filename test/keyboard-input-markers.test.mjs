@@ -9,12 +9,12 @@ import {actOnPage} from '../src/browser/actions.mjs';
 import {createGuestDriver} from '../src/client/guest-driver.mjs';
 import {installDocumentRuntime} from '../extension/content.js';
 
-async function fixture(route) {
+async function fixture(route, crypto = webcrypto) {
   const listeners=new Map(),plain={nodeType:1,tagName:'TEXTAREA',closest:()=>null},other={nodeType:1,tagName:'TEXTAREA',closest:()=>null};
   const rich={nodeType:1,tagName:'DIV',isContentEditable:true,parentElement:null,closest:()=>null};
   const leaf={nodeType:1,tagName:'B',isContentEditable:true,parentElement:rich};
   let clock=10000,count=0;
-  const context=createContext({crypto:webcrypto,performance:{now:()=>clock},setTimeout,clearTimeout,Date,
+  const context=createContext({crypto,performance:{now:()=>clock},setTimeout,clearTimeout,Date,
     addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name),
     document:{activeElement:plain},location:{href:'https://fixture.test/'},MutationObserver:class{observe(){}},visualViewport:null,
     innerWidth:100,innerHeight:100,scrollX:0,scrollY:0,devicePixelRatio:1});
@@ -40,7 +40,7 @@ async function fixture(route) {
     await module.link(async specifier=>{if(specifier==='../../extension/input-monitor.js')return new SourceTextModule(await readFile(new URL('../extension/input-monitor.js',import.meta.url),'utf8'),{context});assert.equal(specifier,'./rea-page-runtime.js');return new SyntheticModule(Object.keys(exports),function(){for(const[name,value]of Object.entries(exports))this.setExport(name,value);},{context});});
     await module.evaluate();module.namespace.install({});
     const bridge=context.__opencuAnnotations;
-    api={expect:events=>bridge.expectInput(events),finish:id=>bridge.finishInput(id,true),read:()=>{count+=bridge.drain().filter(item=>item.type==='opencu-user-activity').length;return count;}};
+    api={expect:events=>bridge.expectInput(events),expectText:text=>bridge.expectTextInput(text),finish:id=>bridge.finishInput(id,true),read:()=>{count+=bridge.drain().filter(item=>item.type==='opencu-user-activity').length;return count;}};
   }
   return {...api,plain,other,rich,leaf,active:target=>{context.document.activeElement=target;},
     event(type,props={}){clock++;listeners.get(type)?.({type,isTrusted:true,target:plain,...props});},tick:()=>{clock+=300;}};
@@ -52,6 +52,22 @@ const auto = async(f,types=['insertFromPaste'],target=f.plain,beforeTarget=targe
   f.event('beforeinput',{inputType:types[0],data:null,target:beforeTarget});
   f.event('input',{inputType:types[0],data:null,target});return marker;
 };
+
+test('opaque DSH documents attribute pointer and text input without secure-context UUIDs', async () => {
+  const f = await fixture('dsh', {getRandomValues: values => webcrypto.getRandomValues(values)});
+  const click = await f.expect([{type:'pointerdown',x:30,y:20}]);
+  f.event('pointerdown',{clientX:30,clientY:20});
+  await f.finish(click);
+  const edit = await f.expectText('hello');
+  assert.equal(typeof edit, 'string');
+  assert.notEqual(edit, click);
+  f.event('beforeinput',{inputType:'insertText',data:'hello'});
+  f.event('input',{inputType:'insertText',data:'hello'});
+  assert.equal(await f.read(), 0);
+  await f.finish(edit);
+  f.event('input',{inputType:'insertText',data:'human'});
+  assert.equal(await f.read(), 1);
+});
 
 for(const route of ['standalone','extension','dsh']){
   test(`${route}: keyboard edits require matching real keydown, editor and InputType`,async()=>{
