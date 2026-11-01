@@ -105,3 +105,18 @@ test('successful navigation observation fences belong to one target and survive 
   assert.equal((await controller.observe({targetId:'first',format:'ax'})).ok,true);
   assert.equal((await controller.act({targetId:'first',action:'click'})).ok,true);
 });
+
+test('release during dialog preflight prevents the late pointer action from dispatching', async () => {
+  const entered=Promise.withResolvers(),gate=Promise.withResolvers(),calls=[];
+  const element={addEventListener(){},isCrashed:()=>false};
+  const driver=createGuestDriver(element,{},()=>{},()=>{},()=>{},undefined,async operation=>{
+    if(operation==='getDialog'){entered.resolve();await gate.promise;return {dialog:null};}
+    if(operation==='releaseInput')return {released:true};
+    if(operation==='navigationState')return {documentId:'original'};
+    calls.push(operation);return {};
+  });
+  const action=driver.act({action:'click',x:20,y:20});
+  await entered.promise;await driver.release();gate.resolve();
+  await assert.rejects(action,error=>error.code==='CONTROL_STOPPED'&&error.details.inputDispatched===false);
+  assert(!calls.includes('input'));
+});

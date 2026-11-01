@@ -12,7 +12,9 @@ async function fixture(t) {
   const token='synthetic-extension-liveness-token',origin='chrome-extension://'+'a'.repeat(32);
   const otherToken='synthetic-alternate-pairing-token';
   const pairing={ready:Promise.resolve(),connected(){},authenticate:(_origin,_instanceId,credential)=>credential===otherToken?{durableDownloadConsent:true}:undefined};
-  const backend=createExtensionBackend({server,token,pairing,dataDir:dir,requestTimeoutMs:60});
+  // Leave enough time for acknowledged commands to complete real loopback HTTP
+  // while native and browser suites run on the same machine.
+  const backend=createExtensionBackend({server,token,pairing,dataDir:dir,requestTimeoutMs:1500});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const base=`http://127.0.0.1:${server.address().port}/opencu-extension/v1/`;
   const connection={instanceId:'instance-synthetic',browserInstanceId:'browser-synthetic',epoch:'epoch-synthetic'};
@@ -75,4 +77,17 @@ test('fresh epochs do not retire older input debt and release receipts retain or
   assert.equal((await f.connect('epoch-third',[receipt])).status,200);
   assert.equal((await f.backend.release(f.tabs[0])).retired,true);
   assert.equal((await f.connect('epoch-fourth',[{...receipt,instanceId:'another-instance'}])).value.error.code,'INVALID_RELEASE_RECEIPT');
+});
+
+test('a lost document verification read creates no input release obligation on that tab',async t=>{
+  const f=await fixture(t),target=f.tabs[0];
+  const slow=f.backend.verify(target);
+  assert.equal((await f.next())[0].method,'verify');
+  const result=await slow;
+  assert.equal(result.valid,false);assert.equal(result.error.code,'VERIFICATION_UNAVAILABLE');
+  assert.equal(result.error.details.inputDispatched,false);
+  const work=f.backend.act(target,{action:'keyDown',key:'Shift'});
+  const commands=await f.next();assert.deepEqual(commands.map(c=>c.method),['act']);
+  await f.post('result',{id:commands[0].id,ok:true,result:{accepted:true}});assert((await work).accepted);
+  await f.reply(f.backend.release(target));
 });

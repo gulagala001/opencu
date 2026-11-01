@@ -79,3 +79,34 @@ test('model transport preserves raw AX details and full UI history while omittin
   assert.deepEqual(selected.target.identity, target.identity);
   assert.equal((await runtime.request('state', {includeHistory:true}, {modelProjection:true})).state.lastObservation.observation.text, '[1] textbox 姓名');
 });
+
+test('an AX read failure reports the preceding edit once without replaying its value', async t => {
+  const target = {id:'native:fixture',backend:'native',platform:'darwin',verified:true,identity:{windowId:19}};
+  const mapping = Object.assign(Error('Window mapping is temporarily ambiguous'), {code:'WINDOW_AX_MAPPING_FAILED',details:{windowId:19}});
+  let edited = false, reads = 0, edits = 0;
+  const computer = createComputerSession(async (endpoint, args) => {
+    if (endpoint === 'targets') return {ok:true, targets:[target]};
+    if (endpoint === 'select') return {ok:true, target};
+    if (endpoint === 'act') {
+      assert.equal(args.action, 'set_value');
+      edited = true; edits++;
+      return {ok:true, result:{inputDispatched:true,effectVerified:false,delivery:'accessibility-acknowledged'}};
+    }
+    if (endpoint === 'observe') {
+      if (edited && reads++ === 0) throw mapping;
+      return {ok:true, observation:{id:'ax',ax:{nodes:[]}}};
+    }
+    throw Error(endpoint);
+  });
+  t.after(() => computer.close());
+  await computer.run({code:'var win=await cua.getApp("native:fixture");'});
+  await assert.rejects(computer.run({code:'await win.setValue(8,"private fixture text");await win.getAXState();'}), error => {
+    assert.equal(error.code, mapping.code);
+    assert.deepEqual(error.details.partialResult.completedActions, [{targetId:target.id,action:'set_value',inputDispatched:true,effectVerified:false}]);
+    assert.equal(error.details.inputDispatched, undefined);
+    assert(!error.message.includes('private fixture text'));
+    return true;
+  });
+  await computer.run({code:'await win.getAXState();'});
+  assert.equal(edits, 1);
+});

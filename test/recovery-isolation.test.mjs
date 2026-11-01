@@ -119,7 +119,16 @@ for (const native of [false,true]) test(`${name}: recovered ${native ? 'native' 
   const act = backend.act, releaseTarget = backend.releaseTarget;
   backend.act = async () => { throw Error('Synthetic uncertain input'); };
   if (!native) backend.releaseTarget = async () => ({released:false});
-  await assert.rejects(run('await target.click([10,10]);'),{code:'RELEASE_FAILED'});
+  await assert.rejects(run('await target.click([10,10]);'), error => {
+    assert.equal(error.code, native ? 'BACKEND_ERROR' : 'RELEASE_FAILED');
+    if (native) {
+      assert.match(error.message, /Synthetic uncertain input/);
+      assert.equal(error.details.release.released, true);
+      assert.deepEqual(error.details.releasedTargetIds, [target.id]);
+      assert.equal(error.details.control.recoveryIsolated, true);
+    }
+    return true;
+  });
   backend.act = act; backend.releaseTarget = releaseTarget;
   await run(`await cua.resume(${JSON.stringify(target.id)}); await target.getAXState();`);
   await assert.rejects(run('await cua.stop();'),{code:'RELEASE_FAILED'});
@@ -425,4 +434,32 @@ test('a new explicit stop wins over delayed closed-connection confirmation', asy
   await stopped;
   assert.equal((await f.c.getState()).state.explicitlyStopped,true);
   assert.equal((await f.c.openTarget({browserId:f.live.browserId})).error.code,'CONTROL_STOPPED');
+});
+
+test('a new native fault preserves browser quarantine and an independent verified browser until actual hardware release fails', async t => {
+  const f = await nativeFixture(t);
+  ok(await f.c.resume({targetId:f.app.id}));
+  ok(await f.c.selectTarget(f.live));
+  ok(await f.c.resume({targetId:f.live.id}));
+  const old = (await f.c.getState()).state.releaseErrors;
+  let browserReleases = 0;
+  const releaseBrowser = f.browser.release;
+  f.browser.release = async (...args) => {browserReleases++;return releaseBrowser(...args);};
+  f.native.act = async () => { throw Object.assign(Error('Native action failed'),{code:'NATIVE_ACTION_FAILED'}); };
+  const failed = await f.c.act({targetId:f.app.id,action:'click'});
+  assert.equal(failed.error.code, 'NATIVE_ACTION_FAILED');
+  assert.deepEqual(failed.state.releaseErrors,old);
+  assert.equal(failed.state.releasePending,true);
+  assert.equal(failed.state.targets.find(t=>t.id===f.old.id).verified,false);
+  assert.equal(failed.state.targets.find(t=>t.id===f.live.id).verified,true);
+  ok(await f.c.observe({targetId:f.live.id}));ok(await f.c.act({targetId:f.live.id,action:'click'}));
+  ok(await f.c.resume({targetId:f.app.id}));ok(await f.c.observe({targetId:f.app.id}));
+  const releaseNative=f.native.release;f.native.release=async()=>({released:false});
+  const unsafe=await f.c.act({targetId:f.app.id,action:'click'});
+  assert.equal(unsafe.error.code,'RELEASE_FAILED');assert.equal(unsafe.state.mode,'release_failed');
+  assert.equal((await f.c.act({targetId:f.live.id,action:'click'})).ok,false);
+  assert.equal(browserReleases,0);
+  f.native.release=releaseNative;ok(await f.c.resume({targetId:f.app.id}));f.native.act=async()=>({inputDispatched:true});
+  ok(await f.c.observe({targetId:f.app.id}));ok(await f.c.act({targetId:f.app.id,action:'click'}));
+  assert.deepEqual((await f.c.getState()).state.releaseErrors,old);
 });
