@@ -652,3 +652,16 @@ test('MV3 drag checks screenshot geometry between samples and journals the inter
   assert.equal(f.worker.attached.get(73).buttons.has('left'),true);delete f.hooks.content;await f.worker.releaseTab(73);
   assert(f.events.some(([method,params])=>method==='Input.dispatchMouseEvent'&&params.type==='mouseReleased'));
 });
+
+test('page marker cleanup cannot hold an acknowledged physical release or the next tab creation', async t => {
+  const f = await fixture(t);
+  f.hooks.content = async method => { if (method === 'release') await new Promise(() => {}); };
+  const released = await within(f.worker.releaseTab(73));
+  assert.equal(released.released, true);
+  assert.equal(f.worker.attached.has(73), false);
+  assert.ok(f.events.some(([method]) => method === 'Input.dispatchKeyEvent'));
+  f.queue({...f.message('recover','recoverBrowser'),params:{}});
+  const recovered = await within(f.result('recover'));
+  assert.equal(recovered.result.ready, true);
+  assert.deepEqual(Array.from(recovered.result.isolatedTabs), []);
+});

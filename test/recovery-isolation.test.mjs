@@ -463,3 +463,16 @@ test('a new native fault preserves browser quarantine and an independent verifie
   ok(await f.c.observe({targetId:f.app.id}));ok(await f.c.act({targetId:f.app.id,action:'click'}));
   assert.deepEqual((await f.c.getState()).state.releaseErrors,old);
 });
+
+test('browser resume requires its live connection recovery and exposes remaining tab debts', async t => {
+  const f = await fixture(t);
+  f.browser.recoverBrowser = async () => { throw Object.assign(Error('Live release timed out'),{code:'RELEASE_FAILED'}); };
+  assert.equal((await f.c.resume({browserId:f.live.browserId})).error.code,'RELEASE_FAILED');
+  f.browser.recoverBrowser = async () => ({ready:true,isolatedTabs:[{tabId:7,error:{code:'RELEASE_FAILED'}}]});
+  const resumed=ok(await f.c.resume({browserId:f.live.browserId}));
+  assert.equal(resumed.state.releasePending,true);assert.equal(resumed.state.recoveryIsolated,true);
+  assert.equal(resumed.browserRecovery.isolatedTabs[0].tabId,7);
+  ok(await f.c.openTarget({browserId:f.live.browserId,url:'https://fixture.invalid/'}));
+  ok(await f.c.observe({targetId:f.live.id}));
+  ok(await f.c.act({targetId:f.live.id,action:'click'}));
+});
