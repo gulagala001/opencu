@@ -6679,16 +6679,23 @@
     {
       "file": "src/client/permission-notice.jsx",
       "contract": "resources",
-      "sha256": "3c704caa82c457a4d344f37055e6f2a432e80150f9e449b2c5a66e92a5ac4785",
+      "sha256": "c570a7f02c4f508d9e86951a0ed74270107938c2d73b4b62c1c56aab483b40d3",
       "kind": "javascript",
       "sites": [
         {
           "id": "onApprove:await:services.openSettings():1",
-          "line": 27,
+          "line": 30,
           "kind": "await",
           "callee": "services.openSettings()"
         }
       ]
+    },
+    {
+      "file": "src/client/permission-result.mjs",
+      "contract": "resources",
+      "sha256": "6c0a9bb674f79b547fad7febce5a06ca8f0873d28cd1b9bda9e7c674f6fc87e7",
+      "kind": "javascript",
+      "sites": []
     },
     {
       "file": "src/client/portal-host.mjs",
@@ -7751,7 +7758,7 @@
     {
       "file": "src/client/rea-locale.mjs",
       "contract": "resources",
-      "sha256": "c22892dae57c031c569b45601fec656940f6f2f07353be029e6a461f6b244b63",
+      "sha256": "a75456d8c52845785f6148bdda991a16bd95a26921255604057879671993b7dd",
       "kind": "javascript",
       "sites": []
     },
