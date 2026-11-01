@@ -6528,14 +6528,21 @@
       "sites": []
     },
     {
+      "file": "src/client/layout-targets.mjs",
+      "contract": "resources",
+      "sha256": "35195f0a5170808d5b835d71a3c6714fdb8e2bbf307951d802b6d3a4e7a8b3f0",
+      "kind": "javascript",
+      "sites": []
+    },
+    {
       "file": "src/client/native-browser-slot.jsx",
       "contract": "resources",
-      "sha256": "b8bccc88e42c398b066c1c174d647701682c7279481c9df30f453d75a0066a61",
+      "sha256": "c1076148866455e3a5fd1ad974b1bfe6f8fb5f9169c7c9c386533fb5855cd347",
       "kind": "javascript",
       "sites": [
         {
           "id": "flush:await:props.updateBounds():1",
-          "line": 18,
+          "line": 26,
           "kind": "await",
           "callee": "props.updateBounds()"
         }
@@ -6952,12 +6959,12 @@
     {
       "file": "src/client/presentation-layout.mjs",
       "contract": "presentation",
-      "sha256": "48edd0edfbbb65e435e7def4c58c11f10c7c7e4b7c5939caf3f4b5e93676ef5e",
+      "sha256": "5ae0d6c09d4b5b195b84f5817252c175d238c5e831597a373bde9c4c19a5e894",
       "kind": "javascript",
       "sites": [
         {
           "id": "measure:handoff:sending.catch().then:1",
-          "line": 51,
+          "line": 44,
           "kind": "handoff",
           "callee": "sending.catch().then"
         }
