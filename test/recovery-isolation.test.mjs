@@ -295,6 +295,19 @@ test('cold release acknowledgement survives read-only calls and pre-dispatch rej
   assert.equal(JSON.parse(await readFile(join(f.dir,'controller.json'))).targets.find(t=>t.id===f.live.id).releaseAcknowledged,true);
 });
 
+test('manual retirement of one extension reference survives restart without retiring its sibling', async t => {
+  const dir=await mkdtemp(new URL('extension-retirement-',root).pathname);
+  const options={dataDir:dir,token:'test-specific-browser-release-token'};
+  const identity={instanceId:'installation',browserInstanceId:'browser',epoch:'epoch',tabId:4,documentId:'doc'};
+  const first=targetId(identity), second=targetId({...identity,tabId:5});
+  let backend=createExtensionBackend(options);
+  t.after(async()=>{await backend.close();await rm(dir,{recursive:true,force:true});});
+  await backend.confirmClosedTargets([first]);await backend.close();
+  backend=createExtensionBackend(options);
+  assert.equal((await backend.release(first)).retired,true);
+  await assert.rejects(backend.release(second),{code:'STALE_TARGET'});
+});
+
 test('confirmation removes extension held targets from later composite release attempts',async()=>{
   const identity={instanceId:'test-instance',browserInstanceId:'test-browser',epoch:'test-epoch',tabId:1,documentId:'document'};
   const target={id:targetId(identity),identity,provider:'extension',backend:'extension',kind:'tab'},releases=[];
@@ -426,11 +439,46 @@ test('a failed browser occurrence cannot disable healthy peers or allocate/repla
   assert.equal((await f.c.getState()).state.targets.find(target=>target.id===peer.id).verified,true);
 });
 
+test('retiring a reviewed orphan preserves a verified peer and an unattributed release obligation', async t => {
+  const f = await fixture(t);
+  f.browser.release = async () => ({released:false,failures:[
+    {targetId:f.old.id,code:'STALE_TARGET'}, {provider:'extension',code:'RELEASE_FAILED',message:'Unattributed timeout'},
+  ]});
+  assert.equal((await f.c.stop()).error.code,'RELEASE_FAILED');
+  ok(await f.c.resume({browserId:f.live.browserId}));
+  ok(await f.c.selectTarget(f.live));
+  ok(await f.c.resume({targetId:f.live.id}));
+  ok(await f.c.observe({targetId:f.live.id}));
+  const before = ok(await f.c.getState()).state;
+  f.browser.confirmClosedTargets = async targets => {
+    assert.deepEqual(targets.map(target=>target.id),[f.old.id]);
+    return {released:true};
+  };
+  f.browser.release = async () => {throw Error('Review must not release unrelated inputs');};
+  const {state} = ok(await f.c.resolveBrowserRelease({operation:'confirm',targetId:f.old.id,
+    targetIdentity:f.old.identity,expectedReleaseErrors:JSON.stringify(before.releaseErrors)}));
+  assert.equal(state.releaseErrors[0].failures.length,1);
+  assert.equal(state.releaseErrors[0].failures[0].message,'Unattributed timeout');
+  assert.equal(state.releasePending,true);assert.equal(state.recoveryIsolated,true);
+  assert.equal(state.activeTargetId,f.live.id);assert.equal(state.mode,'active');
+  ok(await f.c.act({targetId:f.live.id,action:'click'}));
+});
+
+test('a real retirement receipt during resume cannot leave an unreviewable orphan in release errors', async t => {
+  const f=await fixture(t);
+  f.browser.releaseTarget=async()=>({released:true,retired:true});
+  const result=await f.c.resume({targetId:f.old.id});
+  assert.equal(result.error.code,'TARGET_NOT_FOUND');
+  assert.deepEqual(result.state.targets,[]);
+  assert.deepEqual(result.state.releaseErrors,[]);
+  assert.equal(result.state.releasePending,false);
+});
+
 test('a new explicit stop wins over delayed closed-connection confirmation', async t => {
   const f = await fixture(t), entered = Promise.withResolvers(), gate = Promise.withResolvers();
   f.browser.confirmClosedTargets = async () => { entered.resolve(); await gate.promise; return {released:true}; };
   const state = (await f.c.getState()).state;
-  const recovery = f.c.recoverClosedTargets({targetIds:[f.old.id], expectedReleaseErrors:JSON.stringify(state.releaseErrors)});
+  const recovery = f.c.resolveBrowserRelease({operation:'confirm',targetId:f.old.id,targetIdentity:f.old.identity, expectedReleaseErrors:JSON.stringify(state.releaseErrors)});
   await entered.promise;
   const stopped = f.c.stop(); gate.resolve();
   assert.equal((await recovery).error.code,'CONTROL_STOPPED');

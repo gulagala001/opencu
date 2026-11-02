@@ -253,27 +253,45 @@ test('a replacement renderer cannot release a guest it no longer owns', async t 
 });
 
 test('the existing settings recovery clears only human-confirmed closed sidebar targets', async t => {
-  const {host, rendererId, target, reply} = await hostFixture(t);
+  const {host, rendererId, target, connect, reply} = await hostFixture(t);
+  const peer = {...target, id:'dsh:peer', identity:{rendererId, guestId:'peer'}};
+  await connect([target,peer]);
   const dataDir = await mkdtemp(new URL('settings-recovery-', scratch).pathname);
   const runtime = createPluginRuntime({dataDir,browserEnabled:false,nativeEnabled:false,extensionEnabled:false,dshBrowser:host.backend});
-  const respond = command => ['select','verify'].includes(command.method) ? target
-    : command.method === 'release' ? {released:true} : {accepted:true};
+  const releases = [];
+  const respond = command => {
+    if (command.method === 'release') {releases.push(command.params.target.id); return {released:true};}
+    return command.params.target;
+  };
   try {
-    checked((await reply(runtime.request('select',{reference:target.id}),respond)).value);
-    checked((await reply(runtime.request('act',{targetId:target.id,action:'keyDown',key:'Shift'}),respond)).value);
+    for (const item of [target,peer]) {
+      checked((await reply(runtime.request('select',{reference:item.id}),respond)).value);
+      checked((await reply(runtime.request('act',{targetId:item.id,action:'keyDown',key:'Shift'}),respond)).value);
+    }
     await host.handle('browser/disconnect',{rendererId});
     assert.equal((await runtime.request('stop')).error.code,'RELEASE_FAILED');
     const offer = await runtime.uiRecovery('prepare');
-    assert.deepEqual(offer.targets.map(value=>value.id),[target.id]);
-    await assert.rejects(runtime.uiRecovery('confirm',{nonce:offer.nonce,confirmedClosed:false}),{code:'RECOVERY_CONFIRMATION_REQUIRED'});
-    assert.equal((await runtime.request('state')).state.releasePending,true);
+    assert.deepEqual(offer.targets.map(item=>item.status),['offline','offline']);
+    for (const args of [{confirmedClosed:true},{targetId:'foreign',confirmedClosed:true},{targetId:peer.id,confirmedClosed:false}])
+      await assert.rejects(runtime.uiRecovery('confirm',{nonce:offer.nonce,...args}),{code:'RECOVERY_CONFIRMATION_REQUIRED'});
+    await connect([peer]);
+    assert.equal((await runtime.uiRecovery('confirm',{nonce:offer.nonce,targetId:peer.id,confirmedClosed:true})).error.code,'BROWSER_STILL_CONNECTED');
     const reviewed = await runtime.uiRecovery('prepare');
-    checked(await runtime.uiRecovery('confirm',{nonce:reviewed.nonce,confirmedClosed:true}));
+    checked(await runtime.uiRecovery('confirm',{nonce:reviewed.nonce,targetId:target.id,confirmedClosed:true}));
+    const remaining = await runtime.uiRecovery('prepare');
+    assert.deepEqual(remaining.targets.map(item=>[item.id,item.status]),[[peer.id,'connected']]);
+    releases.length=0;
+    const failed=(await reply(runtime.uiRecovery('retry',{nonce:remaining.nonce,targetId:peer.id}),{released:false})).value;
+    assert.equal(failed.error.code,'RELEASE_FAILED');
+    assert.equal(failed.state.releasePending,true);
+    const retry=await runtime.uiRecovery('prepare');
+    checked((await reply(runtime.uiRecovery('retry',{nonce:retry.nonce,targetId:peer.id}),respond)).value);
+    assert.deepEqual(releases,[peer.id]);
     const state = (await runtime.request('state')).state;
     assert.equal(state.releasePending,false);
-    assert.equal(state.mode,'recovery_required');
-    assert.equal(state.explicitlyStopped,false);
-    assert.deepEqual(state.targets,[]);
+    assert.equal(state.explicitlyStopped,true);
+    assert.equal(state.mode,'stopped');
+    assert.deepEqual(state.targets.map(item=>item.id),[peer.id]);
   } finally { await runtime.close(); await rm(dataDir,{recursive:true,force:true}); }
 });
 

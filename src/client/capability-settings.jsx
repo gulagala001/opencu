@@ -243,6 +243,65 @@ export function ConnectionStatus({ connected }) {
   </IntlProvider>;
 }
 
+function BrowserReleaseReview() {
+  const intl = useIntl(), { pending, run } = React.useContext(Capabilities);
+  const [review, setReview] = React.useState(null), [selectedId, select] = React.useState('');
+  const [receipt, setReceipt] = React.useState('');
+  const text = (key, fallback, values) => intl.formatMessage({id: `opencu.capabilities.${key}`, defaultMessage:fallback}, values);
+  const label = target => `${target.title || text('previousBrowserTarget', 'Previous browser target')} · ${target.id.slice(-8)}`;
+  const selected = review?.targets.find(target => target.id === selectedId);
+  const offline = selected?.status === 'offline';
+  const inspect = async () => {
+    const offer = await services.capabilities.prepareRecovery();
+    setReview(offer);
+    select(id => offer.targets.some(target => target.id === id) ? id : '');
+  };
+  const resolve = event => {
+    if (!event.isTrusted || pending || !selected) return;
+    if (offline && !window.confirm(text('confirmOneTarget',
+      'Confirm that this original target is permanently closed. Only this reference will be retired.\n\n{target}',
+      {target:[label(selected), selected.url, selected.id].filter(Boolean).join('\n')}))) return;
+    void run('resolveRelease', async () => {
+      setReceipt('');
+      const {nonce} = review;
+      try {
+        if (offline) await services.capabilities.confirmRecovery(nonce, selected.id);
+        else await services.capabilities.retryRecovery(nonce, selected.id);
+      } catch (error) {
+        // The offer is single use. Refresh it even when the original target
+        // disappeared during release; keep the operation error visible.
+        setReview(null);
+        await inspect().catch(() => {});
+        throw error;
+      }
+      setReceipt(text(offline ? 'targetRetired' : 'targetReleased',
+        offline ? 'Retired the reviewed target: {target}' : 'Release acknowledged for {target}', {target:label(selected)}));
+      select(''); setReview(null);
+      await inspect();
+    });
+  };
+  return <Group>
+    <Row variant="stacked" label={text('recoverClosed', 'Browser input recovery')}
+      description={text('recoverClosedHelp', 'Review pending input release for each original browser target. Reconnect the original target to retry release, or review a permanently closed target.')}
+      control={<Button color="secondary" size="toolbar" disabled={pending != null} onClick={() => run('reviewRelease', inspect)}>{text('reviewRecovery', 'Review recovery')}</Button>} />
+    {receipt && <p role="status" className="m-0 px-1 text-sm text-secondary">{receipt}</p>}
+    {review && (review.targets.length ? <Row variant="stacked" label={text('chooseReleaseTarget', 'Choose a target ({count})', {count:review.targets.length})}
+      control={<Menu contentWidth="menuWide" align="end" triggerButton={<MenuButton disabled={pending != null}>{selected ? label(selected) : text('selectReleaseTarget','Select a target')}</MenuButton>}>
+        {review.targets.map(target => <MenuItems.Item key={target.id} rightIconAsset={target.id === selectedId ? checkmark : undefined}
+          onSelect={() => select(target.id)}>{label(target)}</MenuItems.Item>)}
+      </Menu>} /> : <Row label={review.releasePending ? text('noTargetDebts','Remaining obligations have no individually reviewable target.')
+      : text('noPendingReleases','No pending release obligations.')} />)}
+    {selected && <Row variant="stacked" label={selected.provider === 'dsh' ? text('inApp','Built-in browser') : 'Chrome / Edge'}
+      description={<>{offline ? text('offlineReleaseHelp','Reconnect the original target and refresh this list to retry release. If it is permanently closed, you can retire this reference.')
+        : selected.status === 'connected' ? text('onlineReleaseHelp','The original target is connected. Request its input-release receipt.')
+        : selected.status === 'connection-online' ? text('connectionReleaseHelp','The original browser connection is online. Retry release for the reviewed input owner.')
+        : text('replacedReleaseHelp','This browser has a new connection. Retry to check for the original connection’s release receipt. To review permanent closure, first exit the original browser profile and refresh.')}
+        <details className="mt-2"><summary>{text('targetDetails','Target details')}</summary><span className="break-all select-text">{[selected.url, selected.id].filter(Boolean).join(' · ')}</span></details></>}
+      control={<Button color="secondary" size="toolbar" disabled={pending != null} onClick={resolve}>
+        {offline ? text('retireOne','Confirm permanent closure…') : text('releaseOne','Retry release')}</Button>} />}
+  </Group>;
+}
+
 export function BrowserConnectionControls() {
   const intl = useIntl(), { state, error, pending, run, refresh } = React.useContext(Capabilities);
   const [choices, setChoices] = React.useState([]), [pairingStatus, setPairingStatus] = React.useState(null);
@@ -287,20 +346,9 @@ export function BrowserConnectionControls() {
     {choices.length > 0 && <Row variant="stacked" label={text('pairChoose', 'Choose the browser profile to connect')}
       control={<div className="flex flex-wrap items-center gap-2">{choices.map(browser => <React.Fragment key={browser.id}>{action('connectBrowser', `${browser.name} · ${browser.id.slice(-8)}`, () => connect(browser.id))}</React.Fragment>)}</div>} />}
   </Group>;
-  const recoverClosed = async event => {
-    if (!event.isTrusted) return;
-    await run('recoverClosed', async () => {
-      const offer = await services.capabilities.prepareRecovery();
-      const names = offer.targets.map(target => `${target.title || text('previousBrowserTarget', 'Previous browser target')}\n${target.id}`).join('\n\n');
-      if (!window.confirm(text('confirmClosedTargets', 'Close the original sidebar tab or window, or fully exit the original extension browser profile before continuing. This clears only the listed control references and does not resume input.\n\n{targets}\n\nI confirm these original targets are closed.', {targets: names}))) return;
-      await services.capabilities.confirmRecovery(offer.nonce);
-    });
-  };
   const connected = state?.connections.length > 0;
   return <>
-    <Group><Row variant="stacked" label={text('recoverClosed', 'Recover closed browser targets')}
-      description={text('recoverClosedHelp', 'Review offline targets whose input release is unconfirmed. A usable current target does not release old targets. Close the original sidebar target or extension browser profile before confirming each reference.')}
-      control={<Button color="secondary" size="toolbar" disabled={pending != null} loading={pending === 'recoverClosed'} onClick={recoverClosed}>{text('reviewRecovery', 'Review recovery')}</Button>} /></Group>
+    <BrowserReleaseReview />
     {error && <Group><Row label={<span role="alert">{error}</span>} control={action('refresh', text('retry', 'Retry'), refresh)} /></Group>}
     {connected ? <Section><Section.Content><Group>
       {state.connections.map(connection => <Row key={connection.instanceId} variant="stacked" label={connection.label}

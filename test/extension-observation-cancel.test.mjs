@@ -316,9 +316,13 @@ test('production MV3 recovery and authenticated backend preserve old debt until 
   } catch(error) {failure=error;} finally {
     f.chrome.tabs.onRemoved.emit(73);f.chrome.tabs.onRemoved.emit(74);await tick();
     try {await backend.close();}catch(error){failure??=error;}
-    const stopping=f.stop();server.closeAllConnections();
+    const stopping=f.stop();
+    // Stop accepting new polls before destroying sockets. A final in-flight
+    // poll otherwise races closeAllConnections after the handler is removed.
+    const serverClosed=new Promise(resolve=>server.close(resolve));
+    server.closeAllConnections();
     try {await stopping;}catch(error){failure??=error;}
-    await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});
+    await serverClosed;await rm(dir,{recursive:true,force:true});
   }
   if(failure)throw failure;
 });
@@ -388,6 +392,52 @@ test('completed link input survives obsolete marker cleanup and reports only ver
     assert.equal(f.events.filter(([name,params])=>name==='Input.dispatchMouseEvent'&&params.type==='mousePressed').length,1);
     assert.equal(f.worker.attached.get(73).buttons.size,0);
   }
+});
+
+test('a late cross-origin commit after a completed click never reports speculative navigation or repeats input', async t => {
+  const f = await fixture(t), dom = locatorInputFixture();
+  f.seed([], []);
+  f.worker.attached.get(73).frameRouter = dom.router;
+  const result = await f.worker.act(f.identity, {type:'locator', locator:[{kind:'css',value:'#target'}], method:'click', args:{}});
+  assert.equal(result.navigationObserved, undefined);
+  f.chrome.webNavigation.onCommitted.emit({tabId:73,frameId:0,documentId:'late',url:'https://another.invalid/after'});
+  f.hooks.documentId = 'late';
+  f.queue(f.message('verify-old','verify'));
+  assert.equal((await f.result('verify-old')).error.code, 'STALE_DOCUMENT');
+  assert.equal(f.events.filter(([name,params]) => name === 'Input.dispatchMouseEvent' && params.type === 'mousePressed').length, 1);
+});
+
+test('a redirect racing the navigation read reports the verified destination of the same tab', async t => {
+  const f = await fixture(t), dom = locatorInputFixture(), observing = deferred(), frame = deferred();
+  f.seed([], []);
+  f.worker.attached.get(73).frameRouter = dom.router;
+  f.hooks.send = (method,params) => {
+    if (method === 'Input.dispatchMouseEvent' && params.type === 'mouseReleased')
+      f.chrome.webNavigation.onCommitted.emit({tabId:73,frameId:0,documentId:'intermediate',url:'https://another.invalid/redirect'});
+  };
+  f.chrome.webNavigation.getFrame = async args => {
+    assert.deepEqual(args, {tabId:73,frameId:0});
+    observing.resolve();
+    return frame.promise;
+  };
+  const clicked = f.worker.act(f.identity,{type:'locator',locator:[{kind:'css',value:'#target'}],method:'click',args:{}});
+  await within(observing.promise);
+  f.chrome.webNavigation.onCommitted.emit({tabId:73,frameId:0,documentId:'final',url:'https://destination.invalid/'});
+  frame.resolve({documentId:'final',url:'https://destination.invalid/'});
+  const result = await clicked;
+  assert.deepEqual(result.navigationObserved,{tabId:73,previousDocumentId:'doc',documentId:'final',url:'https://destination.invalid/'});
+  assert.equal(result.reselectRequired,true);
+  assert.equal(f.events.filter(([name,params]) => name === 'Input.dispatchMouseEvent' && params.type === 'mousePressed').length,1);
+});
+
+test('settings release refuses a journal owned by another document in the same tab', async t => {
+  const f = await fixture(t);
+  f.queue(f.message('wrong-owner','releaseReviewed',{identity:{...f.identity,documentId:'another'}}));
+  assert.equal((await f.result('wrong-owner')).error.code,'RELEASE_OWNER_CHANGED');
+  assert.equal(f.worker.attached.get(73).keys.has('Shift'),true);
+  assert.equal(f.events.some(([name])=>name.startsWith('Input.')),false);
+  f.queue(f.message('original-owner','releaseReviewed'));
+  assert.equal((await f.result('original-owner')).result.released,true);
 });
 
 test('a detached iframe before input still fails without dispatch', async t => {

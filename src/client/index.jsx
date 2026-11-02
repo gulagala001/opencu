@@ -356,7 +356,8 @@ function mountClient(ctx, entry) {
     },
     capabilities: {
       prepareRecovery: () => client.request('recovery/prepare'),
-      confirmRecovery: nonce => client.request('recovery/confirm', { nonce, confirmedClosed: true }),
+      retryRecovery: (nonce, targetId) => client.request('recovery/retry', { nonce, targetId }),
+      confirmRecovery: (nonce, targetId) => client.request('recovery/confirm', { nonce, targetId, confirmedClosed: true }),
       downloadExtension: signal => downloadExtensionZip(signal),
       async read() { return { ...await client.request('capabilities'), inAppBrowser: host.service.available, desktopAdapterError }; },
       configure: (key, enabled) => configureCapability(capabilitiesConfig, key, enabled),
