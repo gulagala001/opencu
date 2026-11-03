@@ -13,6 +13,7 @@ const config = {
     allowImportingTsExtensions: true, skipLibCheck: true, types: ['node'],
     paths: {
       '@deepseek-ai/dsh-client-ui-sidebar-browser/types': ['./packages/client/ui-sidebar-browser/src/types.ts'],
+      '@deepseek-ai/dsh-client-ui-file-actions/types': ['./packages/client/ui-file-actions/src/types.ts'],
       '@deepseek-ai/dsh-brand': ['./packages/util/brand/src/index.ts'],
       '@deepseek-ai/dsh-client-shortcuts/protocol': ['./packages/client/shortcuts/src/protocol.ts'],
       '@deepseek-ai/dsh-util-values': ['./packages/util/values/src/index.ts'],
