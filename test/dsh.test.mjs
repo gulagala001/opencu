@@ -36,14 +36,15 @@ test('adapter loads in a real isolated DSH profile and projects a real screensho
       resolvedProfile: { installAnchor: dshPackage, profile: { name: 'opencu-smoke', dir: profileDir, layers: [], skippedBundles: [], patchPath,
         patches: [{ insert: [
           { id: 'system-prompt', name: requireDsh.resolve('@deepseek-ai/dsh-system-prompt'), config: { includeHarnessIdentity: false, includeRuntimeContext: false } },
-          { id: 'tools', name: requireDsh.resolve('@deepseek-ai/dsh-tools'), config: { mode: 'native' } },
+          { id: 'tools', name: requireDsh.resolve('@deepseek-ai/dsh-tools') },
+          { id: 'tool-executor', name: requireDsh.resolve('@deepseek-ai/dsh-tool-executor-native') },
           { id: 'attachments', name: requireDsh.resolve('@deepseek-ai/dsh-attachment-local'), config: { dshHome: home } },
         ] }] } },
     });
     plugin = await runtime.ctx.plugin(openCU.default, config);
     const tools = runtime.ctx.get('tools');
     assert.ok(tools, 'real ToolRuntime mounted');
-    const execute = (name, args) => tools.execute({ callId: `smoke-${name}`, name, arguments: args, signal: new AbortController().signal });
+    const execute = async (name, args) => (await tools.execute({ calls: [{ type: 'tool-call', id: `smoke-${name}`, name, arguments: JSON.stringify(args) }], signal: new AbortController().signal })).results[0].result;
     const inventory = await execute('opencu_targets', {});
     assert.equal(inventory.isError, false, JSON.stringify(inventory));
     const targets = JSON.parse(inventory.content.find(block => block.type === 'text').text).targets;

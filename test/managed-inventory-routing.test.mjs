@@ -54,7 +54,7 @@ async function fixture(kind = 'managed') {
     release: async () => { nativeStats.releases++; return failRelease ? {released:false,failures:[{code:'SYNTHETIC_RELEASE_FAILED',message:'Synthetic release refused'}]} : {released:true}; }, close: async () => {}, verify: async () => ({valid:true}), select: async value => value, observe: async () => ({}), act: async () => ({}) };
   const events = [], cleanup = {};
   await ctx.plugin(SystemPrompt, { includeHarnessIdentity: false, includeRuntimeContext: false });
-  await ctx.plugin(ToolRuntime, { mode: 'native' });
+  await ctx.plugin(ToolRuntime);
   await ctx.plugin(AttachmentStore);
   const config = { dataDir: dir, nativeEnabled: false, ...(kind === 'managed' ? { managedHeadless: true, browserOptions: { playwright: physical.playwright } } : kind === 'connected-empty' ? {browserOptions:{context:physical.context}} : {browserEnabled:false}), ...(['native','inventory-error','release-error'].includes(kind) ? {native, nativeEnabled:true}: {}) };
   // Deliberately omit extensionEnabled: production default stays true.

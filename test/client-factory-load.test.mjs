@@ -16,7 +16,7 @@ after(() => rm(evidence, { recursive: true, force: true }));
 // No network, desktop or external server is required by this smoke.
 const pinned = JSON.parse(await readFile(new URL('./fixtures/dsh-client-modules.json', import.meta.url), 'utf8'));
 assert.equal(pinned.repository, 'deepseek-ai/deepseek-harness');
-assert.equal(pinned.commit, '687f282e8625c6b8d11ff58211a90524be2e4317');
+assert.equal(pinned.commit, '05b1cae8db6e674c5685101494d4eec24652424a');
 assert.equal(pinned.directory, 'packages/client/modules/src/client');
 await Promise.all(Object.entries(pinned.files).map(async ([file, expected]) => {
   assert(/^[a-z-]+\.ts$/.test(file));
@@ -27,7 +27,7 @@ await Promise.all(Object.entries(pinned.files).map(async ([file, expected]) => {
 }));
 const require = createRequire(resolve(checkout, 'package.json'));
 const React = require('react');
-assert.equal(require('@deepseek-ai/cordis/package.json').version, '4.0.5');
+assert.equal(require('@deepseek-ai/cordis/package.json').version, '4.1.0');
 assert.equal(require('react/package.json').version, '19.2.7');
 const { Context } = await import(pathToFileURL(require.resolve('@deepseek-ai/cordis')));
 await require('esbuild').build({
@@ -98,7 +98,7 @@ for (const kind of ['classic-module-loader', 'esm-createOpenCU']) await test(kin
       new vm.Script(source, { filename: resolve(checkout, 'lib/client.js'), importModuleDynamically: loadChunk }).runInContext(context, { timeout: 20000 });
       result.registrations = target.pendingQueue.map(({ id }) => id);
       const loader = new ClientModuleSystem({
-        manifest: { release: { version: '0.2.1-rc.2', commit: '687f282e8625c6b8d11ff58211a90524be2e4317' }, modules: [], plugins: [] },
+        manifest: { release: { version: '0.2.1-rc.2', commit: '05b1cae8db6e674c5685101494d4eec24652424a' }, modules: [], plugins: [] },
         staticModules: { react: React },
         bootstrapModule: { id: '@deepseek-ai/dsh-client-modules', exports: {} },
         registrationTarget: target,
