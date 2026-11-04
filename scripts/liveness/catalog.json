@@ -17646,7 +17646,7 @@
     {
       "file": "host/apply.mjs",
       "contract": "sidebar",
-      "sha256": "4587ceb526f5c7580ce9c76007aacb10d4a9fcffce86c8b650c1e3915552993e",
+      "sha256": "82ee03c1d4a44978088470455579123c70d0bc0e9d51b9eb18dccc1454a84f86",
       "kind": "javascript",
       "sites": [
         {
