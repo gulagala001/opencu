@@ -25,10 +25,25 @@ const config = {
 await writeFile(join(root, 'opencu-check.json'), JSON.stringify(config, null, 2) + '\n');
 const result = spawnSync(process.execPath, [require.resolve('typescript/bin/tsc'), '-p', join(root, 'opencu-check.json')], { stdio: 'inherit' });
 if (result.status !== 0) process.exit(result.status ?? 1);
-for (const file of ['apps/desktop/src/main.ts', 'apps/desktop/tsdown.config.ts', 'packages/client/ui-sidebar-right/src/client/contract/slots.ts', 'packages/client/ui-sidebar-right/src/client/tab-domain.ts', 'packages/client/ui-sidebar-right/src/client/service.ts', 'packages/client/ui-sidebar-right/src/client/stores.ts', 'packages/client/ui-sidebar-right/src/client/tab-close-guards.ts', 'packages/client/ui-sidebar-right/src/client/index.ts', 'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.tsx']) {
+const patchedFiles = ['apps/desktop/src/main.ts', 'apps/desktop/tsdown.config.ts', 'packages/client/ui-sidebar-right/src/client/contract/slots.ts', 'packages/client/ui-sidebar-right/src/client/tab-domain.ts', 'packages/client/ui-sidebar-right/src/client/service.ts', 'packages/client/ui-sidebar-right/src/client/stores.ts', 'packages/client/ui-sidebar-right/src/client/tab-close-guards.ts', 'packages/client/ui-sidebar-right/src/client/index.ts', 'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.tsx'];
+for (const file of patchedFiles) {
   const value = await readFile(join(root, file), 'utf8');
   const syntax = ts.transpileModule(value, { fileName: file, reportDiagnostics: true, compilerOptions: { target: ts.ScriptTarget.ES2024, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX } });
   const errors = syntax.diagnostics?.filter(value => value.category === ts.DiagnosticCategory.Error) ?? [];
   if (errors.length) throw new Error(ts.formatDiagnosticsWithColorAndContext(errors, { getCurrentDirectory: () => root, getCanonicalFileName: value => value, getNewLine: () => '\n' }));
 }
-console.log('OpenCU host guest + all adapters + preloads: strict matching Electron/SDK typecheck passed; main/sidebar patch syntax passed (full host build remains integration-owned)');
+// Transpilation cannot catch a free value in JSX. Check lexical bindings in all
+// patched files without requiring a full native monorepo declaration build.
+// Module/API type compatibility remains covered by the strict check above and
+// the integration-owned host build; missing package declarations are not scope errors.
+const scopeProgram = ts.createProgram(patchedFiles.map(file => join(root, file)), {
+  target: ts.ScriptTarget.ES2024, module: ts.ModuleKind.ESNext,
+  jsx: ts.JsxEmit.ReactJSX, noEmit: true, noResolve: true, skipLibCheck: true,
+});
+const scopeCodes = new Set([2304, 2552, 2662, 2663, 18004, 2693, 1361]);
+const scopeErrors = patchedFiles.flatMap(file => scopeProgram.getSemanticDiagnostics(scopeProgram.getSourceFile(join(root, file))))
+  .filter(diagnostic => scopeCodes.has(diagnostic.code));
+if (scopeErrors.length) throw new Error(ts.formatDiagnosticsWithColorAndContext(scopeErrors, {
+  getCurrentDirectory: () => root, getCanonicalFileName: value => value, getNewLine: () => '\n',
+}));
+console.log('OpenCU host guest + all adapters + preloads: strict matching Electron/SDK typecheck passed; main/sidebar syntax and value scope checks passed (full host build remains integration-owned)');
