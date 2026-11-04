@@ -24,7 +24,9 @@ const runtime = new Context();
 let owner, dataDir;
 try {
   await runtime.plugin(SystemPrompt, { includeHarnessIdentity: false, includeRuntimeContext: false });
-  await runtime.plugin(ToolRuntime, { mode: 'native' });
+  await runtime.plugin(ToolRuntime);
+  const NativeExecutor = await import(pathToFileURL(require.resolve('@deepseek-ai/dsh-tool-executor-native')));
+  await runtime.plugin(NativeExecutor);
   const scratch = join(resolve(process.argv[2]), '.local');
   await mkdir(scratch, { recursive: true });
   dataDir = await mkdtemp(join(scratch, 'opencu-runtime-'));
@@ -34,7 +36,9 @@ try {
   owner = await runtime.plugin(plugin, { dataDir, browserEnabled: false, nativeEnabled: false, extensionEnabled: false });
   const tools = runtime.get('tools');
   for (const definition of TOOLS) if (!tools.get(definition.name)) throw new Error(`Tool was not registered: ${definition.name}`);
-  const result = await tools.execute({ callId: 'opencu-sdk-state', name: 'opencu_state', arguments: {}, signal: new AbortController().signal });
+  const batch = await tools.execute({ calls: [{ type: 'tool-call', id: 'opencu-sdk-state', name: 'opencu_state', arguments: '{}' }], signal: new AbortController().signal });
+  if (batch.results.length !== 1) throw new Error('Expected exactly one native state result');
+  const result = batch.results[0].result;
   if (result.isError) throw new Error(JSON.stringify(result));
   const state = JSON.parse(result.content.find(block => block.type === 'text').text);
   if (!state.ok || state.state.releasePending) throw new Error('OpenCU state did not execute through matching ToolRuntime');

@@ -1,1 +1,1 @@
-export default {"version":"0.2.1-rc.5","cordis":"4.0.5","schema":"3.18.5"};
+export default {"version": "0.2.2-rc.1", "cordis": "4.1.0", "schema": "3.19.0"};

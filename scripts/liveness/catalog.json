@@ -6176,7 +6176,7 @@
     {
       "file": "src/client/host-target.mjs",
       "contract": "resources",
-      "sha256": "d1971f12a9d3983174d61afe335565035661325772e08fd6f060ba4c77304eea",
+      "sha256": "0e1d8f64cfb75518e58f3b5133e92b81ceff55373f148e16e13f276cc3be9946",
       "kind": "javascript",
       "sites": []
     },
@@ -17646,504 +17646,540 @@
     {
       "file": "host/apply.mjs",
       "contract": "sidebar",
-      "sha256": "f4bf1effb550f6b0349e7da160ad934e058b04d84ddec8d2f505bcc1e9b09912",
+      "sha256": "c759e4dd325fe504bf4b1aee0095e80e415eb1287d9232cb573816fe767a54e7",
       "kind": "javascript",
       "sites": [
         {
           "id": "<module>:await:realpath():1",
-          "line": 10,
+          "line": 12,
           "kind": "await",
           "callee": "realpath()"
         },
         {
           "id": "<module>:await:readFile():1",
-          "line": 12,
+          "line": 14,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "<module>:await:readFile():2",
-          "line": 15,
-          "kind": "await",
-          "callee": "readFile()"
-        },
-        {
-          "id": "<module>:await:access():1",
-          "line": 18,
-          "kind": "await",
-          "callee": "access()"
-        },
-        {
-          "id": "source:await:readFile():1",
           "line": 20,
           "kind": "await",
           "callee": "readFile()"
         },
         {
+          "id": "<module>:await:readFile():3",
+          "line": 25,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
+          "id": "<module>:await:readFile():4",
+          "line": 30,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
+          "id": "<module>:await:access():1",
+          "line": 33,
+          "kind": "await",
+          "callee": "access()"
+        },
+        {
+          "id": "source:await:readFile():1",
+          "line": 35,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
           "id": "patch:await:source():1",
-          "line": 22,
+          "line": 37,
           "kind": "await",
           "callee": "source()"
         },
         {
           "id": "<module>:await:source():1",
-          "line": 33,
+          "line": 48,
           "kind": "await",
           "callee": "source()"
         },
         {
           "id": "<module>:await:patch():1",
-          "line": 35,
+          "line": 50,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:source():2",
-          "line": 78,
+          "line": 93,
           "kind": "await",
           "callee": "source()"
         },
         {
           "id": "<module>:await:patch():2",
-          "line": 78,
+          "line": 93,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():3",
-          "line": 81,
+          "line": 96,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():4",
-          "line": 99,
+          "line": 114,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():5",
-          "line": 116,
+          "line": 131,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():6",
-          "line": 142,
+          "line": 157,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:source():3",
-          "line": 145,
+          "line": 160,
           "kind": "await",
           "callee": "source()"
         },
         {
           "id": "<module>:await:patch():7",
-          "line": 155,
+          "line": 170,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():8",
-          "line": 208,
+          "line": 223,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():9",
-          "line": 212,
+          "line": 227,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:source():4",
-          "line": 241,
+          "line": 256,
           "kind": "await",
           "callee": "source()"
         },
         {
           "id": "<module>:await:patch():10",
-          "line": 261,
+          "line": 276,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():11",
-          "line": 263,
+          "line": 278,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():12",
-          "line": 264,
+          "line": 279,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():13",
-          "line": 270,
+          "line": 285,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():14",
-          "line": 272,
+          "line": 287,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():15",
-          "line": 286,
+          "line": 301,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():16",
-          "line": 290,
+          "line": 305,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():17",
-          "line": 294,
+          "line": 309,
           "kind": "await",
           "callee": "patch()"
         },
         {
-          "id": "<module>:await:readFile():3",
-          "line": 297,
+          "id": "<module>:await:readFile():5",
+          "line": 312,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "<module>:await:patch():18",
-          "line": 298,
+          "line": 313,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():19",
-          "line": 302,
+          "line": 317,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():20",
-          "line": 308,
+          "line": 323,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():21",
-          "line": 318,
+          "line": 333,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:patch():22",
-          "line": 319,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:patch():23",
-          "line": 320,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:patch():24",
-          "line": 324,
+          "line": 337,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:source():5",
-          "line": 326,
+          "line": 338,
           "kind": "await",
           "callee": "source()"
         },
         {
+          "id": "<module>:await:patch():23",
+          "line": 340,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:patch():24",
+          "line": 344,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
           "id": "<module>:await:source():6",
-          "line": 332,
+          "line": 346,
           "kind": "await",
           "callee": "source()"
         },
         {
           "id": "<module>:await:source():7",
-          "line": 333,
+          "line": 352,
+          "kind": "await",
+          "callee": "source()"
+        },
+        {
+          "id": "<module>:await:source():8",
+          "line": 353,
           "kind": "await",
           "callee": "source()"
         },
         {
           "id": "<module>:await:patch():25",
-          "line": 334,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:source():8",
-          "line": 336,
-          "kind": "await",
-          "callee": "source()"
-        },
-        {
-          "id": "<module>:await:patch():26",
-          "line": 336,
+          "line": 354,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:source():9",
-          "line": 337,
+          "line": 356,
           "kind": "await",
           "callee": "source()"
         },
         {
-          "id": "<module>:await:patch():27",
-          "line": 338,
+          "id": "<module>:await:patch():26",
+          "line": 356,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:source():10",
-          "line": 340,
+          "line": 357,
           "kind": "await",
           "callee": "source()"
         },
         {
-          "id": "<module>:await:patch():28",
-          "line": 342,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:patch():29",
-          "line": 345,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:readFile():4",
-          "line": 360,
-          "kind": "await",
-          "callee": "readFile()"
-        },
-        {
-          "id": "<module>:await:readFile():5",
-          "line": 362,
-          "kind": "await",
-          "callee": "readFile()"
-        },
-        {
-          "id": "<module>:await:readFile():6",
-          "line": 365,
-          "kind": "await",
-          "callee": "readFile()"
-        },
-        {
-          "id": "<module>:await:patch():30",
-          "line": 369,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:patch():31",
-          "line": 375,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:patch():32",
-          "line": 379,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:readFile():7",
-          "line": 418,
-          "kind": "await",
-          "callee": "readFile()"
-        },
-        {
-          "id": "<module>:await:applyComposerReferences():1",
-          "line": 419,
-          "kind": "await",
-          "callee": "applyComposerReferences()"
-        },
-        {
-          "id": "<module>:await:applyToolVisibility():1",
-          "line": 420,
-          "kind": "await",
-          "callee": "applyToolVisibility()"
-        },
-        {
-          "id": "<module>:await:patch():33",
-          "line": 422,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:patch():34",
-          "line": 427,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:readFile():8",
-          "line": 431,
-          "kind": "await",
-          "callee": "readFile()"
-        },
-        {
-          "id": "<module>:await:patch():35",
-          "line": 432,
+          "id": "<module>:await:patch():27",
+          "line": 358,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:source():11",
-          "line": 436,
+          "line": 360,
           "kind": "await",
           "callee": "source()"
         },
         {
-          "id": "<module>:await:patch():36",
-          "line": 438,
+          "id": "<module>:await:patch():28",
+          "line": 362,
           "kind": "await",
           "callee": "patch()"
         },
         {
-          "id": "<module>:await:source():12",
-          "line": 440,
-          "kind": "await",
-          "callee": "source()"
-        },
-        {
-          "id": "<module>:await:source():13",
-          "line": 441,
-          "kind": "await",
-          "callee": "source()"
-        },
-        {
-          "id": "<module>:await:patch():37",
-          "line": 444,
+          "id": "<module>:await:patch():29",
+          "line": 365,
           "kind": "await",
           "callee": "patch()"
         },
         {
-          "id": "<module>:await:source():14",
-          "line": 446,
+          "id": "<module>:await:readFile():6",
+          "line": 380,
           "kind": "await",
-          "callee": "source()"
+          "callee": "readFile()"
         },
         {
-          "id": "<module>:await:source():15",
-          "line": 447,
+          "id": "<module>:await:readFile():7",
+          "line": 382,
           "kind": "await",
-          "callee": "source()"
+          "callee": "readFile()"
         },
         {
-          "id": "<module>:await:patch():38",
-          "line": 450,
+          "id": "<module>:await:readFile():8",
+          "line": 385,
           "kind": "await",
-          "callee": "patch()"
+          "callee": "readFile()"
         },
         {
-          "id": "<module>:await:source():16",
-          "line": 452,
-          "kind": "await",
-          "callee": "source()"
-        },
-        {
-          "id": "<module>:await:source():17",
-          "line": 453,
-          "kind": "await",
-          "callee": "source()"
-        },
-        {
-          "id": "<module>:await:patch():39",
-          "line": 455,
+          "id": "<module>:await:patch():30",
+          "line": 389,
           "kind": "await",
           "callee": "patch()"
         },
         {
-          "id": "<module>:await:patch():40",
-          "line": 459,
+          "id": "<module>:await:patch():31",
+          "line": 395,
           "kind": "await",
           "callee": "patch()"
         },
         {
-          "id": "<module>:await:patch():41",
-          "line": 461,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:patch():42",
-          "line": 464,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:patch():43",
-          "line": 467,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:applyRuntimeLifecycle():1",
-          "line": 473,
-          "kind": "await",
-          "callee": "applyRuntimeLifecycle()"
-        },
-        {
-          "id": "<module>:await:patch():44",
-          "line": 476,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:patch():45",
-          "line": 480,
-          "kind": "await",
-          "callee": "patch()"
-        },
-        {
-          "id": "<module>:await:patch():46",
-          "line": 484,
+          "id": "<module>:await:patch():32",
+          "line": 399,
           "kind": "await",
           "callee": "patch()"
         },
         {
           "id": "<module>:await:readFile():9",
-          "line": 488,
+          "line": 438,
           "kind": "await",
           "callee": "readFile()"
+        },
+        {
+          "id": "<module>:await:applyComposerReferences():1",
+          "line": 439,
+          "kind": "await",
+          "callee": "applyComposerReferences()"
+        },
+        {
+          "id": "<module>:await:applyToolVisibility():1",
+          "line": 440,
+          "kind": "await",
+          "callee": "applyToolVisibility()"
+        },
+        {
+          "id": "<module>:await:patch():33",
+          "line": 442,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:patch():34",
+          "line": 447,
+          "kind": "await",
+          "callee": "patch()"
         },
         {
           "id": "<module>:await:readFile():10",
-          "line": 489,
+          "line": 451,
           "kind": "await",
           "callee": "readFile()"
         },
         {
+          "id": "<module>:await:patch():35",
+          "line": 452,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:source():12",
+          "line": 456,
+          "kind": "await",
+          "callee": "source()"
+        },
+        {
+          "id": "<module>:await:patch():36",
+          "line": 458,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:source():13",
+          "line": 460,
+          "kind": "await",
+          "callee": "source()"
+        },
+        {
+          "id": "<module>:await:source():14",
+          "line": 461,
+          "kind": "await",
+          "callee": "source()"
+        },
+        {
+          "id": "<module>:await:patch():37",
+          "line": 464,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:source():15",
+          "line": 466,
+          "kind": "await",
+          "callee": "source()"
+        },
+        {
+          "id": "<module>:await:source():16",
+          "line": 467,
+          "kind": "await",
+          "callee": "source()"
+        },
+        {
+          "id": "<module>:await:patch():38",
+          "line": 470,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:source():17",
+          "line": 472,
+          "kind": "await",
+          "callee": "source()"
+        },
+        {
+          "id": "<module>:await:source():18",
+          "line": 473,
+          "kind": "await",
+          "callee": "source()"
+        },
+        {
+          "id": "<module>:await:patch():39",
+          "line": 475,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:patch():40",
+          "line": 479,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:patch():41",
+          "line": 481,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:patch():42",
+          "line": 484,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:source():19",
+          "line": 488,
+          "kind": "await",
+          "callee": "source()"
+        },
+        {
+          "id": "<module>:await:patch():43",
+          "line": 489,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:source():20",
+          "line": 495,
+          "kind": "await",
+          "callee": "source()"
+        },
+        {
+          "id": "<module>:await:patch():44",
+          "line": 496,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:applyRuntimeLifecycle():1",
+          "line": 504,
+          "kind": "await",
+          "callee": "applyRuntimeLifecycle()"
+        },
+        {
+          "id": "<module>:await:patch():45",
+          "line": 507,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:patch():46",
+          "line": 511,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
+          "id": "<module>:await:patch():47",
+          "line": 515,
+          "kind": "await",
+          "callee": "patch()"
+        },
+        {
           "id": "<module>:await:readFile():11",
-          "line": 490,
+          "line": 519,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "<module>:await:readFile():12",
-          "line": 495,
+          "line": 520,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
+          "id": "<module>:await:readFile():13",
+          "line": 521,
+          "kind": "await",
+          "callee": "readFile()"
+        },
+        {
+          "id": "<module>:await:readFile():14",
+          "line": 526,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "<module>:await:writeFile():1",
-          "line": 496,
+          "line": 527,
           "kind": "await",
           "callee": "writeFile()"
         }
@@ -19486,7 +19522,7 @@
     {
       "file": "host/compatibility.mjs",
       "contract": "sidebar",
-      "sha256": "bfbd2a7e3a7d74a58200e4f82eca7b517652fc769defabaaafedcc71409e7ccf",
+      "sha256": "68241a392ceb756a024f5ac5320bbe13dff8a4d263d9586704e319a4971a30e8",
       "kind": "javascript",
       "sites": []
     },
