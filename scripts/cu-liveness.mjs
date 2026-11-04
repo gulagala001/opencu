@@ -90,6 +90,7 @@ else if(['check','verify','replay'].includes(command)) {
         const suite=await runTests(files,{root:testedRoot,toolRoot:testedToolRoot,signal:aborter.signal,timeoutMs:900000,allowedSkips:platformSkips(),environment});
         await fs.writeFile(join(output,'adapters.tap'),suite.output,{mode:0o600});delete suite.output;report.adapters=suite;
         console.log(`Adapters: ${suite.passed}/${suite.tests}, skipped ${suite.skipped}, ok=${suite.ok}`);
+        for (const failure of suite.failedTests ?? []) console.error(`FAIL ${failure.file}: ${failure.name}: ${failure.error?.message ?? failure.error?.code ?? 'test failed'}`);
       }
       if(!aborter.signal.aborted&&runLiveBrowser) {
         report.browser=await runBrowser({root:testedRoot,toolRoot:testedToolRoot,parent:scratch,signal:aborter.signal});
