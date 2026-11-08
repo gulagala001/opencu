@@ -10014,14 +10014,14 @@
     {
       "file": "src/dsh/computer-docs.mjs",
       "contract": "execution",
-      "sha256": "22b28c7627fb9821e3196cbf007fa490aed3aaa0385b6f99e1392ca912002ef8",
+      "sha256": "6df82936c59e54ea353ff1d9877604143ae838509d4744402aaf0301b11dd738",
       "kind": "javascript",
       "sites": []
     },
     {
       "file": "src/dsh/computer-repl.mjs",
       "contract": "execution",
-      "sha256": "b8e0eb4de57dc0a3dca98dd7f4050d41cf4f8ed1876d5614df400086b6cd9484",
+      "sha256": "7d2a40dfed0728d49a00c8b9d32cfa2704f660e23bdccb34aab241777fc18115",
       "kind": "javascript",
       "sites": [
         {
@@ -10062,265 +10062,265 @@
         },
         {
           "id": "call:await:work:1",
-          "line": 84,
+          "line": 90,
           "kind": "await",
           "callee": "work"
         },
         {
           "id": "observe:await:call():1",
-          "line": 109,
+          "line": 115,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "act:await:call():1",
-          "line": 137,
+          "line": 143,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getJsDialog:await:call():1",
-          "line": 222,
+          "line": 242,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "state:await:act():1",
-          "line": 248,
+          "line": 268,
           "kind": "await",
           "callee": "act()"
         },
         {
           "id": "downloads:await:call():1",
-          "line": 253,
+          "line": 273,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getAXState:await:observe():1",
-          "line": 264,
+          "line": 284,
           "kind": "await",
           "callee": "observe()"
         },
         {
           "id": "getScreenshot:await:observe():1",
-          "line": 265,
+          "line": 285,
           "kind": "await",
           "callee": "observe()"
         },
         {
           "id": "getAXStateAndScreenshot:await:observe():1",
-          "line": 266,
+          "line": 286,
           "kind": "await",
           "callee": "observe()"
         },
         {
           "id": "targetAPI:await:act():1",
-          "line": 299,
+          "line": 323,
           "kind": "await",
           "callee": "act()"
         },
         {
           "id": "select:await:call():1",
-          "line": 306,
+          "line": 337,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "select:await:call():2",
-          "line": 307,
+          "line": 338,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "select:await:target.getAXState():1",
-          "line": 312,
+          "line": 343,
           "kind": "await",
           "callee": "target.getAXState()"
         },
         {
           "id": "createTab:await:call():1",
-          "line": 324,
+          "line": 355,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "createTab:await:select():1",
-          "line": 327,
+          "line": 358,
           "kind": "await",
           "callee": "select()"
         },
         {
           "id": "createTab:await:target.focus():1",
-          "line": 328,
+          "line": 359,
           "kind": "await",
           "callee": "target.focus()"
         },
         {
           "id": "getNativeApp:await:realpath().catch():1",
-          "line": 349,
+          "line": 381,
           "kind": "await",
           "callee": "realpath().catch()"
         },
         {
           "id": "nativeInventory:await:call():1",
-          "line": 352,
+          "line": 384,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getNativeApp:await:nativeInventory():1",
-          "line": 378,
+          "line": 421,
           "kind": "await",
           "callee": "nativeInventory()"
         },
         {
           "id": "getNativeApp:await:call():1",
-          "line": 387,
+          "line": 442,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getNativeApp:await:nativeInventory():2",
-          "line": 389,
+          "line": 444,
           "kind": "await",
           "callee": "nativeInventory()"
         },
         {
           "id": "getNativeApp:await:choose():1",
-          "line": 391,
+          "line": 446,
           "kind": "await",
           "callee": "choose()"
         },
         {
           "id": "inventory:await:call():1",
-          "line": 402,
+          "line": 457,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "listTabs:await:call():1",
-          "line": 407,
+          "line": 462,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getState:await:call():1",
-          "line": 416,
+          "line": 471,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getState:await:call():2",
-          "line": 416,
+          "line": 471,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "listApps:await:inventory():1",
-          "line": 418,
+          "line": 473,
           "kind": "await",
           "callee": "inventory()"
         },
         {
           "id": "listBrowsers:await:call():1",
-          "line": 419,
+          "line": 474,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "connectBrowser:await:call():1",
-          "line": 422,
+          "line": 477,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getBrowser:await:call():1",
-          "line": 424,
+          "line": 479,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getBrowser:await:call():2",
-          "line": 425,
+          "line": 480,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "getBrowser:await:call():3",
-          "line": 426,
+          "line": 481,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "list:await:call():1",
-          "line": 437,
+          "line": 492,
           "kind": "await",
           "callee": "call()"
         },
         {
           "id": "reset:await:Promise.allSettled():1",
-          "line": 467,
+          "line": 522,
           "kind": "await",
           "callee": "Promise.allSettled()"
         },
         {
           "id": "close:await:Promise.allSettled():1",
-          "line": 486,
+          "line": 541,
           "kind": "await",
           "callee": "Promise.allSettled()"
         },
         {
           "id": "close:await:tail:1",
-          "line": 487,
+          "line": 542,
           "kind": "await",
           "callee": "tail"
         },
         {
           "id": "run:handoff:tail.then:1",
-          "line": 497,
+          "line": 552,
           "kind": "handoff",
           "callee": "tail.then"
         },
         {
           "id": "run:promise:Promise:1",
-          "line": 522,
+          "line": 577,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "run:promise:Promise:2",
-          "line": 527,
+          "line": 582,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "run:await:Promise.race().then():1",
-          "line": 531,
+          "line": 586,
           "kind": "await",
           "callee": "Promise.race().then()"
         },
         {
           "id": "run:handoff:Promise.race().then:1",
-          "line": 531,
+          "line": 586,
           "kind": "handoff",
           "callee": "Promise.race().then"
         },
         {
           "id": "run:await:Promise.race():1",
-          "line": 538,
+          "line": 593,
           "kind": "await",
           "callee": "Promise.race()"
         },
         {
           "id": "run:await:reset():1",
-          "line": 558,
+          "line": 617,
           "kind": "await",
           "callee": "reset()"
         },
         {
           "id": "run:handoff:work.then:1",
-          "line": 565,
+          "line": 624,
           "kind": "handoff",
           "callee": "work.then"
         }
@@ -17541,7 +17541,7 @@
     {
       "file": "native/macos/Accessibility.swift",
       "contract": "native",
-      "sha256": "0080a84a44c663ab887b97ffa5ec6dfef76f683e4bea0d97836ee82499c4e763",
+      "sha256": "233e690145e75ecbac7253030c82c1a059df5b2e2fd8c3fa99f7b3fdca484bae",
       "kind": "native-boundary",
       "sites": []
     },
