@@ -1,7 +1,7 @@
 {
   "name": "opencu",
   "version": "2.2.11-dsh.0.2.2-rc.1",
-  "description": "Computer-use plugin with original REA browser, annotation and monitoring components for DSH",
+  "description": "Let the AI operate browsers and desktop apps in DeepSeek Harness, with live previews and annotations",
   "type": "module",
   "engines": {
     "node": ">=24.9.0",
@@ -70,7 +70,6 @@
     "test": "node --experimental-vm-modules --test test/*.test.mjs",
     "prepack": "npm run cu:check && node scripts/check-docs.mjs && node scripts/build.mjs && node scripts/check-extension-distribution.mjs && node scripts/check-public-files.mjs",
     "docs:check": "node scripts/check-docs.mjs",
-    "docs:write": "node scripts/check-docs.mjs --write",
     "release:check": "node scripts/check-release-assets.mjs",
     "pretest": "npm run cu:check",
     "cu:check": "node scripts/cu-liveness.mjs check",

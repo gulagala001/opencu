@@ -1,5 +1,26 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "published": "2.2.11-dsh.0.2.2-rc.1",
+  "repository": {
+    "slug": "gulagala001/opencu",
+    "description": "Browser and desktop application control with live previews, annotations and native Hyprland support.",
+    "homepage": "",
+    "topics": [
+      "browser-automation",
+      "computer-use",
+      "dsh",
+      "macos",
+      "windows",
+      "deepseek-harness",
+      "dsh-plugin",
+      "deepseek-harness-plugin",
+      "dsh-bundle"
+    ]
+  },
+  "names": [
+    "OpenCU"
+  ],
+  "maxPages": 10,
   "documents": [
     {
       "path": "CHANGELOG.md",
@@ -12,24 +33,26 @@
       "language": "zh"
     },
     {
+      "path": "docs/technical-reference.md",
+      "role": "development",
+      "language": "zh"
+    },
+    {
       "path": "README.md",
       "role": "home",
-      "language": "zh"
+      "language": "zh",
+      "translation": "README_EN.md"
     },
     {
       "path": "README_EN.md",
       "role": "home",
-      "language": "zh"
+      "language": "en",
+      "translation": "README.md"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
       "role": "sources",
       "language": "en"
-    },
-    {
-      "path": "docs/documentation.md",
-      "role": "development",
-      "language": "bilingual"
     },
     {
       "path": "docs/install.md",
@@ -38,16 +61,6 @@
     },
     {
       "path": "docs/install_EN.md",
-      "role": "guide",
-      "language": "zh"
-    },
-    {
-      "path": "docs/releases.md",
-      "role": "release",
-      "language": "bilingual"
-    },
-    {
-      "path": "docs/visuals.md",
       "role": "guide",
       "language": "zh"
     },
