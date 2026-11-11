@@ -8,6 +8,7 @@ import { registerHooks } from 'node:module';
 import { build } from 'esbuild';
 import { Context } from '@deepseek-ai/cordis';
 import { createServer, request as httpRequest } from 'node:http';
+import { createRequire } from 'node:module';
 import { once } from 'node:events';
 import { gzipSync } from 'node:zlib';
 import { extensionFolderFixture } from './fixtures/extension-folder.mjs';
@@ -22,8 +23,11 @@ for (const [name, hash] of Object.entries(pin.files)) {
   assert.equal(createHash('sha256').update(data).digest('hex'), hash);
   assert.equal(createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex'), pin.gitBlobs[name]);
 }
+const sdk = createRequire(import.meta.resolve('@deepseek-ai/dsh-tools/package.json'));
 await build({ entryPoints: [join(root, 'test/fixtures/dsh-connection/index.ts')], outfile: join(stage, 'connection.mjs'), bundle: true, platform: 'node', format: 'esm', packages: 'external',
-  plugins: [{ name: 'synthetic-memory-credential-key', setup(b) { b.onResolve({ filter: /^@deepseek-ai\/dsh-credentials$/ }, () => ({ path: join(root, 'test/fixtures/connection-credential-key.mjs') })); } }] });
+  plugins: [{ name: 'synthetic-memory-credential-key', setup(b) { b.onResolve({ filter: /^@deepseek-ai\/dsh-credentials$/ }, () => ({ path: join(root, 'test/fixtures/connection-credential-key.mjs') }));
+    b.onResolve({ filter: /^(?:@deepseek-ai\/|zod$)/ }, args => ({ path: sdk.resolve(args.path), external: true }));
+  } }] });
 const official = await import(pathToFileURL(join(stage, 'connection.mjs')));
 const mocked = new Set(['runtime', 'tools', 'config', 'computer', 'activity', 'browser-host', 'presentation', 'preferences', 'browser-history'].map(name => new URL(`../src/dsh/${name}.mjs`, import.meta.url).href));
 const boundary = new URL('./fixtures/extension-download-host.mjs', import.meta.url).href;

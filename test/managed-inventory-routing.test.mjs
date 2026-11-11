@@ -6,12 +6,16 @@ import { mkdtemp, readFile, rm, access, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Context } from '@deepseek-ai/cordis';
-import SystemPrompt from '@deepseek-ai/dsh-system-prompt';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import ToolRuntime from '@deepseek-ai/dsh-tools';
 import AttachmentStore from '@deepseek-ai/dsh-attachment';
 import plugin from '../src/dsh/index.mjs';
 import { createComputerSession } from '../src/dsh/computer.mjs';
 import { discoveryPorts } from '../src/extension/listen.mjs';
+
+const sdk = createRequire(import.meta.resolve('@deepseek-ai/dsh-tools/package.json'));
+const { default: SystemPrompt } = await import(pathToFileURL(sdk.resolve('@deepseek-ai/dsh-system-prompt')));
 
 // Physical Playwright browser/CDP objects, extension peer and listening port are
 // synthetic. Production plugin/shared/runtime/tools/computer/pairing/controller
