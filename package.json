@@ -99,8 +99,8 @@
   },
   "opencu": {
     "host": "0.2.2-rc.2",
-    "adapterRevision": 2,
-    "sourceCommit": "ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c"
+    "sourceCommit": "ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c",
+    "adapterRevision": 2
   },
   "repository": {
     "type": "git",
