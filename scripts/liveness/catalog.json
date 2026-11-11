@@ -6266,7 +6266,7 @@
     {
       "file": "src/client/host-target.mjs",
       "contract": "resources",
-      "sha256": "0e1d8f64cfb75518e58f3b5133e92b81ceff55373f148e16e13f276cc3be9946",
+      "sha256": "edeb0fd4427579dd2ad93215454e812134136f05cb985c7c5cae505cdb7ff366",
       "kind": "javascript",
       "sites": []
     },
@@ -17748,7 +17748,7 @@
     {
       "file": "host/apply.mjs",
       "contract": "sidebar",
-      "sha256": "82ee03c1d4a44978088470455579123c70d0bc0e9d51b9eb18dccc1454a84f86",
+      "sha256": "93d459f088005a716c1ac0393fb37e8b445375a28d1a8a594be502e0eabd7e8c",
       "kind": "javascript",
       "sites": [
         {
@@ -19624,7 +19624,7 @@
     {
       "file": "host/compatibility.mjs",
       "contract": "sidebar",
-      "sha256": "68241a392ceb756a024f5ac5320bbe13dff8a4d263d9586704e319a4971a30e8",
+      "sha256": "3ca6acc34a39f695684c06920607a286ac3e0a6e2f2b1ea0152909cce3abb5b5",
       "kind": "javascript",
       "sites": []
     },
@@ -20319,7 +20319,7 @@
     {
       "file": "host/native-runtime.mjs",
       "contract": "sidebar",
-      "sha256": "9ed1c00c338e9b95325513d9ff2e372d8b81fdbe146dfc3511a5496da6263363",
+      "sha256": "442f17684572af6acdac3fc33dae3d87e916253dde31164f4d5715f09b9c58d3",
       "kind": "javascript",
       "sites": [
         {
@@ -20420,73 +20420,73 @@
         },
         {
           "id": "prepareNativeRuntime:await:owned():1",
-          "line": 101,
+          "line": 102,
           "kind": "await",
           "callee": "owned()"
         },
         {
           "id": "prepareNativeRuntime:await:readFile():1",
-          "line": 102,
+          "line": 103,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "prepareNativeRuntime:await:owned():2",
-          "line": 109,
+          "line": 110,
           "kind": "await",
           "callee": "owned()"
         },
         {
           "id": "prepareNativeRuntime:await:readFile():2",
-          "line": 110,
+          "line": 111,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "prepareNativeRuntime:await:owned():3",
-          "line": 121,
+          "line": 122,
           "kind": "await",
           "callee": "owned()"
         },
         {
           "id": "prepareNativeRuntime:await:readFile():3",
-          "line": 122,
+          "line": 123,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "prepareNativeRuntime:await:lstat():1",
-          "line": 136,
+          "line": 137,
           "kind": "await",
           "callee": "lstat()"
         },
         {
           "id": "prepareNativeRuntime:await:owned():4",
-          "line": 138,
+          "line": 139,
           "kind": "await",
           "callee": "owned()"
         },
         {
           "id": "prepareNativeRuntime:await:writeFile():1",
-          "line": 149,
+          "line": 150,
           "kind": "await",
           "callee": "writeFile()"
         },
         {
           "id": "prepareNativeRuntime:await:chmod():1",
-          "line": 150,
+          "line": 151,
           "kind": "await",
           "callee": "chmod()"
         },
         {
           "id": "<module>:await:realpath():1",
-          "line": 157,
+          "line": 158,
           "kind": "await",
           "callee": "realpath()"
         },
         {
           "id": "<module>:await:prepareNativeRuntime():1",
-          "line": 159,
+          "line": 160,
           "kind": "await",
           "callee": "prepareNativeRuntime()"
         }

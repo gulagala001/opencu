@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, cp, symlink, access, rm } from 'node:fs/pro
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { prepareSdk } from './prepare-host-sdk.mjs';
 import { hostTargets } from '../host/compatibility.mjs';
 import { nativePackageModes } from './native-package-modes.mjs';
 import { checkMacHelperDistribution } from '../src/native/macos-identity.mjs';
@@ -39,6 +40,7 @@ for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ['rc1', 
   const { files, hashes, pkg } = await loadBuildInputs(id, manifest);
   const peers = pkg.peerDependencies;
   await installBuildInputs(sdk, files);
+  if (id === '022rc2') prepareSdk(sdk);
   run(sdk, [pnpm, 'install', '--frozen-lockfile', '--ignore-scripts']);
   const installed = await checkInstalledSdk(sdk, id, files);
   for (const file of ['src', 'host', 'scripts', 'vendor', 'native/README.md', 'native/macos', 'native/windows', 'native/linux', 'native/bin', 'extension', 'cordis.patch.yml', 'README.md', 'README_EN.md', 'CHANGELOG.md', 'DEVELOPMENT.md', 'docs', 'THIRD_PARTY_NOTICES.md']) {

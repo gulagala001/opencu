@@ -1,5 +1,6 @@
 import { readFile, readdir, mkdir, writeFile, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hostTargets } from '../host/compatibility.mjs';
@@ -29,7 +30,11 @@ export function checkRootLock(manifest, lock) {
   }
   const dsh = Object.entries(lock.packages).filter(([path]) => /(?:^|\/)node_modules\/@deepseek-ai\/dsh-/.test(path));
   if (!dsh.length) throw new Error('Root npm lock contains no DSH resolution graph');
-  for (const [path, pkg] of dsh) if (pkg.version !== manifest.engines.dsh) throw new Error(`Root npm lock SDK mismatch: ${path}@${pkg.version}`);
+  for (const [path, entry] of dsh) {
+    const pkg = entry.link ? lock.packages[entry.resolved] : entry;
+    if (entry.link && (!entry.resolved.startsWith('../.local/dsh-sdk-ddac9676/') || pkg?.name !== path.slice('node_modules/'.length))) throw new Error('Unexpected linked SDK package: ' + path);
+    if (pkg?.version !== manifest.engines.dsh) throw new Error('Root npm lock SDK mismatch: ' + path);
+  }
 }
 
 export async function loadBuildInputs(id, manifest) {
@@ -44,12 +49,17 @@ export async function loadBuildInputs(id, manifest) {
   const target = hostTargets[id];
   const pkg = hostManifest(manifest, id);
   const expected = { ...pkg.peerDependencies, ...pkg.dependencies, '@deepseek-ai/dsh-system-prompt': target.version,
-    '@deepseek-ai/dsh-attachment-local': target.version, typescript: '6.0.3', '@types/node': '22.20.1', electron: target.electron, 'electron-chrome-extensions': '4.9.0', ...(['022a2', '022a3', '022rc1'].includes(id) ? { '@deepseek-ai/dsh-tool-executor-native': target.version, '@deepseek-ai/dsh-util-file-drag': target.version } : {}) };
+    '@deepseek-ai/dsh-attachment-local': target.version, typescript: '6.0.3', '@types/node': '22.20.1', electron: target.electron, 'electron-chrome-extensions': '4.9.0', ...(['022a2', '022a3', '022rc1', '022rc2'].includes(id) ? { '@deepseek-ai/dsh-tool-executor-native': target.version, '@deepseek-ai/dsh-util-file-drag': target.version } : {}) };
   if (JSON.stringify(sdk.dependencies) !== JSON.stringify(expected)) throw new Error(`Fixed SDK manifest does not match source dependencies: ${id}`);
   // Check every package and peer context, including transitive DSH packages.
   const lock = files['pnpm-lock.yaml'].toString();
   const versions = [...lock.matchAll(/@deepseek-ai\/dsh-[\w-]+@([^\s'"():]+)/g)];
-  if (!versions.length || versions.some(([, version]) => version !== target.version)) throw new Error(`Mixed host resolution graph: ${id}`);
+  if ((!versions.length && id !== '022rc2') || versions.some(([, version]) => version !== target.version)) throw new Error(`Mixed host resolution graph: ${id}`);
+  if (id === '022rc2') {
+    for (const name of Object.keys(expected).filter(name => name.startsWith('@deepseek-ai/dsh-'))) {
+      if (!lock.includes("'" + name + "': link:../.local/dsh-sdk-ddac9676/packages/")) throw new Error('Missing fixed source dependency: ' + name);
+    }
+  }
   if (files['package-lock.json']) checkRootLock(pkg, JSON.parse(files['package-lock.json']));
   return { files, hashes: record.sha256, pkg };
 }
@@ -83,6 +93,19 @@ export async function checkInstalledSdk(directory, id, files) {
     found.add(key);
   }
   for (const key of expected) if (!found.has(key)) throw new Error(`Missing installed DSH package: ${key}`);
+  if (id === '022rc2') {
+    const queue = Object.keys(sdk.dependencies).map(name => [directory + '/package.json', name]);
+    for (const [parent, name] of queue) {
+      if (!name.startsWith('@deepseek-ai/dsh-')) continue;
+      const file = createRequire(parent).resolve(name + '/package.json');
+      const pkg = JSON.parse(await readFile(file));
+      const key = pkg.name + '@' + pkg.version;
+      if (pkg.name !== name || pkg.version !== hostTargets[id].version) throw new Error('Installed source SDK mismatch: ' + key);
+      if (found.has(key)) continue;
+      found.add(key);
+      for (const child of Object.keys({...pkg.dependencies, ...pkg.peerDependencies})) queue.push([file, child]);
+    }
+  }
   return { dshPackages: [...found].sort(), installedLockSha256: sha256(lock) };
 }
 
