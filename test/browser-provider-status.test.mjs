@@ -49,3 +49,19 @@ test('real plugin targets and state expose live provider diagnostics and explici
   await host.handle('browser/disconnect',{rendererId,connectionId});
  } finally { await runtime.close();host.close(); }
 });
+
+test('an older selection cannot settle a newer selection while it is still running',async t=>{
+  const {createPluginRuntime}=await import('../src/dsh/runtime.mjs');
+  const dir=await mkdtemp(join(tmpdir(),'activity-'));
+  const targets=['one','two'].map(id=>({id,kind:'tab',identity:{documentId:id},browserId:'browser:local'}));
+  const gates=targets.map(()=>Promise.withResolvers()),entered=targets.map(()=>Promise.withResolvers());
+  const browser={listTargets:async()=>targets,select:async target=>{const i=targets.findIndex(t=>t.id===target.id);entered[i].resolve();await gates[i].promise;return targets[i];},
+    verify:async target=>({valid:true,target}),observe:async()=>({}),act:async()=>({}),release:async()=>({released:true}),close:async()=>{}};
+  const runtime=createPluginRuntime({browser,dataDir:dir,nativeEnabled:false,extensionEnabled:false});t.after(async()=>{await runtime.close();await rm(dir,{recursive:true,force:true});});
+  const a=runtime.request('select',{reference:'one'});await entered[0].promise;
+  const b=runtime.request('select',{reference:'two'});await new Promise(setImmediate);gates[0].resolve();await a;await entered[1].promise;
+  const state=(await runtime.request('state')).state;assert.equal(state.activity.status,'running');assert.equal(state.activity.targetId,'two');
+  assert.equal(state.activity.finishedAt,undefined);
+  gates[1].resolve();await b;const last=(await runtime.request('state')).state.activity;
+  assert.equal(last.at,state.activity.at);assert.equal(last.status,'settled');
+});

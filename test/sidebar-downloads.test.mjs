@@ -120,3 +120,17 @@ test('a failed index commit leaves both live state and the durable receipt recov
   await f.store.update({ ...progress, status: 'canceled', updatedAtMs: 300 });
   assert.equal((await f.store.list())[0].status, 'canceled');
 });
+
+test('browser capture recovers verified saveAs bytes without replaying the download',async t=>{
+  const {createDeliveryStore}=await import('../src/browser/deliveries.mjs');
+  const fs=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path');
+  for(const contents of ['full bytes','short','bad! bytes']){
+    const dir=await fs.mkdtemp(join(tmpdir(),'capture-restart-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
+    const source=join(dir,'source');await fs.writeFile(source,'full bytes');
+    const store=await createDeliveryStore(dir);let saves=0;
+    await assert.rejects(store.capture({path:async()=>source,url:()=> 'https://test.invalid/file',suggestedFilename:()=> 'proof.txt',
+      async saveAs(path){saves++;await fs.writeFile(path,contents);throw Error('interrupted before publication');}},'tab'),/interrupted/);
+    const reopened=await createDeliveryStore(dir), rows=await reopened.list();
+    assert.equal(rows.length,1);assert.equal(rows[0].status,contents==='full bytes'?'complete':'interrupted');assert.equal(saves,1);
+  }
+});

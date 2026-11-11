@@ -66,3 +66,16 @@ test('disposing dialog state removes both protocol lifecycle listeners',async t=
   f.dialogs.dispose();assert.equal(f.session.listenerCount('Page.javascriptDialogOpening'),0);assert.equal(f.session.listenerCount('Page.javascriptDialogClosed'),0);
   assert.equal(f.page.listenerCount('dialog'),0);assert.equal(f.dialogs.read(),null);
 });
+
+test('a failed action on a confirmed still-open dialog needs an explicit fresh token', async t => {
+  const f = await fixture(t), first = f.open(); f.protocolOpen();
+  const original = f.dialogs.read().id, actions = [];
+  f.session.send = async (method,args) => { if (method === 'Page.handleJavaScriptDialog') actions.push(args); };
+  first.dialog.accept = async () => {throw Error('lost native reply');};
+  await assert.rejects(f.dialogs.handle({dialogId:original,accept:true}),{code:'JS_DIALOG_OPEN'});
+  const retry = f.dialogs.read().id;
+  assert.notEqual(retry,original); assert.deepEqual(actions,[]);
+  await assert.rejects(f.dialogs.handle({dialogId:original,accept:true}),{code:'STALE_DIALOG'});
+  await f.dialogs.handle({dialogId:retry,accept:false});
+  assert.deepEqual(actions,[{accept:false}]);
+});

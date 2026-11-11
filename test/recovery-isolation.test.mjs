@@ -542,3 +542,13 @@ test('browser recovery reconciles only its exact connection while preserving oth
   assert.equal(failures.length,2);assert.deepEqual(failures[0].connection,old);assert.equal(failures[1].message,'legacy unscoped');
   assert.equal(resumed.state.inputReadiness.release,'unconfirmed-isolated');
 });
+
+test('a verified live target with no remaining release obligations leaves isolation',async t=>{
+  const f=await fixture(t);
+  f.browser.listTargets=async()=>[f.old];
+  f.browser.releaseTarget=async()=>({released:true});
+  f.browser.verify=async target=>({valid:true,target});
+  const state=ok(await f.c.resume({targetId:f.old.id})).state;
+  assert.equal(state.releasePending,false);assert.equal(state.recoveryIsolated,false);
+  assert.notEqual(state.inputReadiness.scope,'verified-targets-only');
+});

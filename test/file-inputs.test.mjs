@@ -140,3 +140,14 @@ test('explicit upload to the chooser input revokes that chooser without affectin
   await f.manager.explicitUpload({backendNodeId:99,route:entry.route});assert.equal((await f.manager.poll(id)).status,'ready');
   await f.manager.explicitUpload({backendNodeId:42,route:entry.route});await assert.rejects(f.manager.entry(id),{code:'STALE_FILE_CHOOSER'});await f.manager.dispose();
 });
+
+test('an abandoned ready chooser expires and cannot address the next subscription', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const f = chooserFixture(), first = randomUUID(), next = randomUUID();
+  await f.manager.arm(first, 500); f.open();
+  assert.equal((await f.manager.poll(first)).status, 'ready');
+  t.mock.timers.tick(501); await f.manager.arm(next, 500); f.open();
+  await assert.rejects(f.manager.entry(first), {code:'STALE_FILE_CHOOSER'});
+  await f.manager.cancel(first);
+  assert.equal((await f.manager.poll(next)).status, 'ready'); await f.manager.dispose();
+});

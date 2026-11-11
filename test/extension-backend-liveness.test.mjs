@@ -43,7 +43,7 @@ async function fixture(t) {
     finally {server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
   });
   const tabs=[1,2].map(tabId=>{const identity={...connection,tabId,documentId:'document'};return {id:targetId(identity),identity};});
-  return {backend,tabs,post,connect,next,reply,connection,ticket:first.value.releaseTicket,token,otherToken};
+  return {directory:dir,backend,tabs,post,connect,next,reply,connection,ticket:first.value.releaseTicket,token,otherToken};
 }
 
 test('a timed-out tab command preserves the connection and isolates its unknown outcome until release',async t=>{
@@ -90,4 +90,48 @@ test('a lost document verification read creates no input release obligation on t
   const commands=await f.next();assert.deepEqual(commands.map(c=>c.method),['act']);
   await f.post('result',{id:commands[0].id,ok:true,result:{accepted:true}});assert((await work).accepted);
   await f.reply(f.backend.release(target));
+});
+
+test('stale pairing terminates only the matching request and requires fresh discovery', async t => {
+  const {createBrowserPairing} = await import('../src/extension/pairing.mjs');
+  const dir = await mkdtemp(join(tmpdir(),'pair-expiry-')), pairing = createBrowserPairing(dir);
+  t.after(async () => { pairing.close(); await rm(dir,{recursive:true,force:true}); });
+  let now = Date.now(); t.mock.method(Date,'now',() => now);
+  const origin = 'chrome-extension://'+'b'.repeat(32), instanceId = 'test-instance';
+  const candidate = await pairing.discover(origin,{instanceId});
+  const waiting = Promise.withResolvers();
+  const work = pairing.request(instanceId,undefined,{onWaiting: () => {waiting.resolve();}});
+  await waiting.promise; now += 36000;
+  await assert.rejects(pairing.allow(origin,{instanceId,challenge:candidate.challenge}),{code:'STALE_PAIRING'});
+  await assert.rejects(work,{code:'STALE_PAIRING'});
+  assert.notEqual((await pairing.discover(origin,{instanceId})).challenge,candidate.challenge);
+});
+test('confirmed release generations leave only outstanding leases in the credential file', async t => {
+  const {readFile} = await import('node:fs/promises');
+  const f = await fixture(t); let ticket = f.ticket;
+  for (let i=0; i<20; i++) {
+    const old = {...f.connection,ticket};
+    const connected = await f.connect('confirmed-'+i,[old]);
+    assert.equal(connected.status,200); ticket = connected.value.releaseTicket;
+    assert.equal((await f.post('poll',{events:[]})).status,200);
+    assert.equal((await f.connect('unexpected-'+i,[old])).value.error.code,'INVALID_RELEASE_RECEIPT');
+  }
+  const leases = JSON.parse(await readFile(join(f.directory,'extension-release-leases.json'),'utf8'));
+  assert.equal(leases.length,1);
+  assert.equal((await f.connect('epoch-synthetic')).value.error.code,'STALE_CONNECTION');
+  assert.equal((await f.backend.release(f.tabs[0])).retired,true);
+});
+
+test('lost heartbeat removes a connection from inventory while preserving its unresolved release', async t => {
+  const f=await fixture(t), now=Date.now();
+  const failed=f.backend.release(f.tabs[0]);const expected=assert.rejects(failed,{code:'RELEASE_FAILED'});
+  const [command]=await f.next();
+  await f.post('result',{id:command.id,ok:false,error:{code:'RELEASE_FAILED',message:'still held'}});
+  await expected;
+  const clock=t.mock.method(Date,'now',()=>now+30000);
+  assert.deepEqual(f.backend.connections(),[]);assert.deepEqual(await f.backend.listTargets(),[]);
+  assert.equal(f.backend.getDiagnostics().offlineReleaseErrors.length,1);
+  await assert.rejects(f.backend.act(f.tabs[0],{action:'keyDown',key:'x'}),{code:'STALE_TARGET'});
+  assert.equal((await f.post('poll',{events:[]})).value.error.code,'STALE_CONNECTION');
+  clock.mock.restore();
 });

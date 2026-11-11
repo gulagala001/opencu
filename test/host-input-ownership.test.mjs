@@ -84,3 +84,13 @@ test('host document replacement remains an honest input error and a fresh action
   await f.input({type:'keyDown',keyCode:'b',inputActionId:'new',inputDocumentId:'1'});await f.input({type:'keyUp',keyCode:'b'});
   assert.deepEqual(f.inputs().map(([,args])=>args.key),['b','b']);
 });
+
+test('late dialog receipt cannot retire a newer key on the same target', async () => {
+  const {createInputReleaseState} = await import('../src/dsh/input-release.mjs');
+  const input = createInputReleaseState(), result = Promise.withResolvers();
+  const act = (action, dispatch) => input.request('act',{targetId:'A',action,key:'Shift'},dispatch);
+  const first = act('handleDialog', () => result.promise);
+  await act('keyDown', async () => ({})); result.resolve({result:{handled:true,release:{released:true}}});
+  await first; assert.equal(input.pending,true);
+  await act('keyUp',async () => ({})); assert.equal(input.pending,false);
+});
