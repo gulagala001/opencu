@@ -38,7 +38,10 @@ jobs:
         run: node scripts/check-generated-client.mjs
       - name: Verify CU/BU lifecycle and regression suite
         run: |
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
+          if ! node --input-type=module -e "import {chromium} from 'playwright'; const browser = await chromium.launch(); await browser.close()"; then
+            npx playwright install-deps chromium
+          fi
           export OPENCU_DSH_INSTALL="$PWD/../.local/dsh-sdk-ddac9676/package.json"
           npm run cu:verify -- --profile full
       - name: Verify rebuilt frontend and public package contents
