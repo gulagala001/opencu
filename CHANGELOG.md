@@ -1,3 +1,31 @@
+# OpenCU 2.2.13 · DSH 0.2.2-rc.2
+
+[中文](#zh-2213) · [English](#en-2213)
+
+<a id="zh-2213"></a>
+
+## 中文
+
+### 问题修复
+
+- 停止任务时，正在保存的应用授权与审批结果保持一致。
+
+<a id="en-2213"></a>
+
+## English
+
+### Bug fixes
+
+- Stopping a task keeps the approval result consistent with the saved app permission.
+
+## 安装 / Installation
+
+DSH **0.2.2-rc.2** · Node.js **24.9.0+**
+
+[固定安装包 / Install package](https://github.com/gulagala001/opencu/releases/download/v2.2.13-dsh.0.2.2-rc.2/opencu-2.2.13-dsh.0.2.2-rc.2.tgz) · [安装指南 / Installation guide](https://github.com/gulagala001/opencu/blob/main/docs/install.md) · [SHA256SUMS](https://github.com/gulagala001/opencu/releases/download/v2.2.13-dsh.0.2.2-rc.2/SHA256SUMS)
+
+---
+
 # OpenCU 2.2.12 · DSH 0.2.2-rc.2
 
 [中文](#zh-2212) · [English](#en-2212)

@@ -148,3 +148,13 @@ test('synchronous cancellation inside waiting feedback runs its returned cleanup
   assert.equal(error.code, 'APP_APPROVAL_CANCELLED');
   assert.equal(cleaned, 1); assert.deepEqual(service.snapshot(), []);
 });
+
+test('cancel during permanent approval prevents publication to later sessions', async t => {
+  const { service } = await fixture(t);
+  const waiting = service.authorize(target, 'one');
+  while (!service.pending('one').length) await new Promise(setImmediate);
+  const response = service.respond({ conversationId:'one', requestId:service.pending('one')[0].id, action:'accept', persist:'always' });
+  service.cancel('one');
+  await Promise.all([assert.rejects(waiting, {code:'APP_APPROVAL_CANCELLED'}), assert.rejects(response, {code:'APP_REQUEST_EXPIRED'})]);
+  assert.deepEqual((await service.read()).approvedApps, []);
+});

@@ -9417,96 +9417,96 @@
     {
       "file": "src/dsh/app-approvals.mjs",
       "contract": "approval",
-      "sha256": "d3533541d840c06404d3be75e1ca3d04fce08ec55e9af27ba623975bc5e0e307",
+      "sha256": "8efd34b9cc1e246b443d476f321f61d2a82a8a918b84734075015a50ee84059c",
       "kind": "javascript",
       "sites": [
         {
           "id": "read:await:readFile():1",
-          "line": 27,
+          "line": 28,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "change:handoff:tail.then:1",
-          "line": 33,
+          "line": 34,
           "kind": "handoff",
           "callee": "tail.then"
         },
         {
           "id": "change:await:read():1",
-          "line": 35,
+          "line": 36,
           "kind": "await",
           "callee": "read()"
         },
         {
           "id": "change:await:mkdir():1",
-          "line": 36,
+          "line": 37,
           "kind": "await",
           "callee": "mkdir()"
         },
         {
           "id": "change:await:writeFile():1",
-          "line": 38,
+          "line": 39,
           "kind": "await",
           "callee": "writeFile()"
         },
         {
-          "id": "change:await:rename():1",
-          "line": 39,
+          "id": "change:await:unlink().catch():1",
+          "line": 43,
           "kind": "await",
-          "callee": "rename()"
+          "callee": "unlink().catch()"
         },
         {
           "id": "read:await:tail:1",
-          "line": 51,
+          "line": 55,
           "kind": "await",
           "callee": "tail"
         },
         {
           "id": "wait:promise:Promise:1",
-          "line": 66,
+          "line": 70,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "wait:handoff:Promise.resolve().then:1",
-          "line": 69,
+          "line": 73,
           "kind": "handoff",
           "callee": "Promise.resolve().then"
         },
         {
           "id": "authorize:await:wait():1",
-          "line": 80,
+          "line": 84,
           "kind": "await",
           "callee": "wait()"
         },
         {
           "id": "authorize:await:wait():2",
-          "line": 81,
+          "line": 85,
           "kind": "await",
           "callee": "wait()"
         },
         {
           "id": "authorize:await:wait():3",
-          "line": 86,
+          "line": 90,
           "kind": "await",
           "callee": "wait()"
         },
         {
           "id": "authorize:promise:Promise:1",
-          "line": 97,
+          "line": 101,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "respond:await:change():1",
-          "line": 135,
+          "line": 151,
           "kind": "await",
           "callee": "change()"
         },
         {
           "id": "close:await:tail:1",
-          "line": 159,
+          "line": 168,
           "kind": "await",
           "callee": "tail"
         }
