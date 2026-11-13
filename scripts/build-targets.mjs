@@ -72,7 +72,11 @@ for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ['rc1', 
   // Both complete dependency graphs were installed and checked above. The
   // staging manifest intentionally differs from the SDK manifest: do not let
   // the script runner reinstall into that shared, verified SDK directory.
-  run(stage, [pnpm, '--config.verifyDepsBeforeRun=false', 'run', 'prepack'], {OPENCU_SOURCE_ROOT: root});
+  // pnpm strips prepack from the release manifest. The tagged package must
+  // still run the same gates when rebuilt from that manifest.
+  for (const script of ['cu-liveness.mjs', 'check-docs.mjs', 'build.mjs', 'check-extension-distribution.mjs', 'check-public-files.mjs']) {
+    run(stage, ['scripts/' + script, ...(script === 'cu-liveness.mjs' ? ['check'] : [])], { OPENCU_SOURCE_ROOT: root });
+  }
   await writeFile(join(stage, 'lib/host-build.json'), JSON.stringify({ ...target, peers, buildInputs }, null, 2) + '\n');
   run(stage, [pnpm, '--config.ignore-scripts=true', 'pack', '--pack-destination', output], {OPENCU_SOURCE_ROOT: root});
   await nativePackageModes(join(output, `opencu-${pkg.version}.tgz`));
