@@ -12,7 +12,7 @@ export async function checkDesktopBuild(directory) {
   const root = resolve(directory);
   const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   targetFor(version);
-  if (['0.2.1-rc.5', '0.2.2-rc.1', '0.2.2-rc.2'].includes(version)) await prepareNativeRuntime(join(root, 'dsh'), { check: true });
+  if (['0.2.1-rc.5', '0.2.2-rc.1', '0.2.2-rc.2', '0.2.2-rc.3'].includes(version)) await prepareNativeRuntime(join(root, 'dsh'), { check: true });
   const { parse } = dependencyRequire()('acorn');
   const unwrap = (await readFile(new URL('../src/client/ipc-result.mjs', import.meta.url), 'utf8')).replace('export function', 'function');
   const client = (await readFile(new URL('../src/client/host-compat.mjs', import.meta.url), 'utf8'))

@@ -6266,7 +6266,7 @@
     {
       "file": "src/client/host-target.mjs",
       "contract": "resources",
-      "sha256": "edeb0fd4427579dd2ad93215454e812134136f05cb985c7c5cae505cdb7ff366",
+      "sha256": "d41b25c54a4b615df7a7da757e8de3601144bf953a56f2da07037788404dd05c",
       "kind": "javascript",
       "sites": []
     },
@@ -17748,7 +17748,7 @@
     {
       "file": "host/apply.mjs",
       "contract": "sidebar",
-      "sha256": "93d459f088005a716c1ac0393fb37e8b445375a28d1a8a594be502e0eabd7e8c",
+      "sha256": "56ca2f61d3ae52f768c6f09d1feec618bec91ca14c9fe03b64326b82795c8a94",
       "kind": "javascript",
       "sites": [
         {
@@ -19624,7 +19624,7 @@
     {
       "file": "host/compatibility.mjs",
       "contract": "sidebar",
-      "sha256": "3ca6acc34a39f695684c06920607a286ac3e0a6e2f2b1ea0152909cce3abb5b5",
+      "sha256": "88a9ce716b7e7d27f753d0f036c910da21bdac7ff9c4d95db82b37e1515c858f",
       "kind": "javascript",
       "sites": []
     },
