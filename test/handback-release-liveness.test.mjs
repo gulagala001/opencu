@@ -62,10 +62,11 @@ async function sharedFixture(t) {
 
 test('confirmed hand-back presentation failure keeps healthy targets active with precise native receipts',async t=>{
   const f=await fixture(t);f.hooks.away=()=>{throw Object.assign(Error('compositor unavailable'),{code:'COMPOSITOR_UNAVAILABLE',details:{release:{released:true}}});};
+  const previousReleases=f.calls.filter(call=>call==='browser-release').length;
   const result=await f.controller.away({targetId:app.id});
   assert.equal(result.error.code,'COMPOSITOR_UNAVAILABLE');assert.equal(result.state.mode,'active');
   assert.deepEqual(result.error.details.releasedTargetIds,[app.id]);assert.equal(result.state.releasePending,true);
-  assert(!f.calls.includes('browser-release'));
+  assert.equal(f.calls.filter(call=>call==='browser-release').length,previousReleases);
 });
 
 test('successful hand-back carries precise release receipts without acknowledging browser orphans',async t=>{
@@ -98,9 +99,10 @@ test('last lease starts hardware close while presentation close is pending and r
 for (const release of [undefined,{released:false},{released:true,heldKeys:['Shift']}])
 test(`unconfirmed hand-back hardware remains blocked (${JSON.stringify(release)})`,async t=>{
   const f=await fixture(t);f.hooks.away=()=>{throw Object.assign(Error('handoff failed'),{code:'RELEASE_FAILED',details:{release}});};
+  const previousReleases=f.calls.filter(call=>call==='browser-release').length;
   const result=await f.controller.away({targetId:app.id});
   assert.equal(result.ok,false);assert.equal(result.error.code,'RELEASE_FAILED');assert.notEqual(result.state.mode,'active');
-  assert(f.calls.includes('browser-release'));
+  assert(f.calls.filter(call=>call==='browser-release').length>previousReleases);
 });
 
 test('a stop wins over a late successful hand-back receipt',async t=>{

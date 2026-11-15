@@ -189,7 +189,9 @@ test('failed-cell timeout reports release failure and retains the recovery oblig
   await assert.rejects(f.run('tab.typeText("once").catch(() => {}); throw new Error("synthetic cell failure");', 150),
     {code: 'RELEASE_FAILED'});
   const state = (await f.runtime.request('state')).state;
-  assert.equal(state.releasePending, true); assert.equal(state.mode, 'release_failed');
+  assert.equal(state.releasePending, true); assert.equal(state.mode, 'active');
+  assert.equal(state.recoveryIsolated, true);
+  assert.equal((await f.runtime.request('act', {targetId:'tab:pending',action:'type',text:'must not dispatch'})).error.code,'RECOVERY_REQUIRED');
   f.hooks.releaseFails = false;
   assert.equal((await f.runtime.request('stop')).state.releasePending, false);
   assert.deepEqual(f.events, [['dispatch', 'once'], ['release'], ['release']]);
