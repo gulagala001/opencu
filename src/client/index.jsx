@@ -154,7 +154,8 @@ function mountClient(ctx, entry) {
     notify: (sessionId, message) => { const scope = ctx.sessions.scope(sessionId); if (scope) ctx.conversation.input.for(scope).notify('error', message); },
     insertQuote(value) {
       const scope = ctx.sessions.scope(value.sessionId);
-      if (!scope || !ctx.conversation.input.for(scope).insertQuote(value.quoteText)) throw new Error('The message draft could not accept the quote; try again');
+      if (!scope) throw new Error('The quoted conversation is no longer available');
+      return ctx.conversation.input.for(scope).insertQuote(value.quoteText);
     },
     async submit(value, directly) {
       const scope = ctx.sessions.scope(value.sessionId);

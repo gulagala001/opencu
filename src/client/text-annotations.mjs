@@ -4,13 +4,17 @@ export const textInteraction = 'conversation.chat.text-interaction';
 /** Extend only the native Quote surface; leave its gesture and fallback registered. */
 export function installQuoteCompanion(slots, inject, wrap) {
   let installed, original, disposed = false;
+  const failed = new WeakSet();
   function reconcile() {
     if (disposed || slots.ctx?.fiber?.uid === null) return;
     const winner = slots.entriesOfSlot(textInteraction).find(entry => entry.options.key === 'quote');
+    // A retired wrapper stays on the ledger. Leave the native fallback alone
+    // until the original registration is replaced instead of retrying its crash.
+    if (installed && winner === original) failed.add(original);
     const quote = installed && winner?.component === installed.component
       ? slots.entries(textInteraction).find(entry => entry.options.key === 'quote' && entry.component !== installed.component)
       : winner;
-    const next = quote?.locale === 'messageQuotes' && !quote.inject && !quote.store && !quote.children ? quote : undefined;
+    const next = quote?.locale === 'messageQuotes' && !quote.inject && !quote.store && !quote.children && !failed.has(quote) ? quote : undefined;
     if (next === original) return;
     original = next;
     const previous = installed; installed = undefined;
@@ -79,7 +83,7 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
       return;
     }
     try { value.body = localStorage.getItem(key(value)) || ''; }
-    catch (error) { close(); notify(value.sessionId, error.message); return; }
+    catch { value.body = ''; }
     selectedRow = row; selectedRange = range.cloneRange(); publish(value);
   }
   const capture = event => {
@@ -148,8 +152,9 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
       if (disposed || !value || value.pending) return;
       publish({ ...value, body, pending: true, error: null }); saveDraft(body);
       try {
-        if (!directly && !body.trim()) insertQuote({ ...value, quoteText: value.quoteText ?? value.text });
-        else await submit({ ...value, body }, directly);
+        if (!directly && !body.trim()) {
+          if (insertQuote({ ...value, quoteText: value.quoteText ?? value.text }) === false) throw Error('The message draft could not accept the quote; try again');
+        } else await submit({ ...value, body }, directly);
         try { localStorage.removeItem(key(value)); }
         catch (error) { notify(value.sessionId, error.message); }
         if (current && key(current) === key(value)) { clearMatchedSelection(); close(); }
