@@ -49,6 +49,15 @@ export function createDownloadsHost({ desktop, client, settings, downloadUrl }) 
     promise[Symbol.dispose] = () => { promise.catch(error => console.error('OpenCU download command', error)); };
     return promise;
   }
+  async function syncAfterAction(result) {
+    // The adapter already completed the command. The history poll can retry
+    // independently; never turn a refresh failure into a command failure.
+    historyRevision = undefined;
+    if (pending) await pending.catch(() => {});
+    try { await sync(); }
+    catch (error) { report(new Error('Download action completed, but history could not refresh: ' + error.message)); }
+    return result;
+  }
   async function action(operation, args = {}) {
     const lease = await control();
     if (args.id) {
@@ -57,16 +66,14 @@ export function createDownloadsHost({ desktop, client, settings, downloadUrl }) 
       if (!record) throw new Error('The download is no longer in history');
       args = { ...args, filename: record.filename };
     }
-    const result = await desktop.downloads(lease.lease, operation, args);
-    await sync();
-    return result;
+    return syncAfterAction(await desktop.downloads(lease.lease, operation, args));
   }
   const service = {
     downloadUrl: url => retained(downloadUrl(url)),
     searchHistory(args) { return retained(sync().then(() => client.request('downloads/history', args)).then(result => result.value)); },
     chooseDownloadDirectory: () => retained(action('chooseDownloadDirectory')),
-    removeFromHistory: args => retained(client.request('downloads/remove', args).then(async result => { await sync(); return result; })),
-    clearHistory: () => retained(client.request('downloads/remove').then(async result => { await sync(); return result; })),
+    removeFromHistory: args => retained(client.request('downloads/remove', args).then(syncAfterAction)),
+    clearHistory: () => retained(client.request('downloads/remove').then(syncAfterAction)),
   };
   for (const operation of ['pause', 'resume', 'cancel', 'open', 'showInFolder', 'showDownloadsFolder']) service[operation] = args => retained(action(operation, args));
   const starting = (async () => {

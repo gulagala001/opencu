@@ -19,9 +19,14 @@ export function CapabilityProvider({ children }) {
   const operation = React.useRef(0), folder = React.useRef(null);
   const [extensionFolder, setExtensionFolder] = React.useState(null);
   const refresh = React.useCallback(async () => {
-    const expected = ++revision.current, next = await services.capabilities.read();
-    if (mounted.current && expected === revision.current) { setState(next); setReadError(null); }
-    return next;
+    const expected = ++revision.current;
+    try {
+      const next = await services.capabilities.read();
+      if (mounted.current && expected === revision.current) { setState(next); setReadError(null); }
+      return next;
+    } catch (error) {
+      if (mounted.current && expected === revision.current) setReadError(error.message);
+    }
   }, []);
   React.useEffect(() => {
     let disposed = false, timer;
@@ -34,7 +39,7 @@ export function CapabilityProvider({ children }) {
       }
       if (!disposed) timer = setTimeout(poll, 2000);
     };
-    const onFocus = () => { if (!busy.current) void refresh().catch(error => { if (!disposed) setReadError(error.message); }); };
+    const onFocus = () => { if (!busy.current) void refresh(); };
     const onVisibility = () => { if (document.visibilityState === 'visible') onFocus(); };
     window.addEventListener('focus', onFocus); document.addEventListener('visibilitychange', onVisibility);
     void poll();
@@ -58,8 +63,7 @@ export function CapabilityProvider({ children }) {
         // not wait for an unrelated capability refresh before copy is usable.
         return result;
       }
-      try { await refresh(); }
-      catch (error) { if (current()) setReadError(error.message); }
+      await refresh();
       return result;
     } catch (error) { if (current()) setError(error.message); }
     finally { if (current()) { busy.current = false; setPending(null); } }
@@ -108,6 +112,27 @@ function InitialBrowserViewMenu() {
   </Menu>;
 }
 
+const browserRoute = { key: 'browser-cu-target-preference', default: 'built-in' };
+
+function BrowserRouteMenu() {
+  const intl = useIntl(), scope = useService(settingsScope), selected = useSetting(browserRoute);
+  const [saving, setSaving] = React.useState(false);
+  const labels = {
+    'built-in': intl.formatMessage({ id: 'opencu.settings.routeBuiltIn', defaultMessage: 'Built-in first (default)' }),
+    reuse: intl.formatMessage({ id: 'opencu.settings.routeReuse', defaultMessage: 'Prefer reusing matching tabs' }),
+  };
+  return <Menu contentWidth="menuWide" align="end" triggerButton={<MenuButton disabled={saving}>{labels[selected] ?? labels['built-in']}</MenuButton>}>
+    {Object.entries(labels).map(([value, label]) => <MenuItems.Item key={value} rightIconAsset={(selected ?? browserRoute.default) === value ? checkmark : undefined}
+      onSelect={async () => {
+        if (saving || value === (selected ?? browserRoute.default)) return;
+        setSaving(true);
+        try { await writeSetting(scope, browserRoute, value, { optimistic: false }); }
+        catch (error) { services.notify('error', error.message); }
+        finally { setSaving(false); }
+      }}>{label}</MenuItems.Item>)}
+  </Menu>;
+}
+
 function Controls({ browser = false }) {
   const intl = useIntl(), navigate = useNavigate();
   const { state, error, pending, run, retry } = React.useContext(Capabilities);
@@ -116,6 +141,11 @@ function Controls({ browser = false }) {
   const items = [];
   if (state) {
     if (browser) {
+      if (state.omdBrowserRoute) items.push({ kind: 'app', id: 'browser-cu-target-preference',
+        title: text('browserRoute', 'Browser priority'), showEnableToggle: false,
+        icon: <Icon asset={browserAsset} className="icon-md text-secondary" />,
+        description: text('browserRouteHelp', 'Used for new browser tasks without an explicit target. Reusing an external tab still requires your authorization.'),
+        action: <BrowserRouteMenu /> });
       items.push({ kind: 'app', id: 'in-app-browser', title: text('inApp', 'Built-in browser'), showEnableToggle: false, icon: <Icon asset={browserAsset} className="icon-md text-secondary" />,
         description: state.inAppBrowser ? text('inAppReady', 'Where the browser opens the first time the AI uses it in each chat') : state.desktopAdapterError || text('desktopRequired', 'The desktop browser host is unavailable in this window'),
         action: state.inAppBrowser ? <InitialBrowserViewMenu /> : null });

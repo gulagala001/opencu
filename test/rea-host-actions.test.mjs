@@ -27,6 +27,7 @@ test('links retain their chat, honor local/external preferences and expose real 
   const unavailable = createNavigationHost({ settings: { readAll: async () => ({ values: {} }) }, currentSession: () => 's',
     browser: { available: false }, openExternal: async () => { throw Error('open failed'); } });
   await assert.rejects(unavailable.open({ href: 'https://example.test/' }), /open failed/);
+  await assert.rejects(unavailable.open({ href: 'https://example.test/', openTarget: 'in-app-browser' }), /built-in browser is unavailable/);
 });
 
 test('a disposed navigation cannot open a tab after settings finish loading', async () => {

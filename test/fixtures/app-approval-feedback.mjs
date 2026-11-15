@@ -73,7 +73,7 @@ export async function approvalFeedbackFixture(options = {}) {
     './reference-editor.mjs': { createReferenceEditor: empty },
     './browser-address.mjs': { createBrowserAddress: empty, createBrowserAddressAutocomplete: empty },
     './rea/app-initial-c468e3fd7f91.js': { AW: {} },
-    './text-annotations.mjs': { createTextAnnotations: empty },
+    './text-annotations.mjs': { createTextAnnotations: empty, installQuoteCompanion: noop, textInteraction: 'conversation.chat.text-interaction' },
     './annotation-message-slot.jsx': { installAnnotationMessages: noop },
     './presentation-host.mjs': { createPresentationClient: empty },
     './presentation-layout.mjs': { createPresentationLayout: noop },
@@ -87,6 +87,7 @@ export async function approvalFeedbackFixture(options = {}) {
     ['browser-address-slot', 'BrowserAddressSlot'], ['text-annotation-slot', 'TextAnnotationSlot'],
     ['presentation-slot', 'PresentationSlot'],
   ]) stubs[`./${file}.jsx`] = { [name]: noop };
+  stubs['./text-annotation-slot.jsx'].withTextQuote = noop;
 
   function synthetic(key, values) {
     if (!modules.has(key)) modules.set(key, new vm.SyntheticModule(Object.keys(values), function () {

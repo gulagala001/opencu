@@ -14,10 +14,11 @@ export function createNavigationHost({ settings, browser, currentSession, openEx
       live();
       const destination = args.useExternalBrowser ? 'external-browser' : args.openTarget
         ?? preferences[local ? 'open-local-url-in-target-preference' : 'open-link-in-target-preference'];
-      if (destination === 'external-browser' || browser.available !== true) {
+      if (destination === 'external-browser' || (destination == null && browser.available !== true)) {
         await openExternal(url.href);
         return true;
       }
+      if (browser.available !== true) throw new Error('The built-in browser is unavailable. Choose Open in external browser to continue.');
       if (!conversationId) throw new Error('Open a conversation before opening its browser');
       const tab = await browser.newTab({ conversationId, url: url.href,
         active: args.disposition !== 'background-tab' });

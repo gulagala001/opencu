@@ -34,8 +34,8 @@ import { ReferenceEditorSlot } from './reference-editor-slot.jsx';
 import { createBrowserAddress, createBrowserAddressAutocomplete } from './browser-address.mjs';
 import { BrowserAddressSlot } from './browser-address-slot.jsx';
 import { AW as browserTabs } from './rea/app-initial-c468e3fd7f91.js';
-import { createTextAnnotations } from './text-annotations.mjs';
-import { TextAnnotationSlot } from './text-annotation-slot.jsx';
+import { createTextAnnotations, installQuoteCompanion, textInteraction } from './text-annotations.mjs';
+import { TextAnnotationSlot, withTextQuote } from './text-annotation-slot.jsx';
 import { installAnnotationMessages } from './annotation-message-slot.jsx';
 import { createPresentationClient } from './presentation-host.mjs';
 import { PresentationSlot } from './presentation-slot.jsx';
@@ -152,12 +152,22 @@ function mountClient(ctx, entry) {
   ctx.effect(() => ctx.inputTriggers.registerSource(references.source), 'opencu: target and annotation references');
   const textAnnotations = createTextAnnotations({
     notify: (sessionId, message) => { const scope = ctx.sessions.scope(sessionId); if (scope) ctx.conversation.input.for(scope).notify('error', message); },
+    insertQuote(value) {
+      const scope = ctx.sessions.scope(value.sessionId);
+      if (!scope || !ctx.conversation.input.for(scope).insertQuote(value.quoteText)) throw new Error('The message draft could not accept the quote; try again');
+    },
     async submit(value, directly) {
       const scope = ctx.sessions.scope(value.sessionId);
       if (!scope) throw new Error('The annotated conversation is no longer available');
+      if (directly && !value.body.trim()) {
+        const text = (value.quoteText ?? value.text).replace(/\r\n?/g, '\n').split('\n').map(line => `> ${line}`).join('\n');
+        const result = await ctx.sessions.sessionOf(scope).prompt([{ type: 'text', text }], 'queue');
+        if (!result.ok) throw new Error(result.error.message);
+        return;
+      }
       const payload = { conversationId: value.sessionId, nodeKey: value.nodeKey, turn: value.turn,
         selectedText: value.text, textOffset: value.start, comments: [{ body: value.body }] };
-      const reference = references.chip({ kind: 'text-annotations', payload }, value.text.slice(0, 64));
+      const reference = references.chip({ kind: 'text-annotations', payload }, payload.selectedText.slice(0, 64));
       if (directly) {
         const result = await ctx.sessions.sessionOf(scope).prompt([{ type: 'text', text: references.serialize(reference.ref) }], 'queue');
         if (!result.ok) throw new Error(result.error.message);
@@ -171,11 +181,14 @@ function mountClient(ctx, entry) {
     },
   });
   ctx.effect(() => { textAnnotations.start(); return () => textAnnotations.dispose(); }, 'opencu: selected response text');
+  const annotationProps = () => ({ hooks: { annotation: textAnnotations.state },
+    body: textAnnotations.body, close: textAnnotations.close, submit: textAnnotations.submit, copy: textAnnotations.copy, edit: textAnnotations.edit,
+    attachQuote: textAnnotations.attachQuote,
+    report: message => { const value = textAnnotations.state.getSnapshot(); const scope = value && ctx.sessions.scope(value.sessionId); if (scope) ctx.conversation.input.for(scope).notify('error', message); },
+  });
+  ctx.effect(() => ctx.slots.inject(textInteraction, () => installQuoteCompanion(ctx.slots, annotationProps, withTextQuote)), 'opencu: native quote surface');
   ctx.effect(() => ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay', id: 'opencu.text-annotation', inject: () => ({ hooks: { annotation: textAnnotations.state },
-      body: textAnnotations.body, close: textAnnotations.close, submit: textAnnotations.submit, copy: textAnnotations.copy, edit: textAnnotations.edit,
-      report: message => { const value = textAnnotations.state.getSnapshot(); const scope = value && ctx.sessions.scope(value.sessionId); if (scope) ctx.conversation.input.for(scope).notify('error', message); },
-    }),
+    name: 'shell.overlay', id: 'opencu.text-annotation', inject: annotationProps,
   }, TextAnnotationSlot)), 'opencu: REA selected text editor');
   ctx.effect(() => installAnnotationMessages(ctx.uiConversation.userText), 'opencu: annotation message display');
   const settings = createSettingsHost(client, sharedConfigForm(ctx.configForms, ['omd-ui-chat', 'ui-chat']));
@@ -359,7 +372,10 @@ function mountClient(ctx, entry) {
       retryRecovery: (nonce, targetId) => client.request('recovery/retry', { nonce, targetId }),
       confirmRecovery: (nonce, targetId) => client.request('recovery/confirm', { nonce, targetId, confirmedClosed: true }),
       downloadExtension: signal => downloadExtensionZip(signal),
-      async read() { return { ...await client.request('capabilities'), inAppBrowser: host.service.available, desktopAdapterError }; },
+      async read() {
+        const [capabilities, route] = await Promise.all([client.request('capabilities'), client.request('browserRoute/enabled')]);
+        return { ...capabilities, omdBrowserRoute: route.enabled, inAppBrowser: host.service.available, desktopAdapterError };
+      },
       configure: (key, enabled) => configureCapability(capabilitiesConfig, key, enabled),
       openConfiguration: () => openSettings('/settings/computer-use'),
       connectBrowser: (browser, signal) => client.request('connectBrowser', { browser, requestApproval: true }, signal),

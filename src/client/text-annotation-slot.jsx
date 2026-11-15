@@ -5,7 +5,59 @@ import { ReaProviders } from './rea-root.jsx';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import { u as SelectedTextEditor, m } from './rea/annotation-editor-8063237bdf92.js';
 import styles from './rea-styles.css';
-import { createReaPortal } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
+
+function SelectionActions({ copy, edit, combined = false }) {
+  return <div className="flex items-center gap-1 rounded-xl border border-default bg-surface-elevated p-1 shadow-lg"
+    onPointerDown={event => event.preventDefault()}>
+    <Shared.OGi buttonText={true} showTooltip={false} variant="codeBlock" onCopy={copy} />
+    <Shared.r5 color="ghost" size="composerSm" onClick={edit}>
+      {combined ? <Shared.hS id="opencu.textAnnotation.quoteOrAnnotate" defaultMessage="Quote or annotate" />
+        : <Shared.hS id="opencu.textAnnotation.annotate" defaultMessage="Annotate" />}
+    </Shared.r5>
+  </div>;
+}
+
+function QuoteActions({ value, copy, edit, report }) {
+  const anchor = HostReact.useRef(null), mounted = HostReact.useRef(null);
+  HostReact.useLayoutEffect(() => {
+    m(); Shared.NGi();
+    const shadow = anchor.current.shadowRoot ?? anchor.current.attachShadow({ mode: 'open' });
+    const container = document.createElement('div');
+    container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
+    const { dispose, portal } = createReaPortal(styles, container, 70);
+    adoptReaStyles(shadow, styles); shadow.append(container);
+    const root = createRoot(container, { onUncaughtError: error => report(error.message) });
+    mounted.current = { root, portal };
+    return () => { root.unmount(); container.remove(); dispose(); mounted.current = null; };
+  }, []);
+  HostReact.useLayoutEffect(() => {
+    const { root, portal } = mounted.current;
+    root.render(<ReaProviders portal={portal} path={`/ca/${value.sessionId}`}>
+      <SelectionActions copy={copy} edit={edit} combined />
+    </ReaProviders>);
+  }, [value.sessionId, copy, edit]);
+  return HostReact.createElement('div', { ref: anchor });
+}
+
+export function withTextQuote(NativeQuote) {
+  return function TextQuote(props) {
+    const toolbar = HostReact.useRef(null), id = HostReact.useRef(Symbol('quote surface')).current;
+    const { attachQuote, dismiss, readText, edit, copy, report } = props;
+    const value = props.useAnnotation(value => value?.quoteSurface === id ? value : null);
+    const enabled = props.useSession(s => !s.removed && (s.subagent === null || s.subagent.address.mode === 'continuable'));
+    HostReact.useLayoutEffect(() => {
+      if (!enabled) { dismiss(); return; }
+      return attachQuote(id, toolbar.current, readText, dismiss);
+    }, [enabled, id, attachQuote, readText, dismiss]);
+    const open = HostReact.useCallback(() => edit(id), [edit, id]);
+    const copySelection = HostReact.useCallback(() => copy(id), [copy, id]);
+    if (!enabled) return null;
+    return HostReact.createElement('div', { ref: toolbar, 'data-opencu-text-quote': '' }, value && !value.editing
+      ? HostReact.createElement(QuoteActions, { value, edit: open, copy: copySelection, report })
+      : HostReact.createElement(NativeQuote, props));
+  };
+}
 
 function Editor({ value, portal, body, close, submit, copy, edit }) {
   const left = Math.max(8, Math.min(value.rect.left, innerWidth - 310));
@@ -17,13 +69,7 @@ function Editor({ value, portal, body, close, submit, copy, edit }) {
           <div style={{ position: 'fixed', left, top, pointerEvents: 'auto' }} aria-busy={value.pending}>
             {value.editing ? <SelectedTextEditor draftBody={value.body} onBodyChange={body} onCancel={close} onEscape={close}
               onSubmit={body => submit(body, false)} onDirectSubmit={body => submit(body, true)} />
-              : <div className="flex items-center gap-1 rounded-xl border border-default bg-surface-elevated p-1 shadow-lg"
-                onPointerDown={event => event.preventDefault()}>
-                <Shared.OGi buttonText={true} showTooltip={false} variant="codeBlock" onCopy={copy} />
-                <Shared.r5 color="ghost" size="composerSm" onClick={edit}>
-                  <Shared.hS id="opencu.textAnnotation.annotate" defaultMessage="Annotate" />
-                </Shared.r5>
-              </div>}
+              : <SelectionActions copy={() => copy()} edit={() => edit()} />}
             {value.error && <div role="alert" className="bg-surface-elevated p-3 text-sm text-danger">{value.error}</div>}
           </div>
         </Shared._lt>
@@ -43,8 +89,9 @@ export function TextAnnotationSlot(props) {
   }, []);
   HostReact.useLayoutEffect(() => {
     const { root, portal } = mounted.current;
-    root.render(value ? <Editor key={`${value.sessionId}:${value.nodeKey}:${value.start}:${value.text}`} value={value} portal={portal}
-      body={props.body} close={props.close} submit={props.submit} copy={props.copy} edit={props.edit} /> : null);
+    root.render(value && (!value.quoteSurface || value.editing)
+      ? <Editor key={`${value.sessionId}:${value.nodeKey}:${value.start}:${value.text}`} value={value} portal={portal}
+          body={props.body} close={props.close} submit={props.submit} copy={props.copy} edit={props.edit} /> : null);
   }, [value, props.body, props.close, props.submit, props.copy, props.edit]);
   return null;
 }

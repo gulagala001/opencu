@@ -1,8 +1,36 @@
 const prefix = 'opencu:text-annotation:';
+export const textInteraction = 'conversation.chat.text-interaction';
+
+/** Extend only the native Quote surface; leave its gesture and fallback registered. */
+export function installQuoteCompanion(slots, inject, wrap) {
+  let installed, original, disposed = false;
+  function reconcile() {
+    if (disposed || slots.ctx?.fiber?.uid === null) return;
+    const winner = slots.entriesOfSlot(textInteraction).find(entry => entry.options.key === 'quote');
+    const quote = installed && winner?.component === installed.component
+      ? slots.entries(textInteraction).find(entry => entry.options.key === 'quote' && entry.component !== installed.component)
+      : winner;
+    const next = quote?.locale === 'messageQuotes' && !quote.inject && !quote.store && !quote.children ? quote : undefined;
+    if (next === original) return;
+    original = next;
+    const previous = installed; installed = undefined;
+    previous?.dispose();
+    if (!next) return;
+    const component = wrap(next.component);
+    installed = { component };
+    try {
+      installed.dispose = slots.register({ name: textInteraction, key: 'quote',
+        priority: (next.options.priority ?? 0) - 1, locale: next.locale, inject }, component);
+    } catch (error) { installed = original = undefined; throw error; }
+  }
+  const unsubscribe = slots.subscribe(textInteraction, reconcile);
+  try { reconcile(); } catch (error) { unsubscribe(); throw error; }
+  return () => { disposed = true; unsubscribe(); installed?.dispose(); };
+}
 
 /** Captures response selections without replacing the host's message renderer or changing tool execution. */
-export function createTextAnnotations({ submit, notify }) {
-  const listeners = new Set();
+export function createTextAnnotations({ submit, insertQuote, notify }) {
+  const listeners = new Set(), quoteSurfaces = new Map();
   let current = null, selectedRow = null, selectedRange = null, disposed = false;
   const publish = value => { current = value; for (const listener of listeners) listener(); };
   const elementOf = node => node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
@@ -14,30 +42,55 @@ export function createTextAnnotations({ submit, notify }) {
     try { localStorage.setItem(key(current), body); }
     catch (error) { notify(current.sessionId, error.message); }
   };
-  const close = () => { selectedRow = null; selectedRange = null; publish(null); };
+  const close = () => { selectedRow = null; selectedRange = null; if (current !== null) publish(null); };
+  function clearMatchedSelection() {
+    const selection = document.getSelection();
+    if (selectedRange && selection?.rangeCount === 1) {
+      const range = selection.getRangeAt(0);
+      if (range.compareBoundaryPoints(Range.START_TO_START, selectedRange) === 0 &&
+          range.compareBoundaryPoints(Range.END_TO_END, selectedRange) === 0) selection.removeAllRanges();
+    }
+  }
+  function readSelection() {
+    const selection = document.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount !== 1 || !selection.toString().trim()) return null;
+    const range = selection.getRangeAt(0), row = locate(range.startContainer);
+    if (!row || locate(range.endContainer) !== row || row.dataset.chatGroupPart === 'reasoning') return null;
+    if ([range.startContainer, range.endContainer].some(node => elementOf(node)?.closest('input,textarea,[contenteditable="true"],button'))) return null;
+    const sessionId = row.closest('[data-conversation-session]')?.dataset.conversationSession;
+    if (!sessionId) return null;
+    const preceding = range.cloneRange(); preceding.selectNodeContents(row); preceding.setEnd(range.startContainer, range.startOffset);
+    const bounds = range.getBoundingClientRect();
+    return { row, range, value: { sessionId, nodeKey: row.dataset.chatNodeKey, turn: row.dataset.chatTurn,
+      text: selection.toString(), start: preceding.toString().length,
+      rect: { left: bounds.left, top: bounds.top, bottom: bounds.bottom }, editing: false, pending: false, error: null } };
+  }
+  function adopt({ row, range, value }) {
+    for (const [id, surface] of quoteSurfaces) {
+      if (!surface.area.contains(row)) continue;
+      const text = surface.readText();
+      if (typeof text === 'string' && text.trim()) { value.quoteSurface = id; value.quoteText = text; break; }
+    }
+    if (current && row === selectedRow && key(value) === key(current)) {
+      selectedRange = range.cloneRange();
+      if (!current.editing && (value.quoteSurface !== current.quoteSurface || value.quoteText !== current.quoteText)) {
+        publish({ ...value, body: current.body });
+      }
+      return;
+    }
+    try { value.body = localStorage.getItem(key(value)) || ''; }
+    catch (error) { close(); notify(value.sessionId, error.message); return; }
+    selectedRow = row; selectedRange = range.cloneRange(); publish(value);
+  }
   const capture = event => {
     if (disposed || current?.pending) return;
     if (event?.type === 'keyup' && event.key === 'Escape') { close(); return; }
     if (event?.type === 'keyup' && !['Shift', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     if (event?.button != null && event.button !== 0) return;
-    if (event?.composedPath().some(node => node?.matches?.('[data-rea-root]'))) return;
+    if (event?.composedPath().some(node => node?.matches?.('[data-rea-root], [data-opencu-text-quote]'))) return;
     if (event?.composedPath().some(node => node?.matches?.('input,textarea,[contenteditable="true"],button'))) { close(); return; }
-    const selection = document.getSelection();
-    if (!selection || selection.isCollapsed || selection.rangeCount !== 1 || !selection.toString().trim()) { close(); return; }
-    const range = selection.getRangeAt(0), row = locate(range.startContainer);
-    if (!row || locate(range.endContainer) !== row || row.dataset.chatGroupPart === 'reasoning') { close(); return; }
-    if ([range.startContainer, range.endContainer].some(node => elementOf(node)?.closest('input,textarea,[contenteditable="true"],button'))) { close(); return; }
-    const sessionId = row.closest('[data-conversation-session]')?.dataset.conversationSession;
-    if (!sessionId) { close(); return; }
-    const preceding = range.cloneRange(); preceding.selectNodeContents(row); preceding.setEnd(range.startContainer, range.startOffset);
-    const bounds = range.getBoundingClientRect();
-    const value = { sessionId, nodeKey: row.dataset.chatNodeKey, turn: row.dataset.chatTurn,
-      text: selection.toString(), start: preceding.toString().length,
-      rect: { left: bounds.left, top: bounds.top, bottom: bounds.bottom }, editing: false, pending: false, error: null };
-    if (current && key(value) === key(current)) return;
-    try { value.body = localStorage.getItem(key(value)) || ''; }
-    catch (error) { close(); notify(sessionId, error.message); return; }
-    selectedRow = row; selectedRange = range.cloneRange(); publish(value);
+    const selection = readSelection();
+    if (selection) adopt(selection); else close();
   };
   const reposition = () => {
     if (!current || !selectedRange || !selectedRow?.isConnected) return;
@@ -58,12 +111,29 @@ export function createTextAnnotations({ submit, notify }) {
       document.addEventListener('scroll', reposition, true); window.addEventListener('resize', reposition);
       observer = new MutationObserver(check); observer.observe(document.body, { childList: true, subtree: true });
     },
+    attachQuote(id, toolbar, readText, dismiss) {
+      const area = toolbar?.closest('[data-text-interaction-surface]')?.parentElement;
+      if (!area) return;
+      quoteSurfaces.set(id, { area, readText, dismiss });
+      const selection = readSelection();
+      if (selection && !current?.editing && !current?.pending && area.contains(selection.row)) adopt(selection);
+      return () => {
+        quoteSurfaces.delete(id);
+        if (current?.quoteSurface === id && !current.editing) close();
+      };
+    },
     body: saveDraft, close,
-    edit() { if (current && !current.pending) publish({ ...current, editing: true }); },
-    async copy() {
+    edit(id) {
+      if (!current || current.pending || current.quoteSurface !== id) return;
+      const surface = quoteSurfaces.get(id);
+      if (id && !surface?.readText()) { close(); return; }
+      publish({ ...current, editing: true });
+      surface?.dismiss();
+    },
+    async copy(id) {
       const value = current;
-      if (!value || value.pending) return false;
-      try { await navigator.clipboard.writeText(value.text); return true; }
+      if (!value || value.pending || value.quoteSurface !== id) return false;
+      try { await navigator.clipboard.writeText(value.quoteText ?? value.text); return true; }
       catch (error) { notify(value.sessionId, error.message); return false; }
     },
     focus({ conversationId, nodeKey }) {
@@ -78,10 +148,11 @@ export function createTextAnnotations({ submit, notify }) {
       if (disposed || !value || value.pending) return;
       publish({ ...value, body, pending: true, error: null }); saveDraft(body);
       try {
-        await submit({ ...value, body }, directly);
+        if (!directly && !body.trim()) insertQuote({ ...value, quoteText: value.quoteText ?? value.text });
+        else await submit({ ...value, body }, directly);
         try { localStorage.removeItem(key(value)); }
         catch (error) { notify(value.sessionId, error.message); }
-        if (current && key(current) === key(value)) close();
+        if (current && key(current) === key(value)) { clearMatchedSelection(); close(); }
       } catch (error) { if (current && key(current) === key(value)) publish({ ...value, body, error: error.message, pending: false }); }
     },
     dispose() {
