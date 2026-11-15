@@ -16,6 +16,46 @@ import {createComputerRepl} from '../src/dsh/computer-repl.mjs';
 const root = new URL('../.local/', import.meta.url); await mkdir(root, {recursive:true});
 const ok = result => {assert.equal(result.ok,true,JSON.stringify(result));return result;};
 const tab = id => ({id,backend:'browser',provider:'dsh',kind:'tab',browserId:'dsh:live',identity:{guestId:id},url:'about:blank'});
+
+test('cold sidebar debts are isolated automatically and reported once per original target', async t => {
+  const dir = await mkdtemp(new URL('cold-sidebar-', root).pathname), host = createBrowserHost();
+  const historical = Array.from({length:21}, () => {
+    const rendererId = randomUUID(), guestId = randomUUID();
+    return {...tab(`dsh:${rendererId}:${guestId}`), identity:{rendererId,guestId}, browserId:`dsh:${rendererId}`};
+  });
+  const live = tab('fresh'), browser = createCompositeBrowserBackend({dsh:host.backend});
+  const native = {listTargets:async()=>[],select:async t=>t,verify:async t=>({valid:true,target:t}),
+    observe:async()=>({}),act:async()=>({}),release:async()=>({released:true}),close:async()=>{}};
+  await writeFile(join(dir,'controller.json'),JSON.stringify({version:1,mode:'release_failed',releasePending:true,
+    activeTargetId:historical[0].id, targets:historical, releaseErrors:[{backend:'browser',released:false}]}));
+  const c = await createController({dataDir:dir,browser,native});
+  t.after(async()=>{
+    await host.backend.confirmClosedTargets(historical);
+    await c.close(); host.close(); await rm(dir,{recursive:true,force:true});
+  });
+  const state = ok(await c.getState()).state;
+  assert.equal(state.mode,'active');
+  assert.equal(state.recoveryIsolated,true);
+  assert.equal(state.inputReadiness.scope,'verified-targets-only');
+  assert.equal(state.activeTargetId,null);
+  assert.equal(state.targets.length,21,'offline alone does not prove permanent destruction');
+  const failures = state.releaseErrors[0].failures[0].result.failures;
+  assert.equal(failures.length,21);
+  assert.equal(new Set(failures.map(f=>f.targetId)).size,21);
+  assert.ok(failures.every(f=>f.code==='BROWSER_HOST_DISCONNECTED'));
+  const release = await host.backend.release({targets:state.targets});
+  assert.equal(release.failures.length,21,'repeated release must not accumulate duplicate failures');
+  const persisted = JSON.parse(await readFile(join(dir,'controller.json'),'utf8'));
+  assert.equal(persisted.recoveryIsolated,true);
+  assert.ok(persisted.targets.every(t=>t.cold && !t.verified && !t.releaseAcknowledged));
+  // A newly discovered target is verified normally without a manual resume/settings step.
+  browser.listTargets = async()=>[live]; browser.select = async t=>t;
+  browser.verify = async t=>({valid:true,target:t}); browser.act = async()=>({inputDispatched:true});
+  assert.equal(ok(await c.selectTarget(live)).target.verified,true);
+  ok(await c.act({targetId:live.id,action:'click'}));
+  assert.equal((await c.act({targetId:historical[0].id,action:'click'})).error.code,'RECOVERY_REQUIRED');
+});
+
 async function fixture(t,{nativeFailure=false}={}) {
   const dir=await mkdtemp(new URL('recovery-isolation-',root).pathname);
   const old=tab('old'),live=tab('live'),calls=[];
@@ -394,11 +434,38 @@ test('automatic interruption remains recoverable, but cannot remove a preceding 
 
 test('a browser disappearing during recovery cannot grant control', async t => {
   const f = await fixture(t);
+  await f.c.stop();
   let reads = 0;
   f.browser.listBrowsers = async () => ++reads === 1 ? [{id:f.live.browserId}] : [];
   assert.equal((await f.c.resume({browserId:f.live.browserId})).error.code, 'AMBIGUOUS_TARGET');
   assert.notEqual((await f.c.getState()).state.mode, 'active');
   assert.deepEqual(f.calls, []);
+});
+
+test('lifecycle cleanup isolates historical browser debts for the next fresh target', async t => {
+  const f = await fixture(t);
+  assert.equal((await f.c.interrupt()).error.code,'RELEASE_FAILED');
+  const state = ok(await f.c.getState()).state;
+  assert.equal(state.mode,'active'); assert.equal(state.recoveryIsolated,true);
+  assert.equal(state.activeTargetId,null);
+  assert.equal(ok(await f.c.selectTarget(f.live)).target.verified,true);
+  ok(await f.c.act({targetId:f.live.id,action:'click'}));
+  await f.c.stop(); await f.c.interrupt();
+  assert.equal((await f.c.getState()).state.inputReadiness.scope,'blocked');
+});
+
+test('cold startup preserves an unattributed obligation for an unavailable native backend', async t => {
+  const dir=await mkdtemp(new URL('cold-native-debt-',root).pathname);
+  const old=tab('old'), debt={backend:'native',released:false,code:'RELEASE_FAILED'};
+  await writeFile(join(dir,'controller.json'),JSON.stringify({version:1,targets:[old],releasePending:true,releaseErrors:[debt]}));
+  const browser={listTargets:async()=>[],select:async t=>t,verify:async()=>({valid:false}),observe:async()=>({}),act:async()=>({}),
+    release:async()=>({released:true}),releaseTarget:async()=>({released:true}),close:async()=>{}};
+  const c=await createController({dataDir:dir,browser});
+  t.after(async()=>{await c.close(); await rm(dir,{recursive:true,force:true});});
+  const state=ok(await c.getState()).state;
+  assert.equal(state.inputReadiness.scope,'blocked');
+  assert.equal(state.recoveryIsolated,false);
+  assert.deepEqual(state.releaseErrors,[debt]);
 });
 
 test('stop wins over an in-flight browser-only resume', async t => {

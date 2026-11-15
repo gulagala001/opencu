@@ -345,7 +345,8 @@ test('normal and cold-recovery verification remain functional',async t=>{
  const backend=await createBrowserBackend({dataDir:dir,context,instanceId:'fixture',timeoutMs:20,releaseTimeoutMs:20});
  const recovered=await createController({dataDir:dir,browser:backend});
  try{
-  assert.equal((await recovered.getState()).state.mode,'recovery_required');
+  assert.equal((await recovered.getState()).state.mode,'active');
+  assert.equal((await recovered.act({targetId:A.id,action:'type',text:'must not dispatch'})).error.code,'RECOVERY_REQUIRED');
   await ok(recovered.resume({targetId:A.id}));await ok(recovered.act({action:'type',text:'cold-resumed'}));
  }finally{await recovered.close();}
  assert.deepEqual(events.filter(e=>e[1]==='text'),[['A','text','normal'],['A','text','cold-resumed']]);
