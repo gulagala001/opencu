@@ -74,9 +74,12 @@ function DocumentContent({ sessionId, resourceAddress, data, path, title, kind, 
     onBeforePublicFileMaterialization: () => services.workspaceFiles.getMetadata({ hostId: 'local', path }),
     onPublicFileMaterialized: () => setError(null),
   } : undefined, [kind, path, data, editable]);
+  const [checkingClose, setCheckingClose] = React.useState(false);
   React.useEffect(() => pane.bindCloseGuard(async () => {
+    setCheckingClose(true);
     try { await flush(); return true; }
-    catch (error) { setError(error.message); return false; }
+    catch (error) { setError(`标签已保留：${error.message}`); return false; }
+    finally { setCheckingClose(false); }
   }), [pane.bindCloseGuard, flush]);
   const props = { hostId: 'local', path, title, annotationBatchingEnabled: true, headerPlacement: 'inline',
     headerRightContent: <ViewerControls pane={pane} />,
@@ -91,6 +94,7 @@ function DocumentContent({ sessionId, resourceAddress, data, path, title, kind, 
             presentationEditingEnabled={kind === 'pptx' && editable} spreadsheetManualEditUiEnabled={kind === 'xlsx' && editable} xlsxArtifactDocument={workbook}
             artifactKind={kind === 'pptx' ? 'presentation' : 'spreadsheet'}
             sourceArtifactKind={kind === 'pptx' ? 'presentation' : 'spreadsheet'} sourceBytes={data} />}
+    {checkingClose && <div role="status" className="absolute inset-x-0 bottom-0 p-3 text-sm">正在检查保存状态…</div>}
     {error && <div role="alert" className="absolute inset-x-0 bottom-0 p-3 text-sm text-danger">{error}</div>}
   </React.Suspense>;
 }

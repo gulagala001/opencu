@@ -41,9 +41,9 @@ function ImagePreview({ src, title, resourceAddress, sessionId, data, mediaType,
   }, []);
   React.useEffect(() => () => { lifetime.current?.abort(); cancelClose(); }, [cancelClose]);
   React.useEffect(() => pane.bindCloseGuard(() => {
-    if (submitting.current) return Promise.resolve(false);
+    if (submitting.current) { setError('正在提交更改，标签已保留；完成后可再关闭。'); return Promise.resolve(false); }
     if (currentMode.current !== 'markup') return Promise.resolve(true);
-    if (!markup.current || markup.current.isReadOnly) return Promise.resolve(false);
+    if (!markup.current || markup.current.isReadOnly) { setError('标注编辑器尚不能确认保存，标签已保留。请先结束编辑。'); return Promise.resolve(false); }
     return new Promise(resolve => { pendingClose.current = resolve; markup.current.requestClose(); });
   }), [pane.bindCloseGuard]);
   React.useEffect(() => {
