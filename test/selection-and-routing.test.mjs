@@ -66,6 +66,13 @@ test('one selection moves from the host surface to the editor, with distinct quo
   assert.equal(selected().quoteSurface, undefined); actions.edit();
   await actions.submit('comment'); assert.equal(selected(), null);
   assert.deepEqual(calls, [['copy', 'native text'], ['quote', 'native text'], ['quote', 'native text'], ['annotation', 'comment', 'selected', 6, false]]);
+  selection.rangeCount = 1; let cleared = 0;
+  release = actions.attachQuote('cancel', toolbar, () => 'native text', () => release(), () => { cleared++; selection.removeAllRanges(); });
+  actions.edit('cancel'); actions.body('retained draft'); actions.close();
+  assert.equal(cleared, 1); assert.equal(selection.rangeCount, 0); assert.ok([...storage.values()].includes('retained draft'));
+  selection.rangeCount = 1; doc.dispatchEvent(new Event('pointerup')); actions.edit();
+  range.compareBoundaryPoints = () => 1; actions.close();
+  assert.equal(selection.rangeCount, 1, 'closing an old editor preserves a different selection');
 });
 
 test('automatic browser routing reuses only eligible tabs; otherwise opens the unique built-in window', async t => {
@@ -73,7 +80,7 @@ test('automatic browser routing reuses only eligible tabs; otherwise opens the u
   const tab = (id, browserId, sessionId) => ({ id, backend: 'browser', browserId, sessionId, url,
     provider: browserId === external ? 'extension' : 'dsh', identity: { id }, verified: true });
   const ours = tab('ours', local, 'session'), theirs = tab('theirs', local, 'other'), personal = tab('personal', external);
-  let targets = [ours, theirs, personal], preference = 'built-in', enabled = true, builtIn = [local];
+  let targets = [ours, theirs, personal], preference = 'built-in', enabled = true, builtIn = [local], focusFails = false;
   const calls = [], fresh = tab('fresh', local, 'session');
   const repl = createComputerRepl(async (endpoint, args) => {
     calls.push([endpoint, args]);
@@ -82,6 +89,7 @@ test('automatic browser routing reuses only eligible tabs; otherwise opens the u
     if (endpoint === 'select') return { target: [...targets, fresh].find(value => value.id === args.reference.id) };
     if (endpoint === 'openTarget') return { target: fresh };
     if (endpoint === 'observe') return { observation: { id: 'ax', ax: { text: '' } } };
+    if (endpoint === 'focus' && focusFails) throw Object.assign(Error('foreground required'), { code: 'FOREGROUND_REQUIRED' });
     return { ok: true, released: true };
   });
   t.after(() => repl.close());
@@ -95,6 +103,11 @@ test('automatic browser routing reuses only eligible tabs; otherwise opens the u
   assert.equal(calls.findLast(([method]) => method === 'select')[1].reference.id, personal.id);
   calls.length = 0; await open();
   assert.deepEqual(calls.find(([method]) => method === 'openTarget')[1], { browserId: local, url });
+  targets = [ours]; focusFails = true; calls.length = 0;
+  await assert.rejects(open({ visible: true }), /remains selected/);
+  assert.equal(calls.filter(([method]) => method === 'select').length, 1);
+  assert.equal(calls.filter(([method]) => method === 'openTarget').length, 0);
+  targets = []; focusFails = false;
   builtIn = []; calls.length = 0; await assert.rejects(open(), /No built-in browser/);
   assert.deepEqual(calls.map(([method]) => method), ['browserRoute', 'targets']);
   enabled = false; await assert.rejects(open(), /requires OMD/);

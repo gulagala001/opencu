@@ -35,7 +35,7 @@ export function installQuoteCompanion(slots, inject, wrap) {
 /** Captures response selections without replacing the host's message renderer or changing tool execution. */
 export function createTextAnnotations({ submit, insertQuote, notify }) {
   const listeners = new Set(), quoteSurfaces = new Map();
-  let current = null, selectedRow = null, selectedRange = null, disposed = false;
+  let current = null, selectedRow = null, selectedRange = null, clearHostSelection = null, disposed = false;
   const publish = value => { current = value; for (const listener of listeners) listener(); };
   const elementOf = node => node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
   const locate = node => elementOf(node)?.closest('[data-chat-node-key][data-chat-flow-kind="assistant"],[data-chat-node-key][data-chat-flow-kind="assistant-step"]');
@@ -46,13 +46,15 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
     try { localStorage.setItem(key(current), body); }
     catch (error) { notify(current.sessionId, error.message); }
   };
-  const close = () => { selectedRow = null; selectedRange = null; if (current !== null) publish(null); };
+  const close = () => { if (current?.editing) clearMatchedSelection(); selectedRow = null; selectedRange = null; clearHostSelection = null; if (current !== null) publish(null); };
   function clearMatchedSelection() {
     const selection = document.getSelection();
     if (selectedRange && selection?.rangeCount === 1) {
       const range = selection.getRangeAt(0);
       if (range.compareBoundaryPoints(Range.START_TO_START, selectedRange) === 0 &&
-          range.compareBoundaryPoints(Range.END_TO_END, selectedRange) === 0) selection.removeAllRanges();
+          range.compareBoundaryPoints(Range.END_TO_END, selectedRange) === 0) {
+        if (clearHostSelection) clearHostSelection(); else selection.removeAllRanges();
+      }
     }
   }
   function readSelection() {
@@ -115,10 +117,10 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
       document.addEventListener('scroll', reposition, true); window.addEventListener('resize', reposition);
       observer = new MutationObserver(check); observer.observe(document.body, { childList: true, subtree: true });
     },
-    attachQuote(id, toolbar, readText, dismiss) {
+    attachQuote(id, toolbar, readText, dismiss, clearSelection) {
       const area = toolbar?.closest('[data-text-interaction-surface]')?.parentElement;
       if (!area) return;
-      quoteSurfaces.set(id, { area, readText, dismiss });
+      quoteSurfaces.set(id, { area, readText, dismiss, clearSelection });
       const selection = readSelection();
       if (selection && !current?.editing && !current?.pending && area.contains(selection.row)) adopt(selection);
       return () => {
@@ -131,6 +133,7 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
       if (!current || current.pending || current.quoteSurface !== id) return;
       const surface = quoteSurfaces.get(id);
       if (id && !surface?.readText()) { close(); return; }
+      clearHostSelection = surface?.clearSelection;
       publish({ ...current, editing: true });
       surface?.dismiss();
     },

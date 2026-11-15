@@ -43,13 +43,13 @@ function QuoteActions({ value, copy, edit, report }) {
 export function withTextQuote(NativeQuote) {
   return function TextQuote(props) {
     const toolbar = HostReact.useRef(null), id = HostReact.useRef(Symbol('quote surface')).current;
-    const { attachQuote, dismiss, readText, edit, copy, report } = props;
+    const { attachQuote, dismiss, clearSelection, readText, edit, copy, report } = props;
     const value = props.useAnnotation(value => value?.quoteSurface === id ? value : null);
     const enabled = props.useSession(s => !s.removed && (s.subagent === null || s.subagent.address.mode === 'continuable'));
     HostReact.useLayoutEffect(() => {
       if (!enabled) { dismiss(); return; }
-      return attachQuote(id, toolbar.current, readText, dismiss);
-    }, [enabled, id, attachQuote, readText, dismiss]);
+      return attachQuote(id, toolbar.current, readText, dismiss, clearSelection);
+    }, [enabled, id, attachQuote, readText, dismiss, clearSelection]);
     const open = HostReact.useCallback(() => edit(id), [edit, id]);
     const copySelection = HostReact.useCallback(() => copy(id), [copy, id]);
     if (!enabled) return null;
