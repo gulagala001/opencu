@@ -126,9 +126,10 @@ const cases = [
   {name:'empty-generic-zero-discovery-window',kind:'empty',entry:'tool'},
   {name:'empty-generic-multiple-profiles',kind:'empty',entry:'tool',multiple:true},
   {name:'explicit-external-multiple-profiles',kind:'empty',entry:'external',multiple:true,expectCode:'BROWSER_CHOICE_REQUIRED'},
-  {name:'empty-generic-caller-abort',kind:'empty',entry:'tool',end:'abort'},
-  {name:'empty-computer-caller-abort',kind:'empty',entry:'computer',code:'await cua.getBrowser()',end:'abort'},
-  {name:'empty-computer-cancel-does-not-release-unowned-native-input',kind:'release-error',entry:'computer',code:'await cua.getBrowser()',end:'abort',unownedReleaseError:true},
+  {name:'empty-generic-pre-aborted-caller',kind:'empty',entry:'tool',abortBefore:true},
+  {name:'empty-computer-requires-explicit-browser',kind:'empty',entry:'computer',code:'await cua.getBrowser()',expectError:true},
+  {name:'empty-explicit-external-caller-abort',kind:'empty',entry:'external',end:'abort'},
+  {name:'empty-explicit-external-cancel-does-not-release-unowned-native-input',kind:'release-error',entry:'computer',code:"await cua.getBrowser({browser:'external'})",end:'abort',unownedReleaseError:true},
   {name:'native-generic-list-no-pairing',kind:'native',entry:'tool'},
   {name:'native-is-not-a-browser',kind:'native',entry:'computer',code:'await cua.getBrowser()',expectError:true},
   {name:'native-explicit-external-still-reachable',kind:'native',entry:'external',end:'decline'},
@@ -142,6 +143,7 @@ for (const spec of cases) test(spec.name,{timeout:10000},async()=>{
   if (spec.end || ['managed','native','inventory-error','connected-empty'].includes(spec.kind)) await f.discover();
   if (spec.multiple) { await f.discover(); await f.discover({instanceId:'synthetic-second-profile'}); }
   const inventoryBaseline = f.physical.stats.inventoryReads;
+  if (spec.abortBefore) caller.abort(reason);
   const observed = capture(()=>f.invoke(spec.entry,caller.signal,spec.code));
   if (spec.end) {
    const demand = await f.demand(); f.events.push('demand:observed');
@@ -153,7 +155,7 @@ for (const spec of cases) test(spec.name,{timeout:10000},async()=>{
   if(spec.name==='managed-local-binding-and-tabs') assert.equal(record.inventoryReadsForEntry,2,'binding and tabs.list each reuse one inventory read');
   record.returned=result.returned; record.errorCode=result.code??null;
   if (spec.end === 'decline') assert.equal(result.code,'PAIRING_DECLINED');
-  else if (spec.end === 'abort') {
+  else if (spec.end === 'abort' || spec.abortBefore) {
    assert.equal(result.error,reason,'original caller abort reason must retain object identity'); record.abortReasonSameObject=true;
    if(spec.unownedReleaseError) assert.equal(f.nativeStats.releases,record.releasesBeforeAbort,'read-only discovery owns no native input and must not release another session');
   } else if(spec.expectCode) assert.equal(result.code,spec.expectCode);
@@ -167,10 +169,10 @@ for (const spec of cases) test(spec.name,{timeout:10000},async()=>{
   if(f.managed) { assert(inventory.targets.some(x=>x.id===f.managed.id)); record.sameManagedTarget=true; if(spec.entry==='tool'&&result.returned) assert(result.value.targets.some(x=>x.id===f.managed.id)); }
   if(spec.name==='managed-local-binding-and-tabs') { const tabs=JSON.parse(result.value.outputs.at(-1)); assert(tabs.some(x=>x.id===f.managed.id)); record.boundTabsReturnedOriginal=true; }
   if(spec.kind==='native') { assert(inventory.targets.some(x=>x.backend==='native')); if(result.returned&&spec.entry==='tool') assert(result.value.targets.some(x=>x.backend==='native')); }
-  if(spec.multiple&&!spec.expectCode) { assert.equal(result.value.browsers.filter(x=>x.pairingRequired).length,2); record.pairingChoices=2; }
+  if(spec.multiple&&!spec.expectCode) { assert.equal(result.value.browsers.filter(x=>x.pairingRequired).length,0,'inventory must not initiate pairing or choose an external profile'); record.pairingChoices=0; }
   if(spec.kind==='inventory-error') { assert(result.value.errors.some(x=>x.code==='SYNTHETIC_NATIVE_UNAVAILABLE')); assert(inventory.errors.some(x=>x.code==='SYNTHETIC_NATIVE_UNAVAILABLE')); }
   if(spec.kind==='connected-empty') assert(inventory.browsers.some(x=>x.id==='browser:local'&&x.connected));
-  if(spec.kind==='empty'&&!spec.end&&!spec.multiple) { assert.deepEqual(result.value.targets,[]); assert.deepEqual(result.value.errors,[]); }
+  if(spec.kind==='empty'&&result.returned&&!spec.end&&!spec.multiple) { assert.deepEqual(result.value.targets,[]); assert.deepEqual(result.value.errors,[]); }
  } catch(error) {record.primaryFailure={code:error.code??error.name,message:error.message};throw error;}
  finally {const cleanup=await capture(()=>f.finish());if(!cleanup.returned)record.cleanupErrorCode=cleanup.code;reports.push(record);console.log('ROUTING '+JSON.stringify(record));if(!record.primaryFailure)assert(cleanup.returned);}
 });

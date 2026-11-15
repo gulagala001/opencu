@@ -143,7 +143,7 @@ for (const kind of ['classic-module-loader', 'esm-createOpenCU']) await test(kin
           result.slotRegistrations.push(registration); activeSlots.add(registration);
           return () => activeSlots.delete(registration);
         },
-        entries: () => [], subscribe: () => noop,
+        entries: () => [], entriesOfSlot: () => [], subscribe: () => noop,
       },
       sidebarRight: { mounted: observable(null), openTabs: observable([]), tabsIn: () => [] },
       sidebarRightTabs: { register: () => noop },
@@ -194,9 +194,9 @@ for (const kind of ['classic-module-loader', 'esm-createOpenCU']) await test(kin
     result.error = { name: error.name, message: error.message, stack: error.stack };
     const match = error.stack.match(/(lib\/client(?:\.factory\.mjs|\.js)):(\d+):(\d+)/);
     if (match) {
-      const lines = (await readFile(resolve(checkout, match[1]), 'utf8')).split('\n');
-      const line = lines[Number(match[2]) - 1], col = Number(match[3]) - 1;
-      result.failureContext = { file: match[1], line: Number(match[2]), column: Number(match[3]), text: line.slice(Math.max(0, col - 180), col + 250) };
+      const source = await readFile(resolve(checkout, match[1]), 'utf8').catch(() => null);
+      const line = source?.split('\n')[Number(match[2]) - 1], col = Number(match[3]) - 1;
+      if (line) result.failureContext = { file: match[1], line: Number(match[2]), column: Number(match[3]), text: line.slice(Math.max(0, col - 180), col + 250) };
     }
   }
   results.push(result);

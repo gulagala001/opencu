@@ -28,6 +28,7 @@ export async function extensionFolderFixture(options = {}) {
         if (options.request) return options.request();
         return { ok: true, json: async () => ({ ok: true, path }) };
       }
+      if (method === 'browserRoute/enabled') return { ok: true, json: async () => ({ ok: true, enabled: false }) };
       assert.equal(method, 'capabilities');
       if (readFailure) throw new Error(readFailure);
       return { ok: true, json: async () => ({ config: {}, connections: [], backends: {}, browserResources: {}, warnings: [] }) };

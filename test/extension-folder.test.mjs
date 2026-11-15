@@ -141,8 +141,9 @@ test('unmounted button handlers cannot request a folder or write the clipboard',
 });
 
 test('folder receipt needs no unrelated refresh and remains copyable after a later read error', async t => {
-  const f = await extensionFolderFixture(); t.after(() => f.unmount()); await f.show();
-  assert.deepEqual(f.requests.map(row => row.method), ['capabilities', 'extensionFiles']);
+  const f = await extensionFolderFixture(); t.after(() => f.unmount());
+  const before = f.requests.length; await f.show();
+  assert.deepEqual(f.requests.slice(before).map(row => row.method), ['extensionFiles']);
   f.failReads('later capabilities failure'); await f.focus();
   await f.copy(); assert.equal(copied(f), true); assert.equal(visiblePath(f), '/srv/dsh/opencu/extension');
 });

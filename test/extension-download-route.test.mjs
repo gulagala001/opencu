@@ -13,6 +13,7 @@ import { once } from 'node:events';
 import { gzipSync } from 'node:zlib';
 import { extensionFolderFixture } from './fixtures/extension-folder.mjs';
 import pin from './fixtures/dsh-connection.json' with { type: 'json' };
+import extension from '../extension/manifest.json' with { type: 'json' };
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 await mkdir(join(root, '.local'), { recursive: true });
@@ -73,7 +74,7 @@ test('real shared -> official Connection HTTP admission -> exact owner route ser
   const bytes = Buffer.from(await get.arrayBuffer()); assert(bytes.equals(await readFile(new URL('../lib/extension.zip', import.meta.url))));
   assert.equal(head.headers.get('etag'), `"${createHash('sha256').update(bytes).digest('hex')}"`);
   assert.equal(head.headers.get('content-length'), String(bytes.length)); assert.equal(head.headers.get('content-type'), 'application/zip');
-  assert.match(head.headers.get('content-disposition'), /^attachment; filename="opencu-extension-0\.2\.0.zip"$/);
+  assert.equal(head.headers.get('content-disposition'), `attachment; filename="opencu-extension-${extension.version}.zip"`);
   assert.equal((await f.get('GET', { origin: f.base })).status, 200);
 });
 for (const method of ['GET', 'HEAD']) test(`real Connection denies missing/tampered cookies, wrong Host/Origin for ${method}`, async t => {
