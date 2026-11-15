@@ -39,7 +39,7 @@ async function fixture(t) {
     remove: async keys => {for(const key of Array.isArray(keys)?keys:[keys])delete localData[key];} };
   const identity = { tabId: 73, documentId: 'doc', epoch: 'epoch', instanceId: 'instance', browserInstanceId: 'browser' };
   const owner = { ...identity, endpoint: 'http://127.0.0.1:12345', token: 'synthetic-local-token', sessionId: 'session' };
-  const geometry = { width: 100, height: 80, visual: { x: 0, y: 0, width: 100, height: 80, scale: 1 } };
+  const geometry = { width: 100, height: 80, scrollX: 0, scrollY: 0, devicePixelRatio: 1, revision: 0, visual: { x: 0, y: 0, width: 100, height: 80, scale: 1 } };
   const bytes = Buffer.alloc(24); bytes.writeUInt32BE(0x89504e47, 0); bytes.writeUInt32BE(100, 16); bytes.writeUInt32BE(80, 20);
   const chrome = {
     storage: { local: storage, session: {
@@ -57,7 +57,7 @@ async function fixture(t) {
     scripting: { executeScript: async request => {
       if (!request.args) return [{ frameId: 0, documentId: 'chrome-doc', result: true }];
       const [method,args] = request.args; events.push(['content',method,args,request.target.tabId]); await hooks.content?.(method,args,request.target.tabId);
-      return [{ frameId: 0, documentId: 'chrome-doc', result: { ok: true, result: { documentId: (typeof hooks.documentId === 'function' ? hooks.documentId(request.target.tabId) : hooks.documentId) ?? 'doc', geometry } } }];
+      return [{ frameId: 0, documentId: 'chrome-doc', result: { ok: true, result: { documentId: (typeof hooks.documentId === 'function' ? hooks.documentId(request.target.tabId) : hooks.documentId) ?? 'doc', url: 'https://fixture.invalid/', geometry: structuredClone(geometry) } } }];
     } },
     debugger: {
       sendCommand: async (_, method, params) => {
@@ -104,7 +104,7 @@ async function fixture(t) {
   const loop = worker.loop(owner);
   const stop = async () => {worker.setConnection(null);queue();await loop;for(let n=0;worker.getRunning()&&n<200;n++){queue();await new Promise(resolve=>setTimeout(resolve,1));}assert.equal(worker.getRunning(),false);};
   t.after(async () => { for (const key of Object.keys(hooks)) delete hooks[key]; await stop(); invalidateElements(73); });
-  return { worker, identity, hooks, events, seed, queue, message, result, chrome, owner, sessionData, localData, stop };
+  return { worker, identity, geometry, hooks, events, seed, queue, message, result, chrome, owner, sessionData, localData, stop };
 }
 
 test('a removed Chrome tab keeps a terminal error through selection, observation and preview without hiding unrelated API errors', async t => {
@@ -485,6 +485,61 @@ test('MV3 screenshot format captures pixels without reading AX and keeps fresh o
   assert.equal(shot.screenshot.width, 100);
   assert.equal(f.events.some(([method]) => method === 'Accessibility.getFullAXTree'), false);
   assert.equal(f.events.filter(([method]) => method === 'Page.captureScreenshot').length, 1);
+});
+
+test('MV3 separates DOM churn, AX/image consistency and screenshot-coordinate authorization', async t => {
+  const f = await fixture(t); f.seed([], []);
+  const point = shot => ({type:'click', screenshotId:shot.screenshot.id, x:50, y:40});
+  const stable = await f.worker.observe(f.identity, {format:'screenshot'});
+  assert.equal(stable.screenshot.coordinateInput, undefined);
+  f.hooks.send = method => { if (method === 'Page.captureScreenshot') f.geometry.revision++; };
+  for (const format of ['screenshot','both']) {
+    const shot = await f.worker.observe(f.identity, {format});
+    assert.equal(shot.screenshot.width, 100);
+    assert.equal(shot.axScreenshotConsistency?.verified, format === 'both' ? false : undefined);
+    assert.equal(shot.screenshot.coordinateInput.reason, 'page-revision-changed');
+    await assert.rejects(f.worker.act(f.identity, point(shot)), {code:'STALE_SCREENSHOT',details:{reason:'page-revision-changed',inputDispatched:false}});
+  }
+  await assert.rejects(f.worker.act(f.identity, point(stable)), {code:'STALE_SCREENSHOT',details:{reason:'screenshot-replaced',inputDispatched:false}});
+  const ax = await f.worker.observe(f.identity, {format:'ax',screenshot:false});
+  assert(ax.ax.nodes.length);
+  assert.equal(ax.axScreenshotConsistency, undefined);
+  assert.equal(f.events.some(([method]) => method.startsWith('Input.')), false);
+});
+
+test('MV3 fences live viewport changes during capture and immediately before coordinate dispatch', async t => {
+  const f = await fixture(t); f.seed([], []);
+  for (const key of ['scrollY','width','devicePixelRatio']) {
+    f.hooks.send = method => { if (method === 'Page.captureScreenshot') f.geometry[key]++; };
+    await assert.rejects(f.worker.observe(f.identity, {format:'screenshot'}), {code:'OBSERVATION_CHANGED',details:{reason:'viewport-or-url-changed',changed:[key]}});
+    f.hooks.send = undefined;
+    const shot = await f.worker.observe(f.identity, {format:'screenshot'});
+    const action = {type:'click',screenshotId:shot.screenshot.id,x:50,y:40};
+    f.hooks.content = method => { if (method === 'expectInput') f.geometry[key]++; };
+    await assert.rejects(f.worker.act(f.identity, action), {code:'STALE_SCREENSHOT',details:{reason:'viewport-changed',inputDispatched:false}});
+    f.hooks.content = undefined;
+  }
+  f.geometry.visual.scale = 2;
+  const zoomed = await f.worker.observe(f.identity, {format:'screenshot'});
+  assert.equal(zoomed.screenshot.coordinateInput.reason, 'pinch-zoom');
+  await assert.rejects(f.worker.act(f.identity, {type:'click',screenshotId:zoomed.screenshot.id,x:50,y:40}), {code:'UNSUPPORTED_PINCH_ZOOM'});
+  assert.equal(f.events.some(([method]) => method.startsWith('Input.')), false);
+});
+
+test('MV3 never publishes pixels or accepts old coordinates after document replacement', async t => {
+  const f = await fixture(t); f.seed([], []);
+  const shot = await f.worker.observe(f.identity, {format:'screenshot'});
+  f.hooks.send = method => {
+    if (method !== 'Page.captureScreenshot') return;
+    f.hooks.documentId = 'new-doc';
+    f.chrome.webNavigation.onCommitted.emit({tabId:73,frameId:0,documentId:'new-doc'});
+  };
+  await assert.rejects(f.worker.observe(f.identity, {format:'both'}), {code:'STALE_DOCUMENT'});
+  assert.equal(f.worker.observations.size, 0);
+  const action = {type:'click',screenshotId:shot.screenshot.id,x:50,y:40};
+  await assert.rejects(f.worker.act(f.identity, action), {code:'STALE_DOCUMENT'});
+  await assert.rejects(f.worker.act({...f.identity,documentId:'new-doc'}, action), {code:'STALE_SCREENSHOT'});
+  assert.equal(f.events.some(([method]) => method.startsWith('Input.')), false);
 });
 
 test('MV3 element pages use live geometry without a screenshot and fence resize before wheel',async t=>{
