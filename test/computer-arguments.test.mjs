@@ -78,6 +78,8 @@ test('first-use docs retain safety and load browser testing details only on dema
   const { computerDescription } = await import('../src/dsh/computer-docs.mjs');
   assert.doesNotMatch(computerDescription, /file:|withIsolatedBrowser|recoveryIsolated|opencu_\*/);
   assert.ok(computerDescription.length < 1800);
+  assert.match(computerDescription, /reuseAuthorized:true.*user authorizes/);
+  assert.match(computerDescription, /expected URL\/title/);
   const f = fixture(t);
   const first = await f.run('await cua.getState();');
   assert.match(JSON.stringify(first), /Unresolved native hardware input|releasePending/);
