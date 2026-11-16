@@ -72,3 +72,18 @@ test('a lexical redeclaration explains persistent bindings without resetting exi
   await f.run('var mutable=1;');await f.run('var mutable=2;');
   assert.match(JSON.stringify((await f.run('mutable')).outputs),/2/);
 });
+
+
+test('first-use docs retain safety and load browser testing details only on demand', async t => {
+  const { computerDescription } = await import('../src/dsh/computer-docs.mjs');
+  assert.doesNotMatch(computerDescription, /file:|withIsolatedBrowser|recoveryIsolated|opencu_\*/);
+  assert.ok(computerDescription.length < 1800);
+  const f = fixture(t);
+  const first = await f.run('await cua.getState();');
+  assert.match(JSON.stringify(first), /Unresolved native hardware input|releasePending/);
+  assert.doesNotMatch(JSON.stringify(first), /withIsolatedBrowser/);
+  const docs = await f.run("await cua.documentation('testing');");
+  assert.match(JSON.stringify(docs), /withIsolatedBrowser/);
+  assert.match(JSON.stringify(docs), /--use-mock-keychain/);
+  assert.match(JSON.stringify(docs), /--password-store=basic/);
+});

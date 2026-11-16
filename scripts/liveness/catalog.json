@@ -10047,7 +10047,7 @@
     {
       "file": "src/dsh/browser-testing.mjs",
       "contract": "browser",
-      "sha256": "e81b9acbfacae1964a83db54f2f9219497e7a71049ce616d57df1a81a19365dc",
+      "sha256": "d2fdda1a0a00fce296706c7438e261e531bea37d5a9448590a2267fe86fd7a1b",
       "kind": "javascript",
       "sites": []
     },
@@ -10128,7 +10128,7 @@
     {
       "file": "src/dsh/computer-docs.mjs",
       "contract": "execution",
-      "sha256": "ec8ae235b4abfe15e6f36392d4cb3a3f416f0062f4fd27e444a625e1d7258efa",
+      "sha256": "103fa68742608a3ba184a2cc2fb25e56f5617c94784d6735f157ac0e7c3a35ea",
       "kind": "javascript",
       "sites": []
     },
