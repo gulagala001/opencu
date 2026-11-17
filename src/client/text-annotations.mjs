@@ -32,7 +32,7 @@ export function installQuoteCompanion(slots, inject, wrap) {
   return () => { disposed = true; unsubscribe(); installed?.dispose(); };
 }
 
-/** Captures response selections without replacing the host's message renderer or changing tool execution. */
+/** Enrich selections admitted by the native Quote surface; the host owns all selection gestures. */
 export function createTextAnnotations({ submit, insertQuote, notify }) {
   const listeners = new Set(), quoteSurfaces = new Map();
   let current = null, selectedRow = null, selectedRange = null, clearHostSelection = null, disposed = false;
@@ -71,12 +71,8 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
       text: selection.toString(), start: preceding.toString().length,
       rect: { left: bounds.left, top: bounds.top, bottom: bounds.bottom }, editing: false, pending: false, error: null } };
   }
-  function adopt({ row, range, value }) {
-    for (const [id, surface] of quoteSurfaces) {
-      if (!surface.area.contains(row)) continue;
-      const text = surface.readText();
-      if (typeof text === 'string' && text.trim()) { value.quoteSurface = id; value.quoteText = text; break; }
-    }
+  function adopt({ row, range, value }, id, text) {
+    value.quoteSurface = id; value.quoteText = text;
     if (current && row === selectedRow && key(value) === key(current)) {
       selectedRange = range.cloneRange();
       if (!current.editing && (value.quoteSurface !== current.quoteSurface || value.quoteText !== current.quoteText)) {
@@ -88,15 +84,13 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
     catch { value.body = ''; }
     selectedRow = row; selectedRange = range.cloneRange(); publish(value);
   }
-  const capture = event => {
-    if (disposed || current?.pending) return;
+  const dismissEditor = event => {
+    if (disposed || !current?.editing || current.pending) return;
     if (event?.type === 'keyup' && event.key === 'Escape') { close(); return; }
-    if (event?.type === 'keyup' && !['Shift', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    if (event?.type === 'keyup') return;
     if (event?.button != null && event.button !== 0) return;
     if (event?.composedPath().some(node => node?.matches?.('[data-rea-root], [data-opencu-text-quote]'))) return;
-    if (event?.composedPath().some(node => node?.matches?.('input,textarea,[contenteditable="true"],button'))) { close(); return; }
-    const selection = readSelection();
-    if (selection) adopt(selection); else close();
+    close();
   };
   const reposition = () => {
     if (!current || !selectedRange || !selectedRow?.isConnected) return;
@@ -113,7 +107,7 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
   return {
     state: { getSnapshot: () => current, subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); } },
     start() {
-      document.addEventListener('pointerup', capture); document.addEventListener('keyup', capture);
+      document.addEventListener('pointerup', dismissEditor); document.addEventListener('keyup', dismissEditor);
       document.addEventListener('scroll', reposition, true); window.addEventListener('resize', reposition);
       observer = new MutationObserver(check); observer.observe(document.body, { childList: true, subtree: true });
     },
@@ -122,7 +116,9 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
       if (!area) return;
       quoteSurfaces.set(id, { area, readText, dismiss, clearSelection });
       const selection = readSelection();
-      if (selection && !current?.editing && !current?.pending && area.contains(selection.row)) adopt(selection);
+      const text = readText();
+      if (selection && !current?.editing && !current?.pending && area.contains(selection.row)
+        && typeof text === 'string' && text.trim()) adopt(selection, id, text);
       return () => {
         quoteSurfaces.delete(id);
         if (current?.quoteSurface === id && !current.editing) close();
@@ -132,7 +128,7 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
     edit(id) {
       if (!current || current.pending || current.quoteSurface !== id) return;
       const surface = quoteSurfaces.get(id);
-      if (id && !surface?.readText()) { close(); return; }
+      if (!surface?.readText()) { close(); return; }
       clearHostSelection = surface?.clearSelection;
       publish({ ...current, editing: true });
       surface?.dismiss();
@@ -165,7 +161,7 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
     },
     dispose() {
       disposed = true;
-      document.removeEventListener('pointerup', capture); document.removeEventListener('keyup', capture);
+      document.removeEventListener('pointerup', dismissEditor); document.removeEventListener('keyup', dismissEditor);
       document.removeEventListener('scroll', reposition, true); window.removeEventListener('resize', reposition);
       observer?.disconnect(); close(); listeners.clear();
     },

@@ -8564,25 +8564,25 @@
     {
       "file": "src/client/text-annotation-slot.jsx",
       "contract": "resources",
-      "sha256": "2f484e4c31ade958da7cfe713759d31229e5b2556804a075f5838906a9ceb44b",
+      "sha256": "4886087115f98c73ea7a871b3b5ee57b5e9a7617cac762420d4684d247536d2f",
       "kind": "javascript",
       "sites": []
     },
     {
       "file": "src/client/text-annotations.mjs",
       "contract": "resources",
-      "sha256": "4434b3eb2faf554cdd8877fb5ad739851471a5689c57d8e384af5aa802380371",
+      "sha256": "df3c1d0103a849a82ab0b7d82f10f03414cda18942e64d7c74670c0064192da0",
       "kind": "javascript",
       "sites": [
         {
           "id": "copy:await:navigator.clipboard.writeText():1",
-          "line": 143,
+          "line": 139,
           "kind": "await",
           "callee": "navigator.clipboard.writeText()"
         },
         {
           "id": "submit:await:submit():1",
-          "line": 160,
+          "line": 156,
           "kind": "await",
           "callee": "submit()"
         }

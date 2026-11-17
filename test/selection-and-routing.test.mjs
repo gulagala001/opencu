@@ -57,22 +57,44 @@ test('one selection moves from the host surface to the editor, with distinct quo
   actions.start();
   const toolbar = { closest: () => ({ parentElement: { contains: item => item === row } }) };
   const selected = () => actions.state.getSnapshot();
+  const gesture = type => {
+    const event = new Event(type);
+    if (type === 'keyup') Object.defineProperty(event, 'key', { value: 'Shift' });
+    doc.dispatchEvent(event);
+  };
+  for (const type of ['pointerup', 'keyup']) {
+    gesture(type);
+    assert.equal(selected(), null, 'a DOM selection without a native quote surface must not create a second toolbar');
+  }
   release = actions.attachQuote('native', toolbar, () => 'native text', () => release());
   assert.equal(selected().quoteSurface, 'native'); assert.equal(await actions.copy('native'), true);
   actions.edit('native'); assert.equal(selected().editing, true);
   await actions.submit(' '); assert.match(selected().error, /could not accept/); assert.equal(selection.rangeCount, 1);
   writable = true; await actions.submit(''); assert.equal(selected(), null); assert.equal(selection.rangeCount, 0);
-  selection.rangeCount = 1; doc.dispatchEvent(new Event('pointerup'));
-  assert.equal(selected().quoteSurface, undefined); actions.edit();
+  selection.rangeCount = 1; gesture('pointerup');
+  assert.equal(selected(), null, 'dismissed quote surfaces must not return through the global pointer listener');
+  release = actions.attachQuote('annotation', toolbar, () => 'native text', () => release());
+  actions.edit('annotation');
   await actions.submit('comment'); assert.equal(selected(), null);
   assert.deepEqual(calls, [['copy', 'native text'], ['quote', 'native text'], ['quote', 'native text'], ['annotation', 'comment', 'selected', 6, false]]);
   selection.rangeCount = 1; let cleared = 0;
   release = actions.attachQuote('cancel', toolbar, () => 'native text', () => release(), () => { cleared++; selection.removeAllRanges(); });
   actions.edit('cancel'); actions.body('retained draft'); actions.close();
   assert.equal(cleared, 1); assert.equal(selection.rangeCount, 0); assert.ok([...storage.values()].includes('retained draft'));
-  selection.rangeCount = 1; doc.dispatchEvent(new Event('pointerup')); actions.edit();
+  selection.rangeCount = 1;
+  release = actions.attachQuote('new-selection', toolbar, () => 'native text', () => release());
+  actions.edit('new-selection');
   range.compareBoundaryPoints = () => 1; actions.close();
   assert.equal(selection.rangeCount, 1, 'closing an old editor preserves a different selection');
+  release = actions.attachQuote('retired', toolbar, () => 'native text', () => release());
+  release();
+  for (const type of ['pointerup', 'keyup']) {
+    gesture(type);
+    assert.equal(selected(), null, 'retiring the native quote owner must not activate a fallback toolbar');
+  }
+  release = actions.attachQuote('unsupported', toolbar, () => null, () => release());
+  assert.equal(selected(), null, 'a native surface without quote text cannot admit annotations');
+  release();
 });
 
 test('automatic browser routing reuses only eligible tabs; otherwise opens the unique built-in window', async t => {

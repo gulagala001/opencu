@@ -7,13 +7,12 @@ import { u as SelectedTextEditor, m } from './rea/annotation-editor-8063237bdf92
 import styles from './rea-styles.css';
 import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
 
-function SelectionActions({ copy, edit, combined = false }) {
+function SelectionActions({ copy, edit }) {
   return <div className="flex items-center gap-1 rounded-xl border border-default bg-surface-elevated p-1 shadow-lg"
     onPointerDown={event => event.preventDefault()}>
     <Shared.OGi buttonText={true} showTooltip={false} variant="codeBlock" onCopy={copy} />
     <Shared.r5 color="ghost" size="composerSm" onClick={edit}>
-      {combined ? <Shared.hS id="opencu.textAnnotation.quoteOrAnnotate" defaultMessage="Quote or annotate" />
-        : <Shared.hS id="opencu.textAnnotation.annotate" defaultMessage="Annotate" />}
+      <Shared.hS id="opencu.textAnnotation.quoteOrAnnotate" defaultMessage="Quote or annotate" />
     </Shared.r5>
   </div>;
 }
@@ -34,7 +33,7 @@ function QuoteActions({ value, copy, edit, report }) {
   HostReact.useLayoutEffect(() => {
     const { root, portal } = mounted.current;
     root.render(<ReaProviders portal={portal} path={`/ca/${value.sessionId}`}>
-      <SelectionActions copy={copy} edit={edit} combined />
+      <SelectionActions copy={copy} edit={edit} />
     </ReaProviders>);
   }, [value.sessionId, copy, edit]);
   return HostReact.createElement('div', { ref: anchor });
@@ -59,17 +58,16 @@ export function withTextQuote(NativeQuote) {
   };
 }
 
-function Editor({ value, portal, body, close, submit, copy, edit }) {
+function Editor({ value, portal, body, close, submit }) {
   const left = Math.max(8, Math.min(value.rect.left, innerWidth - 310));
-  const top = Math.max(8, Math.min(value.rect.bottom + 8, innerHeight - (value.editing ? 240 : 48)));
+  const top = Math.max(8, Math.min(value.rect.bottom + 8, innerHeight - 240));
   return <ReaProviders portal={portal} path={`/ca/${value.sessionId}`}>
     <Shared._lt scope={Shared.jX} value={{ clientThreadId: `local:${value.sessionId}`, routeConversationId: value.sessionId }}>
       <Shared._lt scope={Shared.h1} value={{ routeKind: 'local-thread', pathname: `/ca/${value.sessionId}`, conversationId: value.sessionId, hostId: 'local' }}>
         <Shared._lt scope={Shared.j0r} value={{ kind: 'local', placement: 'main', conversationId: value.sessionId, clientThreadId: `local:${value.sessionId}`, routeConversationId: value.sessionId }}>
           <div style={{ position: 'fixed', left, top, pointerEvents: 'auto' }} aria-busy={value.pending}>
-            {value.editing ? <SelectedTextEditor draftBody={value.body} onBodyChange={body} onCancel={close} onEscape={close}
+            <SelectedTextEditor draftBody={value.body} onBodyChange={body} onCancel={close} onEscape={close}
               onSubmit={body => submit(body, false)} onDirectSubmit={body => submit(body, true)} />
-              : <SelectionActions copy={() => copy()} edit={() => edit()} />}
             {value.error && <div role="alert" className="bg-surface-elevated p-3 text-sm text-danger">{value.error}</div>}
           </div>
         </Shared._lt>
@@ -89,9 +87,9 @@ export function TextAnnotationSlot(props) {
   }, []);
   HostReact.useLayoutEffect(() => {
     const { root, portal } = mounted.current;
-    root.render(value && (!value.quoteSurface || value.editing)
+    root.render(value?.editing
       ? <Editor key={`${value.sessionId}:${value.nodeKey}:${value.start}:${value.text}`} value={value} portal={portal}
-          body={props.body} close={props.close} submit={props.submit} copy={props.copy} edit={props.edit} /> : null);
-  }, [value, props.body, props.close, props.submit, props.copy, props.edit]);
+          body={props.body} close={props.close} submit={props.submit} /> : null);
+  }, [value, props.body, props.close, props.submit]);
   return null;
 }
