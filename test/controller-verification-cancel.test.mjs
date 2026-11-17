@@ -34,7 +34,7 @@ for (const method of ['focus','act']) test(`extension ${method} cancels its comp
  const backend=createCompositeBrowserBackend({extension}),selected=(await backend.listTargets())[0];
  const pending=method==='focus'?backend.focus(selected,{signal:aborter.signal}):backend.act(selected,{action:'keyDown',key:'Control',signal:aborter.signal});
  const rejected=assert.rejects(pending,error=>error.code==='CONTROL_STOPPED');await entered.promise;aborter.abort();
- try{assert.equal(await settledWithin(rejected,100),true,'pure verification cannot hold the release lane');await rejected;assert.equal(calls,0);}
+ try{assert.equal(await settledWithin(rejected),true,'pure verification cannot hold the release lane');await rejected;assert.equal(calls,0);}
  finally{gate.resolve();await rejected;}
 });
 // Production controller/backend/actions; only Playwright page/CDP endpoints simulated.
@@ -70,7 +70,13 @@ async function setup(t,composed=false,releaseTimeoutMs=20){
 }
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function settledWithin(promise,ms){return Promise.race([promise.then(()=>true,()=>true),sleep(ms).then(()=>false)]);}
+// The gated RPC stays unresolved until cleanup: assert causal progress, not a
+// sub-150ms filesystem write on a contended CI worker. Keep the watchdog bounded.
+async function settledWithin(promise,ms=2000){
+ let timer;
+ try{return await Promise.race([promise.then(()=>true,()=>true),new Promise(resolve=>{timer=setTimeout(()=>resolve(false),ms);})]);}
+ finally{clearTimeout(timer);}
+}
 test('independent discovery cancels without waiting for another read or releasing its owner input', async t => {
  const {controller:c,backend,A,events,ok}=await setup(t);
  await ok(c.selectTarget(A));await ok(c.act({action:'keyDown',key:'Shift'}));
@@ -79,9 +85,9 @@ test('independent discovery cancels without waiting for another read or releasin
  const slow=c.listTargets();await entered.promise;
  const aborter=new AbortController(),cancelled=c.listTargets({signal:aborter.signal});aborter.abort();
  try {
-  assert.equal(await settledWithin(cancelled,500),true,'cancellation must not queue behind the earlier read');
+  assert.equal(await settledWithin(cancelled),true,'cancellation must not queue behind the earlier read');
   assert.equal((await cancelled).error.code,'CONTROL_STOPPED');
-  const fresh=c.listTargets();assert.equal(await settledWithin(fresh,500),true,'a healthy read must remain usable');await ok(fresh);
+  const fresh=c.listTargets();assert.equal(await settledWithin(fresh),true,'a healthy read must remain usable');await ok(fresh);
   assert.equal((await c.getState()).state.mode,'active');assert.equal(events.some(e=>e[1]==='up'),false);
  }finally{backend.listTargets=original;gate.resolve();await slow;await cancelled;}
 });
@@ -91,7 +97,7 @@ test('discovery stays responsive while a dispatched input still owns the serial 
  await ok(c.selectTarget(A));const entered=deferred(),gate=deferred();
  hooks.down=async()=>{entered.resolve();await gate.promise;};
  const input=c.act({action:'keyDown',key:'Shift'});await entered.promise;
- try {const read=c.listTargets();assert.equal(await settledWithin(read,500),true);await ok(read);}
+ try {const read=c.listTargets();assert.equal(await settledWithin(read),true);await ok(read);}
  finally{gate.resolve();await ok(input);}
 });
 
@@ -101,7 +107,7 @@ test('an observation cancelled in the input queue cannot later run or release ow
  let observations=0;backend.observe=async()=>{observations++;return {ax:{nodes:[]}};};
  const input=c.act({action:'keyDown',key:'Shift'});await entered.promise;
  const aborter=new AbortController(),read=c.observe({targetId:A.id,signal:aborter.signal});aborter.abort();
- try{assert.equal(await settledWithin(read,500),true);assert.equal((await read).error.code,'CONTROL_STOPPED');}
+ try{assert.equal(await settledWithin(read),true);assert.equal((await read).error.code,'CONTROL_STOPPED');}
  finally{gate.resolve();await ok(input);await read;}
  await new Promise(resolve=>setImmediate(resolve));assert.equal(observations,0);assert.equal(events.some(e=>e[1]==='up'),false);
  await ok(c.observe({targetId:A.id}));assert.equal(observations,1);
@@ -116,7 +122,7 @@ for (const method of ['listTargets', 'selectTarget', 'openTarget', 'focus']) for
   const pending=c[method](args[method]);await entered.promise;
   const queued=c.listTargets(),stopped=c.stop();
   try {
-   assert.equal(await settledWithin(stopped,150),true,'inventory must not delay actual input release');
+   assert.equal(await settledWithin(stopped),true,'inventory must not delay actual input release');
    await ok(stopped);
    assert.equal((await pending).error.code,'CONTROL_STOPPED');
    assert.equal((await queued).error.code,'CONTROL_STOPPED','queued old inventory must not run in the new epoch');
@@ -136,7 +142,7 @@ test('close does not wait for discovery or its late rejection',async t=>{
  backend.listTargets=async()=>{entered.resolve();await gate.promise;return [];};
  const pending=c.listTargets();await entered.promise;const closed=c.close();
  try {
-  assert.equal(await settledWithin(closed,150),true);await ok(closed);
+  assert.equal(await settledWithin(closed),true);await ok(closed);
   assert.equal((await pending).error.code,'CONTROL_STOPPED');
   assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Control']]);
  } finally {gate.reject(Error('late inventory failure'));await pending;await closed;}
@@ -148,7 +154,7 @@ test('fresh stopped-state discovery can be cancelled again without changing cont
  const {controller:c,backend,ok}=await setup(t,false,250);await ok(c.stop());
  const entered=deferred(),gate=deferred();backend.listTargets=async()=>{entered.resolve();await gate.promise;return [];};
  const pending=c.listTargets();await entered.promise;const stopped=c.stop();
- try {assert.equal(await settledWithin(stopped,150),true);await ok(stopped);assert.equal((await pending).error.code,'CONTROL_STOPPED');}
+ try {assert.equal(await settledWithin(stopped),true);await ok(stopped);assert.equal((await pending).error.code,'CONTROL_STOPPED');}
  finally {gate.resolve();await pending;await stopped;}
  assert.equal((await c.getState()).state.mode,'stopped');
 });
@@ -161,7 +167,7 @@ test('a cancelled discovery reports real release failure and requires an explici
  const pending=c.listTargets();await entered.promise;
  hooks.up=async()=>{throw Error('synthetic release rejection');};const stopped=c.stop();
  try {
-  assert.equal(await settledWithin(stopped,150),true);
+  assert.equal(await settledWithin(stopped),true);
   assert.equal((await stopped).error.code,'RELEASE_FAILED');
   assert.equal((await c.getState()).state.releasePending,true);
   assert.equal(events.some(e=>e[1]==='up'),false);
@@ -176,7 +182,7 @@ test('caller cancellation abandons only discovery and leaves held input for its 
  backend.listTargets=async()=>{entered.resolve();await gate.promise;return [A];};
  const pending=c.listTargets({signal:aborter.signal});await entered.promise;aborter.abort();
  try {
-  assert.equal(await settledWithin(pending,150),true);assert.equal((await pending).error.code,'CONTROL_STOPPED');
+  assert.equal(await settledWithin(pending),true);assert.equal((await pending).error.code,'CONTROL_STOPPED');
   assert.equal((await c.getState()).state.mode,'active');assert.equal(events.some(e=>e[1]==='up'),false);
   backend.listTargets=original;await ok(c.act({action:'keyUp',key:'Shift'}));
  } finally {backend.listTargets=original;gate.resolve();await pending;}
@@ -200,7 +206,7 @@ for (const composed of [false,true]) test(`exact selection remains cancellable w
  hooks.send=async(name,method)=>{if(selecting&&name==='B'&&method==='Target.getTargetInfo'){entered.resolve();await gate.promise;}};
  const pending=c.selectTarget({id:B.id});await entered.promise;const stopped=c.stop();
  try {
-  assert.equal(await settledWithin(stopped,150),true,'targeted read cannot retain the release lane');await ok(stopped);
+  assert.equal(await settledWithin(stopped),true,'targeted read cannot retain the release lane');await ok(stopped);
   assert.equal((await pending).error.code,'CONTROL_STOPPED');
   assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
  } finally {backend.select=original;hooks.send=undefined;gate.resolve();await pending;await stopped;}
@@ -215,7 +221,7 @@ for (const composed of [false,true]) test(`second stop cancels resume selection 
  hooks.send=async(_,method)=>{if(selecting&&method==='Target.getTargetInfo'){entered.resolve();await gate.promise;}};
  const pending=c.resume({targetId:A.id});await entered.promise;const stopped=c.stop();
  try {
-  assert.equal(await settledWithin(stopped,150),true);await ok(stopped);assert.equal((await pending).error.code,'CONTROL_STOPPED');
+  assert.equal(await settledWithin(stopped),true);await ok(stopped);assert.equal((await pending).error.code,'CONTROL_STOPPED');
  } finally {backend.select=original;hooks.send=undefined;gate.resolve();await pending;await stopped;}
  assert.equal((await c.getState()).state.mode,'stopped');
  await ok(c.resume({targetId:A.id}));
@@ -243,7 +249,7 @@ for (const stage of ['verification', 'observation']) for (const ending of ['stop
   const pending=c.observe({format:'ax'}); await entered.promise;
   const queued=c.observe({format:'ax'}), stopped=c[ending]();
   try {
-   assert.equal(await settledWithin(stopped,150),true,'release must finish before the read RPC');
+   assert.equal(await settledWithin(stopped),true,'release must finish before the read RPC');
    await ok(stopped);
    assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
    assert.equal((await pending).error.code,'CONTROL_STOPPED');
@@ -265,7 +271,7 @@ test('computer timeout releases held input during a stalled observation',async t
   const run=session.run({code:'await tab.getScreenshot();',timeoutMs:20});run.catch(()=>{});
   await entered.promise;
   try {
-   assert.equal(await settledWithin(run,150),true,'timeout waits only for release acknowledgement');
+   assert.equal(await settledWithin(run),true,'timeout waits only for release acknowledgement');
    assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
   } finally {gate.resolve();await assert.rejects(run,e=>e.code==='COMPUTER_TIMEOUT');}
  } finally {gate.resolve();await session.close();}
@@ -279,7 +285,7 @@ test('stop releases held key while read-only verification stays pending',async t
  const pending=c.act({action:'type',text:'never'});await entered.promise;
  const stop=c.stop();const queued=c.act({action:'type',text:'also-never'});
  try{
-  assert.equal(await settledWithin(stop,100),true,'stop abandons read-only verification');
+  assert.equal(await settledWithin(stop),true,'stop abandons read-only verification');
   assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
   assert.deepEqual(JSON.parse(await readFile(join(dir,'browser-inputs.json'),'utf8')),[]);
   const state=await c.getState();assert.equal(state.state.mode,'stopped');assert.equal(state.state.releasePending,false);
@@ -296,7 +302,7 @@ test('close and retry-close finish without late input while verification stays p
  const close=c.close(),retry=c.close();
  try{
   assert.equal(close,retry,'close retry shares the same queued promise');
-  assert.equal(await settledWithin(close,100),true);
+  assert.equal(await settledWithin(close),true);
   assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Control']]);
   assert.equal((await c.getState()).state.mode,'closed');
  }finally{hooks.send=undefined;gate.resolve();await pending;await close;}
@@ -315,7 +321,7 @@ test('computer overall timeout completes despite stalled read-only verification'
   const run=session.run({code:"await tab.type('never');",timeoutMs:20});run.catch(()=>{});
   await entered.promise;
   try{
-   assert.equal(await settledWithin(run,100),true,'COMPUTER_TIMEOUT handler can release and finish');
+   assert.equal(await settledWithin(run),true,'COMPUTER_TIMEOUT handler can release and finish');
    assert.deepEqual(events.filter(e=>e[1]==='up'),[['A','up','Shift']]);
    assert.equal((await c.getState()).state.mode,'recovery_required');
   }finally{hooks.send=undefined;gate.resolve();await assert.rejects(run,e=>e.code==='COMPUTER_TIMEOUT');}
@@ -331,7 +337,7 @@ test('late rejecting verification is handled and stop then resume remains usable
  const action=c.act({action:'type',text:'never'});await entered.promise;
  const stopped=c.stop();
  try {
-  assert.equal(await settledWithin(stopped,100),true);await ok(stopped);assert.equal((await action).ok,false);
+  assert.equal(await settledWithin(stopped),true);await ok(stopped);assert.equal((await action).ok,false);
   hooks.send=undefined;await ok(c.resume({targetId:A.id}));
   reject(new Error('late synthetic CDP rejection'));await new Promise(r=>setImmediate(r));
   await ok(c.act({action:'type',text:'after-resume'}));
@@ -431,7 +437,7 @@ test('direct backend.verify late rejection is consumed after cancellation',async
  const action=c.act({action:'type',text:'never'});await entered.promise;
  const stopped=c.stop();
  try {
-  assert.equal(await settledWithin(stopped,100),true);await ok(stopped);
+  assert.equal(await settledWithin(stopped),true);await ok(stopped);
   assert.equal((await action).error.code,'CONTROL_STOPPED');
   backend.verify=original;
   await ok(c.resume({targetId:A.id}));
@@ -452,7 +458,7 @@ for (const action of ['getDialog', 'handleDialog']) for (const alreadyStopped of
   const pending=c.act({action}); await entered.promise;
   const stopped=c.stop();
   try {
-   assert.equal(await settledWithin(stopped,100),true,'stop releases without waiting for dialog verification');
+   assert.equal(await settledWithin(stopped),true,'stop releases without waiting for dialog verification');
    await ok(stopped); assert.equal((await pending).error.code,'CONTROL_STOPPED');
   } finally { hooks.send=undefined;gate.resolve();await pending;await stopped; }
  });
