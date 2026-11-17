@@ -6820,7 +6820,7 @@
     {
       "file": "src/client/portal-host.mjs",
       "contract": "resources",
-      "sha256": "e670da72bf8471eeb6088a0aacf47728fd7621c8269933259b6092e274fe35b2",
+      "sha256": "27744803cc5a0d55054d9c241598dcb063215bd66ed560e7ca9bcb1f3b8498ec",
       "kind": "javascript",
       "sites": []
     },
@@ -7112,7 +7112,7 @@
     {
       "file": "src/client/presentation-slot.jsx",
       "contract": "presentation",
-      "sha256": "dd8db637c47bbc96e011ef5ffe87c96998d8371c42ad2909d5598fb08b4b4e61",
+      "sha256": "873c51aa8c6145c81aeee7b291defa45ab12be2340af5e35f1dd6f81810a19c3",
       "kind": "javascript",
       "sites": []
     },
