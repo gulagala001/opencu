@@ -1,5 +1,6 @@
 import * as HostReact from 'react-host';
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { ReaProviders } from './rea-root.jsx';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
@@ -7,10 +8,11 @@ import { tT as MonitorMenu, aT, Jw, Q as SummaryPanel, Te as Menu } from './rea/
 import { MonitorStack } from './presentation-stack.jsx';
 import styles from './rea-styles.css';
 import presentationStyles from './presentation.css';
-import { adoptReaStyles, createReaPortal } from './portal-host.mjs';
+import { adoptReaStyles, createReaPortal, shareReaPortal } from './portal-host.mjs';
 import { OverviewContent, initializeOverview } from './session-overview.jsx';
+import { subscribeReaTheme } from './rea-theme.mjs';
 
-function Monitor({ sessionId, state, docked, service, report, overview }) {
+function Monitor({ sessionId, state, docked, service, report, overview, summaryPanel, summaryContainer }) {
   const intl = Shared.lS();
   const [open, setOpen] = React.useState(false);
   const active = state.activeTaskIds.includes(sessionId), shown = state.taskVisibilities[sessionId] === 'shown';
@@ -46,6 +48,12 @@ function Monitor({ sessionId, state, docked, service, report, overview }) {
     {shown && state.expanded && !overflow && state.frames.filter(frame => frame.threadID === sessionId).length > 5 && <Shared.r5 color="secondary" size="toolbar" onClick={() => service.expand(sessionId, false)}>
       {intl.formatMessage({ id: 'opencu.monitor.collapse', defaultMessage: zh ? '收起预览' : 'Show fewer previews' })}
     </Shared.r5>}</>;
+  if (!docked && summaryPanel) return <>
+    <SummaryPanel.HeaderButton label={label} pressed={summaryPanel.open} aria-expanded={summaryPanel.open} onClick={summaryPanel.toggle}/>
+    {summaryContainer && createPortal(<div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, padding: '8px 12px 12px 4px', boxSizing: 'border-box' }}>
+      <SummaryPanel.Content isHidden={!summaryPanel.open}>{overview && <OverviewContent sessionId={sessionId} overview={overview}/>} {active && controls}</SummaryPanel.Content>
+    </div>, summaryContainer)}
+  </>;
   return docked ? <>
     <SummaryPanel.Content>{controls}</SummaryPanel.Content>
     <div ref={surface} data-pip-surface="" inert={!!handoff} aria-hidden={!!concealed} className="relative grid grid-cols-1 grid-rows-1" style={{ height: 240, padding: 16, maxWidth: 380, margin: '0 auto', visibility: concealed ? 'hidden' : undefined }}>
@@ -60,10 +68,11 @@ function Monitor({ sessionId, state, docked, service, report, overview }) {
   </Menu>;
 }
 
-/** Host slots supply monitoring data; REA retains the menu, frames and interactions. */
+/** Host slots supply the layout; REA retains the summary, frames and controls. */
 export function PresentationSlot(props) {
   const state = props.usePresentation(value => value);
   const host = HostReact.useRef(null), mounted = HostReact.useRef(null);
+  const [summaryContainer, setSummaryContainer] = HostReact.useState(null);
   HostReact.useLayoutEffect(() => {
     aT(); Jw(); initializeOverview();
     const shadow = host.current.attachShadow({ mode: 'open' });
@@ -76,14 +85,28 @@ export function PresentationSlot(props) {
     return () => { root.unmount(); disposePortal(); mounted.current = null; };
   }, []);
   HostReact.useLayoutEffect(() => {
+    const target = props.summaryPanel?.container;
+    if (!target) { setSummaryContainer(null); return; }
+    const shadow = target.shadowRoot ?? target.attachShadow({ mode: 'open' });
+    const container = document.createElement('div');
+    container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
+    container.style.height = '100%';
+    adoptReaStyles(shadow, styles);
+    shadow.append(container);
+    const unsubscribe = subscribeReaTheme(theme => { container.dataset.theme = theme; });
+    const releasePortal = shareReaPortal(container, mounted.current.portal);
+    setSummaryContainer(container);
+    return () => { releasePortal(); unsubscribe(); container.remove(); };
+  }, [props.summaryPanel?.container]);
+  HostReact.useLayoutEffect(() => {
     const { root, portal } = mounted.current, sessionId = props.sessionId;
     root.render(<ReaProviders portal={portal} path={`/ca/${sessionId}`}>
       <Shared._lt scope={Shared.jX} value={{ clientThreadId: `local:${sessionId}`, routeConversationId: sessionId }}>
         <Shared._lt scope={Shared.h1} value={{ routeKind: 'local-thread', pathname: `/ca/${sessionId}`, conversationId: sessionId, hostId: 'local' }}>
-          <Monitor key={sessionId} sessionId={sessionId} state={state} docked={props.docked} service={props.service} report={props.report} overview={props.overview} />
+          <Monitor key={sessionId} sessionId={sessionId} state={state} docked={props.docked} service={props.service} report={props.report} overview={props.overview} summaryPanel={props.summaryPanel} summaryContainer={summaryContainer}/>
         </Shared._lt>
       </Shared._lt>
     </ReaProviders>);
-  }, [state, props.sessionId, props.docked, props.service, props.report, props.overview]);
+  }, [state, props.sessionId, props.docked, props.service, props.report, props.overview, props.summaryPanel, summaryContainer]);
   return HostReact.createElement('div', { ref: host, style: { minWidth: 0, flexShrink: 0 } });
 }

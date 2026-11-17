@@ -6,6 +6,12 @@ const noDrag = '[data-rea-root] * { -webkit-app-region: no-drag; }';
 
 const portals = new Map();
 
+/** A resident panel shares its header's overlay portal across shadow roots. */
+export function shareReaPortal(source, portal) {
+  portals.set(source, portal);
+  return () => { if (portals.get(source) === portal) portals.delete(source); };
+}
+
 /** Transparent carriers must stay click-through even under host !important rules. */
 export function protectReaCarrier(element) {
   element?.style.setProperty('pointer-events', 'none', 'important');
