@@ -9,6 +9,8 @@ import { xjs as FileIcon, Vjs as UrlIcon, Tjs as initializeFileIcon, Wjs as init
 import { Dt as Panel, kt as initializePanel } from './rea/thread-summary-panel-components-3aba951edec7.js';
 import { de as SourcesContent, $ as initializeSources } from './rea/local-conversation-sources-side-panel-tab-ced36bc5770b.js';
 import styles from './rea-styles.css';
+import overviewStyles from './overview-motion.css';
+import { arrivalMotion, useArrivalDelays, useOverviewReducedMotion, OverviewSectionReveal } from './overview-motion.jsx';
 
 const COPY = {
   running: ['运行中', 'Running'], provisioning: ['创建中', 'Starting'], completed: ['已完成', 'Completed'], idle: ['空闲', 'Idle'],
@@ -26,7 +28,11 @@ function useCopy() {
   return (key, values) => intl.formatMessage({ id: `opencu.overview.${key}`, defaultMessage: COPY[key][zh ? 0 : 1] }, values);
 }
 const emptySources = { subscribe: () => () => {}, getSnapshot: () => null };
-export function initializeOverview() { initializePanel(); initializeFileIcon(); initializeUrlIcon(); initializeSources(); }
+let AnimatedItemButton;
+export function initializeOverview() {
+  initializePanel(); initializeFileIcon(); initializeUrlIcon(); initializeSources(); Shared.gT(); Shared._1e();
+  AnimatedItemButton ??= Shared.hT.create(Panel.ItemButton);
+}
 export function Whale({ row, path, size = 22 }) {
   return <svg viewBox="0 0 24 18" width={size} height={size} style={{ flexShrink: 0, color: row.color }} aria-hidden="true"><path fill="currentColor" d={path}/></svg>;
 }
@@ -41,14 +47,14 @@ function Elapsed({ row }) {
 }
 const statusOf = (t, status) => COPY[status] ? t(status) : status;
 function AgentRows({ rows, overview }) {
-  const t = useCopy();
-  return <Panel.List items={rows} getKey={row => row.id} visibleItemLimit={rows.length || 1}>
-    {row => <Panel.ItemButton onClick={() => overview.openAgent(row)} disabled={!row.available || row.mode === 'external'} title={row.error || row.label}>
+  const t = useCopy(), reduce = useOverviewReducedMotion(), arrivals = useArrivalDelays(rows.map(row => row.id));
+  return <Shared.g1e initial={!reduce}><Panel.List key="agents" items={rows} getKey={row => row.id} visibleItemLimit={Number.MAX_SAFE_INTEGER}>
+    {row => <AnimatedItemButton {...arrivalMotion(reduce || !arrivals.has(row.id), arrivals.get(row.id))} onClick={() => overview.openAgent(row)} disabled={!row.available || row.mode === 'external'} title={row.error || row.label}>
       <Panel.ItemLeading variant="custom"><Whale row={row} path={overview.whalePath}/></Panel.ItemLeading>
       <Panel.ItemLabel description={[statusOf(t, row.status), row.group?.kind !== 'ordinary' && row.group?.label, row.group?.phase, row.preview !== row.label && row.preview].filter(Boolean).join(' · ')}>{row.label}</Panel.ItemLabel>
       <Panel.ItemMeta><Elapsed row={row}/></Panel.ItemMeta>
-    </Panel.ItemButton>}
-  </Panel.List>;
+    </AnimatedItemButton>}
+  </Panel.List></Shared.g1e>;
 }
 function SourceIcon({ row, loadImage }) {
   const [url, setUrl] = React.useState(row.thumbnail);
@@ -71,7 +77,8 @@ function ResourceRows({ items, open, loadImage, limit = 3 }) {
   </Panel.List>;
 }
 export function OverviewContent({ sessionId, overview, variant = 'summary', panels = [], close = () => {} }) {
-  const t = useCopy();
+  const t = useCopy(), reduce = useOverviewReducedMotion();
+  const arrivals = useArrivalDelays((overview.active ?? []).slice(0, 3).map(row => row.id));
   const [expanded, setExpanded] = React.useState(false), [error, setError] = React.useState(null);
   const sourceHost = services.sources ?? emptySources;
   const saved = React.useSyncExternalStore(sourceHost.subscribe, sourceHost.getSnapshot, sourceHost.getSnapshot)?.[sessionId];
@@ -91,7 +98,7 @@ export function OverviewContent({ sessionId, overview, variant = 'summary', pane
     else await overview.openResource(row);
     close();
   });
-  const section = (key, title, children, action) => <Panel.Section key={key} sectionKey={`omd-${key}`} mode="heading" title={title} after={action && <Panel.SectionActions>{action}</Panel.SectionActions>} persistExpansion={false}>{children}</Panel.Section>;
+  const section = (key, title, children, action) => <Panel.Section key={key} sectionKey={`omd-${key}`} mode="heading" title={title} after={action && <Panel.SectionActions>{action}</Panel.SectionActions>} persistExpansion={false} animateContentResize={!reduce}>{children}</Panel.Section>;
   const more = kind => <Panel.ItemActionButton label={t('viewAll')} onClick={() => navigate(kind)}><span style={{ transform: 'rotate(-90deg)' }}><Panel.ItemChevron/></span></Panel.ItemActionButton>;
   const detail = overview.detail;
   return <>{error && <div role="alert" className="px-5 py-2 text-sm text-danger">{error}</div>}
@@ -101,27 +108,27 @@ export function OverviewContent({ sessionId, overview, variant = 'summary', pane
       <span className="text-sm text-tertiary">{[detail.model?.model, detail.model?.reasoningEffort].filter(Boolean).join(' · ')}{(detail.model?.model || detail.model?.reasoningEffort) && ' · '}<Elapsed row={detail}/></span>
       <Shared.r5 color="ghost" size="toolbar" onClick={() => overview.openMainAgent(detail)} aria-label={t('openMain')} title={t('openMain')}>↗</Shared.r5>
     </div>}
-    {(variant === 'summary' || variant === 'outputs') && section('outputs', t('outputs'), <ResourceRows items={outputs} open={openResource} limit={variant === 'outputs' ? outputs.length || 1 : 3}/>, variant === 'summary' ? more('outputs') : null)}
-    {variant === 'summary' && section('agents', <button type="button" onClick={() => navigate('agents')} className="cursor-interaction text-start">{t('agents')}</button>, <>
+    {(variant === 'summary' || variant === 'outputs') && section('outputs', t('outputs'), <ResourceRows items={outputs} open={openResource} limit={variant === 'outputs' ? Number.MAX_SAFE_INTEGER : 3}/>, variant === 'summary' ? more('outputs') : null)}
+    {variant === 'summary' && <OverviewSectionReveal visible={!!overview.rows?.length} reduce={reduce}>{section('agents', <button type="button" onClick={() => navigate('agents')} className="cursor-interaction text-start">{t('agents')}</button>, <>
       <Panel.Item>
         <Panel.ItemTrigger style={{ flex: '0 1 auto' }} onClick={() => setExpanded(value => !value)} aria-expanded={expanded} aria-label={t('expandActive')}>
-          <span className="flex shrink-0 items-center gap-1">{overview.active.slice(0, 3).map(row => <Whale key={row.id} row={row} path={overview.whalePath} size={18}/>)}</span>
+          <span className="flex shrink-0 items-center gap-1"><Shared.g1e initial={!reduce}>{overview.active.slice(0, 3).map(row => <Shared.hT.span key={row.id} {...arrivalMotion(reduce || !arrivals.has(row.id), arrivals.get(row.id))} style={{ display: 'inline-flex' }}><Whale row={row} path={overview.whalePath} size={18}/></Shared.hT.span>)}</Shared.g1e></span>
           <Panel.ItemLabel style={{ flex: '0 1 auto' }}>{t('active', { count: overview.active.length })}</Panel.ItemLabel><span style={{ transform: expanded ? 'rotate(180deg)' : undefined }}><Panel.ItemChevron/></span>
         </Panel.ItemTrigger>
         <Shared.r5 color="ghost" size="toolbar" style={{ marginInlineStart: 'auto' }} onClick={() => navigate('agents')} aria-label={t('openAgents')}>{t('completedCount', { count: overview.completed })}</Shared.r5>
       </Panel.Item>
       {expanded && (overview.active.length ? <AgentRows rows={overview.active} overview={adapted}/> : <p className="py-2 text-sm text-tertiary">{t('noActive')}</p>)}
-    </>, more('agents'))}
+    </>, more('agents'))}</OverviewSectionReveal>}
     {variant === 'agents' && <>
       {panels.map(panel => section(panel.id, panel.title, <><slot name={panel.id}/><AgentRows rows={overview.rows.filter(row => row.group.id === panel.groupId && !panel.memberIds?.includes(row.id))} overview={adapted}/></>))}
       {overview.rows.some(row => row.group.kind === 'ordinary') && section('ordinary', t('ordinary'), <AgentRows rows={overview.rows.filter(row => row.group.kind === 'ordinary')} overview={adapted}/>)}
       {overview.rows.length === 0 && !panels.length && <p className="px-5 py-3 text-sm text-tertiary">{t('noAgents')}</p>}
     </>}
-    {variant === 'summary' && section('jobs', t('jobs'), <Panel.List items={overview.jobs ?? []} getKey={row => row.id} visibleItemLimit={3}>
+    {variant === 'summary' && <OverviewSectionReveal visible={!!overview.jobs?.length} reduce={reduce}>{section('jobs', t('jobs'), <Panel.List items={overview.jobs ?? []} getKey={row => row.id} visibleItemLimit={3}>
       {job => <Panel.ItemButton onClick={() => { overview.openJob(job.id); close(); }}><Panel.ItemLeading variant="custom"><span aria-hidden="true">›_</span></Panel.ItemLeading><Panel.ItemLabel description={job.progress || job.detail || statusOf(t, job.status)}>{job.label || job.id}</Panel.ItemLabel></Panel.ItemButton>}
-    </Panel.List>, more('jobs'))}
+    </Panel.List>, more('jobs'))}</OverviewSectionReveal>}
     {(variant === 'summary' || variant === 'sources') && section('sources', t('sources'), <>
-      <ResourceRows items={variant === 'sources' ? listed : sources} open={openResource} loadImage={overview.loadImage} limit={variant === 'sources' ? listed.length || 1 : 3}/>
+      <ResourceRows items={variant === 'sources' ? listed : sources} open={openResource} loadImage={overview.loadImage} limit={variant === 'sources' ? Number.MAX_SAFE_INTEGER : 3}/>
       {variant === 'sources' && <SourcesContent conversationId={sessionId} hostId="local" fileSources={deliveries.map(row => ({ label: row.label, path: services.files.address(row.file), row }))}
         externalSources={saved?.pages ?? []} toolSources={[]} webMcpCalls={saved?.webMcpCalls ?? []} webSearchSource={null} onOpenFile={source => openResource(source.row)}/>}
       {variant === 'summary' && <Panel.ItemButton onClick={() => navigate('sources')} tone="muted"><Panel.ItemLabel>{t('viewAll')}</Panel.ItemLabel></Panel.ItemButton>}
@@ -140,7 +147,7 @@ export function OverviewSlot(props) {
     const shadow = host.current.shadowRoot ?? host.current.attachShadow({ mode: 'open' });
     shadow.replaceChildren();
     const container = document.createElement('div'); container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
-    adoptReaStyles(shadow, styles); shadow.append(container);
+    adoptReaStyles(shadow, styles, overviewStyles); shadow.append(container);
     const { portal, dispose } = createReaPortal(styles, container, 70);
     const root = createRoot(container, { onUncaughtError: error => setRenderError(error?.message || String(error)) });
     mounted.current = { root, portal };

@@ -6713,6 +6713,13 @@
       ]
     },
     {
+      "file": "src/client/overview-motion.jsx",
+      "contract": "resources",
+      "sha256": "054af69ecf0bef8be7be842fd110002a851933345b7a732d90f985130d43f969",
+      "kind": "javascript",
+      "sites": []
+    },
+    {
       "file": "src/client/page-annotations.mjs",
       "contract": "sidebar",
       "sha256": "c96515252546db2d739710d8bb41a41ebc739d4709f24981951d02ede5228f9e",
@@ -7112,7 +7119,7 @@
     {
       "file": "src/client/presentation-slot.jsx",
       "contract": "presentation",
-      "sha256": "873c51aa8c6145c81aeee7b291defa45ab12be2340af5e35f1dd6f81810a19c3",
+      "sha256": "dffe3b220978bf10c205baa2e3101bf6c85771d4f7658fd4d4282675f2d6199c",
       "kind": "javascript",
       "sites": []
     },
@@ -8372,42 +8379,42 @@
     {
       "file": "src/client/session-overview.jsx",
       "contract": "resources",
-      "sha256": "0f0a0ba812f356c146cfa56c9b127ac34f007d44b17b215dc1d777d0b81080a1",
+      "sha256": "de1ee1c75d6b24829045ea0854cfe7399f26dbd9b780c2e863d7225836d229d3",
       "kind": "javascript",
       "sites": [
         {
           "id": "Elapsed:handoff:setInterval:1",
-          "line": 37,
+          "line": 43,
           "kind": "handoff",
           "callee": "setInterval"
         },
         {
           "id": "SourceIcon:handoff:Promise.resolve().then:1",
-          "line": 59,
+          "line": 65,
           "kind": "handoff",
           "callee": "Promise.resolve().then"
         },
         {
           "id": "run:handoff:Promise.resolve().then:1",
-          "line": 78,
+          "line": 85,
           "kind": "handoff",
           "callee": "Promise.resolve().then"
         },
         {
           "id": "openResource:await:services.files.previewSource():1",
-          "line": 89,
+          "line": 96,
           "kind": "await",
           "callee": "services.files.previewSource()"
         },
         {
           "id": "openResource:await:services.files.preview():1",
-          "line": 90,
+          "line": 97,
           "kind": "await",
           "callee": "services.files.preview()"
         },
         {
           "id": "openResource:await:overview.openResource():1",
-          "line": 91,
+          "line": 98,
           "kind": "await",
           "callee": "overview.openResource()"
         }

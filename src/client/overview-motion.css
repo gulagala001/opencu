@@ -1,0 +1,4 @@
+/* The two optional sections sit between Outputs and Sources. Their motion
+   wrapper must not make the native section style treat them as the last row. */
+[data-overview-section] > section { padding-bottom: calc(var(--spacing) * 2); }
+[data-overview-section] > section::after { display: block; }

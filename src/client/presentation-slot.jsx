@@ -8,6 +8,7 @@ import { tT as MonitorMenu, aT, Jw, Q as SummaryPanel, Te as Menu } from './rea/
 import { MonitorStack } from './presentation-stack.jsx';
 import styles from './rea-styles.css';
 import presentationStyles from './presentation.css';
+import overviewStyles from './overview-motion.css';
 import { adoptReaStyles, createReaPortal, shareReaPortal } from './portal-host.mjs';
 import { OverviewContent, initializeOverview } from './session-overview.jsx';
 import { subscribeReaTheme } from './rea-theme.mjs';
@@ -78,7 +79,7 @@ export function PresentationSlot(props) {
     const shadow = host.current.attachShadow({ mode: 'open' });
     const container = document.createElement('div');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
-    adoptReaStyles(shadow, styles, presentationStyles); shadow.append(container);
+    adoptReaStyles(shadow, styles, presentationStyles, overviewStyles); shadow.append(container);
     const { dispose: disposePortal, portal } = createReaPortal(styles, container, 70);
     const root = createRoot(container, { onUncaughtError(error) { props.report({ type: 'error', message: error.message }); } });
     mounted.current = { root, portal };
@@ -91,7 +92,7 @@ export function PresentationSlot(props) {
     const container = document.createElement('div');
     container.dataset.reaRoot = ''; container.dataset.codexWindowType = 'electron';
     container.style.height = '100%';
-    adoptReaStyles(shadow, styles);
+    adoptReaStyles(shadow, styles, overviewStyles);
     shadow.append(container);
     const unsubscribe = subscribeReaTheme(theme => { container.dataset.theme = theme; });
     const releasePortal = shareReaPortal(container, mounted.current.portal);
