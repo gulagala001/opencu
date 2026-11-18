@@ -19,7 +19,7 @@ export async function approvalFeedbackFixture(options = {}) {
   const context = vm.createContext({ URL, ...options.globals });
   const modules = new Map();
   const client = {
-    getSnapshot: () => ({connected:false, revision:0}), subscribe: () => noop,
+    getSnapshot: () => ({connected:true, revision:1, appApprovals:[{id:'approval-1', conversationId:'A', request:{appDisplayName:'Fixture App'}}]}), subscribe: () => noop,
     request(method, response) {
       calls.push({ method, response });
       if (options.request) return options.request(method, response);
@@ -103,7 +103,7 @@ export async function approvalFeedbackFixture(options = {}) {
     });
     modules.set(file, module);
     await module.link(async name => {
-      if (name === './client-contract.mjs' || name === './rea-services.mjs' || name === './app-approval-response.mjs' || name === './extension-download.mjs' || name === './pending-app-approvals.mjs' || name === './session-time-zone.mjs' || name === './navigation-host.mjs') return source(name.slice(2));
+      if (name === './annotation-delivery.mjs' || name === './client-contract.mjs' || name === './rea-services.mjs' || name === './app-approval-response.mjs' || name === './extension-download.mjs' || name === './pending-app-approvals.mjs' || name === './session-time-zone.mjs' || name === './navigation-host.mjs') return source(name.slice(2));
       if (options.realClient && ['./host-compat.mjs', './host-target.mjs', './ipc-result.mjs', './core-client.mjs', './pending-app-approvals.mjs'].includes(name)) return source(name.slice(2));
       assert.ok(Object.hasOwn(stubs, name), `unexpected client import: ${name}`);
       return synthetic(name, stubs[name]);

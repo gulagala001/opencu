@@ -1,3 +1,4 @@
+import {closeSidebarTab} from '../src/client/sidebar-occurrence.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -16,6 +17,7 @@ async function fixture({ connected = false } = {}) {
     cancelAnimationFrame: frame => { if (frameGate) { const index = frameGate.indexOf(frame); if (index >= 0) frameGate.splice(index, 1); } },
     document: {documentElement: {}}, getComputedStyle: () => ({colorScheme:'light'})});
   const stubs = {
+    './sidebar-occurrence.mjs': {closeSidebarTab},
     './rea/app-shared-2f2228189a8d.js': {Ff: {dispatchHostMessage: value => notices.push(value)}},
     './rea/app-initial-c468e3fd7f91.js': {AW: {removeTab() {}, setBrowserUseActive() {}}},
     './rea-locale.mjs': {reaIntl: () => ({locale:'en'})},

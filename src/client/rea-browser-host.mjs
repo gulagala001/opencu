@@ -1,3 +1,4 @@
+import { closeSidebarTab } from './sidebar-occurrence.mjs';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import * as Initial from './rea/app-initial-c468e3fd7f91.js';
 import { jl } from './rea/tab-content-6a1dfa5c5ac1.js';
@@ -19,6 +20,7 @@ const sameNavigationURL = (left, right) => {
 /** Translates REA's browser service into DSH's approved Electron guest leases. */
 export function createReaBrowserHost({ desktop, transport, client, sidebar, openSession, settings, history, downloads, deliverAnnotations, deliverScreenshot, createExtensionTab, focusSurface, isPagePresented }) {
   const editorListeners = new Set(), pageListeners = new Set(), retainedPages = new Map(), cursorMoves = new Map(), viewportWaits = new Map();
+  const lifetime = new AbortController();
   let pageSnapshot = [], cursorSequence = 0;
   function finishCursor(sequence, error) {
     const pending = cursorMoves.get(sequence);
@@ -70,13 +72,22 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
     await waitForGuest({ conversationId: sessionId, browserTabId: tab.id });
     return { sessionId, tabId: tab.id };
   }, async ({ sessionId, tabId }) => {
-    await service.disposeTab(sessionId, tabId);
-    await sidebar.closeIn(sessionId, tabId);
+    await closePage(sessionId, tabId);
   });
+  const mounts = new Map(), resources = new Map();
+  async function closePage(sessionId, tabId) {
+    const key = keyFor(sessionId, tabId), record = resources.get(key), ticket = mounts.get(key);
+    await closeSidebarTab(sidebar, sessionId, tabId);
+    if (ticket) { ticket.cancelled = true; await ticket.work.catch(() => {}); }
+    if (record) await releaseRecord(key, record);
+  }
   function waitForGuest(args) {
     if (disposed) return Promise.reject(new Error('OpenCU browser host closed'));
     const key = keyFor(args.conversationId, args.browserTabId), existing = registrations.get(key);
-    if (existing) return existing.ready.then(() => existing);
+    if (existing && (!mounts.has(key) || mounts.get(key).host === existing.host)) return existing.ready.then(() => {
+      if (registrations.get(key) !== existing) throw Error('The browser guest was replaced');
+      return existing;
+    });
     let pending = pendingGuests.get(key);
     if (!pending) {
       let resolve, reject;
@@ -111,14 +122,25 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
     if (focusSurface) return focusSurface(conversationId, browserTabId);
     if (sidebar.mounted.getSnapshot() !== conversationId) {
       await new Promise((resolve, reject) => {
-        let unsubscribe;
-        const finish = error => { clearTimeout(timer); unsubscribe?.(); error ? reject(error) : resolve(); };
+        let unsubscribe, settled=false;
+        const finish = error => {
+          if (settled) return;
+          settled=true; clearTimeout(timer); unsubscribe?.(); lifetime.signal.removeEventListener('abort',abort);
+          error ? reject(error) : resolve();
+        };
+        const abort=()=>finish(lifetime.signal.reason);
         const check = () => { if (sidebar.mounted.getSnapshot() === conversationId) finish(); };
         const timer = setTimeout(() => finish(new Error('The target conversation did not open')), 15000);
-        unsubscribe = sidebar.mounted.subscribe(check);
-        try { Promise.resolve(openSession(conversationId)).then(check, finish); } catch (error) { finish(error); }
+        lifetime.signal.addEventListener('abort',abort,{once:true});
+        if (lifetime.signal.aborted) { abort(); return; }
+        try {
+          unsubscribe = sidebar.mounted.subscribe(check);
+          if (settled) unsubscribe(); else Promise.resolve(openSession(conversationId)).then(check, finish);
+        } catch (error) { finish(error); }
       });
     }
+    lifetime.signal.throwIfAborted();
+    if (sidebar.mounted.getSnapshot() !== conversationId) throw Error('The target conversation is no longer visible');
     if (!sidebar.isExpanded()) sidebar.toggleExpanded();
     sidebar.focus(browserTabId);
     const record = await waitForGuest({ conversationId, browserTabId });
@@ -214,7 +236,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       case 'reload': element.reload(); break;
       case 'stop-loading': element.stop(); break;
       case 'focus': element.focus(); break;
-      case 'close-tab': await sidebar.closeIn(args.conversationId, args.browserTabId); break;
+      case 'close-tab': return closePage(args.conversationId, args.browserTabId);
       case 'capture-screenshot': {
         try {
           const image = await record.capture(), response = await fetch(image.toDataURL());
@@ -249,20 +271,299 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
     }
     update(record);
   }
-  async function releaseRecord(key, record) {
+  async function installGuest(args, key, record, initialNavigation, check) {
+    const { ids, lease, host, element } = record;
+    const navigationFailed = (url, errorCode, message) => {
+      const failure = { code: 'BROWSER_NAVIGATION_FAILED', errorCode, message, url };
+      if (record.navigation) record.navigation.failed = true;
+      record.state = { ...record.state, navigationError: failure, isLoading: false };
+      emit('browser-sidebar-command-error', { ...ids, error: failure });
+      update(record);
+    };
+    const navigationStarted = event => {
+      if (event.isMainFrame === false || event.isInPlace) return;
+      record.navigation = { generation: ++record.navigationGeneration, url: event.url, completed: false, failed: false };
+      record.state = { ...record.state, navigationError: null };
+      update(record);
+    };
+    const navigationRedirected = event => {
+      if (event.isMainFrame !== false && record.navigation && !record.navigation.completed) record.navigation.url = event.url;
+    };
+    const navigationFinished = event => {
+      const navigation = record.navigation;
+      if (event.isMainFrame === false || !navigation || navigation.failed || !sameNavigationURL(navigation.url, event.url)) return;
+      navigation.completed = true;
+      record.state = { ...record.state, navigationError: null };
+    };
+    const pageLoadFailed = event => {
+      const navigation = record.navigation;
+      // A late failure from a replaced navigation or a subframe must not turn
+      // the current successful page into an error state.
+      if (event.isMainFrame === false || event.errorCode === -3 || !navigation || navigation.completed
+        || !sameNavigationURL(navigation.url, event.validatedURL)) return;
+      navigationFailed(event.validatedURL, event.errorCode, `${event.errorDescription} loading ${event.validatedURL}`);
+    };
+    for (const [event, listener] of [['did-start-navigation', navigationStarted], ['did-redirect-navigation', navigationRedirected],
+      ['did-navigate', navigationFinished], ['did-fail-load', pageLoadFailed]]) {
+      element.addEventListener(event, listener); record.cleanup.push(() => element.removeEventListener(event, listener));
+    }
+    const assertCurrent = () => {
+      if (disposed || registrations.get(key) !== record) throw Error('The browser guest was replaced');
+    };
+    const initialPageLoad = async (load, url) => {
+      const before = record.navigationGeneration;
+      try { await load(); }
+      catch (error) {
+        const code = pageNavigationCode(error), navigation = record.navigation;
+        if (!code || disposed || registrations.get(key) !== record) throw error;
+        const replaced = navigation && (navigation.generation > before + 1 || !sameNavigationURL(navigation.url, url));
+        if (replaced || navigation?.completed) return;
+        if (code === 'ERR_ABORTED') throw error;
+        if (!record.state.navigationError) navigationFailed(navigation?.url || url, code, `${code} loading ${navigation?.url || url}`);
+      }
+    };
+    record.ready = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Electron browser guest readiness timed out')), 15000);
+      const ready = () => { clearTimeout(timeout); resolve(); };
+      element.addEventListener('dom-ready', ready, { once: true });
+      record.cleanup.push(() => { clearTimeout(timeout); element.removeEventListener('dom-ready', ready); reject(new Error('Browser guest was closed')); });
+    });
+    record.ready = record.ready.then(async () => {
+      if (disposed || registrations.get(key) !== record) throw new Error('The browser guest was replaced before it became ready');
+      if (desktop.permissions) await desktop.permissions(lease.lease, 'configure', { ...ids, mountGeneration: args.mountGeneration ?? 0 });
+      assertCurrent();
+      const restore = restoreTargets.get(key);
+      if (initialNavigation !== undefined) {
+        await initialPageLoad(() => desktop.automation(lease.lease, 'finishNavigation', {}), initialNavigation.entries[initialNavigation.index].url);
+        assertCurrent(); initialNavigations.delete(key); restoreTargets.delete(key);
+      } else if (restore) {
+        await initialPageLoad(() => element.loadURL(restore), restore);
+        assertCurrent(); if (restoreTargets.get(key) === restore) restoreTargets.delete(key);
+      }
+      assertCurrent(); pendingGuests.get(key)?.resolve(record);
+    });
+    record.ready.catch(error => {
+      if (registrations.get(key) !== record) return;
+      pendingGuests.get(key)?.reject(error);
+      console.error('OpenCU browser guest', error);
+      emit('browser-sidebar-command-error', { ...ids, error: { message: error.message } });
+    });
+    let capturing, composedCapture, captureCancellation;
+    const compositor = createCaptureCompositor();
+    record.cleanup.unshift(() => { record.capture.cancel(); compositor.dispose(); composedCapture = undefined; });
+    record.capture = ({ offThread = false } = {}) => {
+      if (capturing) return capturing;
+      const cancellation = new AbortController(); captureCancellation = cancellation;
+      Initial.AW.setTabCaptureActive(ids.conversationId, ids.browserTabId, true);
+      capturing = (async () => {
+        // Hidden owner windows can suspend animation frames without suspending IPC.
+        await new Promise((resolve, reject) => {
+          let frame;
+          const finish = () => {
+            clearTimeout(timer); cancelAnimationFrame(frame); cancellation.signal.removeEventListener('abort', finish);
+            cancellation.signal.aborted ? reject(cancellation.signal.reason) : resolve();
+          };
+          const timer = setTimeout(finish, 250);
+          cancellation.signal.addEventListener('abort', finish, { once: true });
+          frame = requestAnimationFrame(() => { frame = requestAnimationFrame(finish); });
+        });
+        const page = await element.executeJavaScript('({ scheme: getComputedStyle(document.documentElement).colorScheme, prefersDark: matchMedia("(prefers-color-scheme: dark)").matches })');
+        cancellation.signal.throwIfAborted();
+        const image = await desktop.automation(lease.lease, 'capture', {});
+        cancellation.signal.throwIfAborted();
+        const { width, height } = image;
+        const canvas = document.createElement('canvas');
+        const schemes = page.scheme.split(/\s+/u);
+        canvas.style.colorScheme = schemes.includes('dark') && (!schemes.includes('light') || page.prefersDark) ? 'dark' : 'light';
+        canvas.style.display = 'none'; canvas.style.color = 'Canvas'; document.body.append(canvas);
+        try {
+          // Nested guest captures retain alpha; resolve its default canvas without changing the page.
+          const background = getComputedStyle(canvas).color;
+          if (composedCapture?.source === image.dataUrl && composedCapture.width === width
+            && composedCapture.height === height && composedCapture.background === background) return composedCapture.result;
+          let dataUrl;
+          if (offThread) {
+            dataUrl = await compositor.compose({ source: image.dataUrl, width, height, background });
+          } else {
+            const frame = new Image(); frame.src = image.dataUrl; await frame.decode();
+            cancellation.signal.throwIfAborted();
+            canvas.width = width; canvas.height = height;
+            const context = canvas.getContext('2d', { alpha: false });
+            context.fillStyle = background; context.fillRect(0, 0, width, height); context.drawImage(frame, 0, 0);
+            dataUrl = canvas.toDataURL('image/png');
+          }
+          cancellation.signal.throwIfAborted();
+          const result = { toDataURL: () => dataUrl, getSize: () => ({ width, height }) };
+          // Retain one successful image per guest; all capture metadata stays on the current request.
+          composedCapture = { source: image.dataUrl, width, height, background, result };
+          return result;
+        } finally { canvas.remove(); }
+      })().finally(() => {
+        capturing = undefined; captureCancellation = undefined;
+        Initial.AW.setTabCaptureActive(ids.conversationId, ids.browserTabId, false);
+      });
+      return capturing;
+    };
+    record.capture.cancel = () => {
+      captureCancellation?.abort(Object.assign(new Error('Browser frame capture was cancelled'), { code: 'CONTROL_STOPPED' }));
+      compositor.cancel();
+    };
+    record.annotations = createAnnotationHost({ element, capture: record.capture, ids, target: () => transport.targetFor(ids.conversationId, ids.browserTabId), state: () => record.state,
+      changed: patch => { record.state = { ...record.state, ...patch }; update(record); }, deliver: deliverAnnotations,
+      settings, intl: reaIntl, inputMonitor: args => desktop.automation(lease.lease, 'inputMonitor', args), saveImage: async image => (await client.request('image/save', image)).image,
+      userActivity: async kind => {
+        const target = transport.targetFor(ids.conversationId, ids.browserTabId);
+        try { await client.request('userActivity', { targetId: target.id, kind }); }
+        catch (error) { if (error.code !== 'TARGET_NOT_SELECTED') throw error; }
+      } });
+    const contextMenu = event => {
+      event.preventDefault();
+      const pageUrl = element.getURL(), source = event.params;
+      if (!source || !desktop.permissions) return;
+      const params = Object.fromEntries(['x', 'y', 'formControlType', 'mediaType', 'linkURL', 'srcURL', 'selectionText', 'isEditable', 'hasImageContents'].map(key => [key, source[key]]));
+      params.editFlags = { canCut: source.editFlags?.canCut === true, canCopy: source.editFlags?.canCopy === true, canPaste: source.editFlags?.canPaste === true };
+      const intl = reaIntl(), defaults = { inspect: 'Inspect', back: 'Back', forward: 'Forward', reload: 'Reload', openLinkInNewTab: 'Open in new tab',
+        openExternalBrowser: 'Open in external browser', copyLink: 'Copy link address', commentWithCodex: 'Annotate', quickAnnotate: 'Quick annotate', attachImage: 'Attach image to chat' };
+      const labels = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => {
+        const id = `browserSidebar.contextMenu.${key}`; return [id, intl.messages[id] ?? fallback];
+      }));
+      Object.assign(labels, intl.locale.startsWith('zh') ? { cut: '剪切', copy: '复制', paste: '粘贴' } : { cut: 'Cut', copy: 'Copy', paste: 'Paste' });
+      void desktop.permissions(lease.lease, 'contextMenu', { pageUrl, params, labels }).then(async action => {
+        if (!action || element.getURL() !== pageUrl || registrations.get(key) !== record) return;
+        if (action.type === 'annotate') return record.annotations.annotateAt(action.point, action.flow, action.selectedText);
+        if (action.type === 'new-tab') return service.newTab({ ...ids, url: action.url });
+        if (action.type === 'open-external') return openLink({ url: action.url, useExternalBrowser: true });
+        if (action.type === 'attach-image') {
+          const { dataUrl } = await desktop.automation(lease.lease, 'readPageImage', { url: action.url, pageUrl });
+          if (element.getURL() !== pageUrl || registrations.get(key) !== record) throw new Error('The image page changed');
+          return deliverScreenshot(ids.conversationId, dataUrl, 'page-image');
+        }
+        return command({ ...ids, command: action });
+      }).catch(error => { Shared.WFt().danger(error.message); });
+    };
+    element.addEventListener('context-menu', contextMenu);
+    record.cleanup.push(() => element.removeEventListener('context-menu', contextMenu));
+    const installAnnotations = () => void record.annotations.install().catch(error => {
+      console.error('OpenCU page annotation install', error);
+      emit('browser-sidebar-command-error', { ...ids, error: { message: error.message } });
+    });
+    const invalidateAnnotations = event => { if (event.isMainFrame !== false && !event.isInPlace) record.annotations.invalidate(); };
+    element.addEventListener('dom-ready', installAnnotations);
+    element.addEventListener('did-start-navigation', invalidateAnnotations);
+    const notifyEditor = record.annotations.subscribe(() => { for (const listener of editorListeners) listener(); });
+    record.cleanup.unshift(async () => {
+      element.removeEventListener('dom-ready', installAnnotations); element.removeEventListener('did-start-navigation', invalidateAnnotations);
+      notifyEditor(); await record.annotations.dispose();
+    });
+    registrations.set(key, record);
+    const refresh = () => update(record);
+    const rendererExited = () => {
+      if (registrations.get(key) !== record) return;
+      record.recoveryFrame = true;
+      record.annotations.invalidate();
+      record.findQuery = ''; record.findRequestId = null;
+      record.siteToolsGeneration = (record.siteToolsGeneration ?? 0) + 1;
+      record.state = { ...record.state, isLoading: false, webMcpTools: [], siteToolsAvailability: { ...record.state.siteToolsAvailability, webMcp: 'unavailable' } };
+      for (const [sequence, pending] of cursorMoves) if (pending.record === record) finishCursor(sequence);
+      const message = reaIntl().messages['opencu.browser.rendererExited'] ?? 'The browser page process exited. Reload the page to continue.';
+      emit('browser-sidebar-command-error', { ...ids, error: { code: 'BROWSER_GUEST_CRASHED', message } });
+      update(record);
+    };
+    element.addEventListener('render-process-gone', rendererExited);
+    record.cleanup.push(() => element.removeEventListener('render-process-gone', rendererExited));
+    const navigated = event => {
+      if (event.isMainFrame === false) return;
+      if (event.type === 'did-navigate-in-page') installAnnotations();
+      record.historySignature = null; record.historyVisit = null;
+      record.siteToolsGeneration = (record.siteToolsGeneration ?? 0) + 1;
+      record.state = { ...record.state, webMcpTools: [], siteToolsAvailability: { ...record.state.siteToolsAvailability, webMcp: 'unavailable' } };
+    };
+    for (const event of ['did-navigate', 'did-navigate-in-page']) {
+      element.addEventListener(event, navigated); record.cleanup.push(() => element.removeEventListener(event, navigated));
+    }
+    for (const event of ['dom-ready', 'did-start-loading', 'did-stop-loading', 'did-navigate', 'did-navigate-in-page', 'page-title-updated', 'media-started-playing', 'media-paused']) {
+      element.addEventListener(event, refresh); record.cleanup.push(() => element.removeEventListener(event, refresh));
+    }
+    let toolsTimer, toolsClosed = false;
+    const refreshTools = async () => {
+      clearTimeout(toolsTimer);
+      if (toolsClosed) return;
+      try { await record.ready; await inspectSiteTools(record); }
+      catch (error) { if (!toolsClosed && !element.isLoading()) console.error('OpenCU site tools', error); }
+      if (!toolsClosed) toolsTimer = setTimeout(refreshTools, 2000);
+    };
+    if (desktop?.automation) void refreshTools();
+    record.cleanup.unshift(() => { toolsClosed = true; clearTimeout(toolsTimer); });
+    const favicon = event => { record.state = { ...record.state, faviconUrl: event.favicons?.[0] ?? null }; update(record); };
+    element.addEventListener('page-favicon-updated', favicon);
+    record.cleanup.push(() => element.removeEventListener('page-favicon-updated', favicon));
+    const found = event => {
+      if (record.findRequestId == null || event.result.requestId !== record.findRequestId || registrations.get(key) !== record) return;
+      emit('browser-sidebar-find-state', { ...ids, state: {
+        query: record.findQuery, matches: event.result.matches, activeMatchOrdinal: event.result.activeMatchOrdinal,
+      } });
+    };
+    element.addEventListener('found-in-page', found);
+    record.cleanup.push(() => element.removeEventListener('found-in-page', found));
+    const detach = await transport.attach(element, { sessionId: args.conversationId, tabId: args.browserTabId,
+      automate: desktop.automation ? async (operation, payload) => {
+        if (record.recoveryFrame && ['input', 'insertText'].includes(operation)) {
+          await record.capture(); record.recoveryFrame = false;
+        }
+        if (operation === 'siteTools') return inspectSiteTools(record);
+        if (operation === 'invokeSiteTool') {
+          const policy = (await settings.readAll()).values[siteToolsPolicyKey];
+          const descriptors = await desktop.automation(lease.lease, 'siteTools', {});
+          const tool = descriptors.tools.find(tool => tool.registrationId === payload.registrationId);
+          if (!tool) throw Object.assign(new Error('The site tool changed; discover the current tools again'), { code: 'STALE_SITE_TOOL' });
+          if (!siteToolsAllowed(policy, element.getURL()) || !siteToolsAllowed(policy, tool.origin)) throw Object.assign(new Error('Site tools are disabled for this website in browser settings'), { code: 'SITE_TOOLS_DISABLED' });
+        }
+        if (!['getDialog', 'handleDialog', 'closedState', 'releaseInput', 'cancelUpload', 'cancelSiteTool'].includes(operation)) await record.annotations.ensureInputMonitoring();
+        return desktop.automation(lease.lease, operation, payload);
+      } : undefined,
+      capture: record.capture,
+      cursor: state => moveCursor(record, state),
+      focus: () => focusPage(args.conversationId, args.browserTabId) });
+    record.cleanup.push(detach);
+    check();
+    record.cleanup.push(desktop.onOpenRequested(lease.lease, url => {
+      if (disposed || registrations.get(key) !== record) return;
+      const presented = isPagePresented ? isPagePresented(ids) : record.presented === true;
+      const active = presented && !Initial.AW.isBrowserUseActive(args.conversationId, args.browserTabId);
+      try {
+        void Promise.resolve(sidebar.openTabIn(args.conversationId, 'browser', { params: { url }, revealIfOpened: false, active })).catch(error => {
+          emit('browser-sidebar-command-error', { ...ids, error: { message: error.message } });
+        });
+      } catch (error) { emit('browser-sidebar-command-error', { ...ids, error: { message: error.message } }); }
+    }));
+    // Electron needs the approved element attached before dom-ready; Owl can
+    // complete native hidden-view registration before its DOM host is painted.
+    // Start navigation only after readiness listeners and the transport exist;
+    // downloads/settings IPC above can otherwise outlive the first dom-ready.
+    element.setAttribute('src', `about:blank#${lease.lease}`);
+    host.markRegistered();
+  }
+  function releaseRecord(key, record) {
+    if (record.release) return record.release;
     if (registrations.get(key) === record) registrations.delete(key);
     for (const [sequence, pending] of cursorMoves) if (pending.record === record) finishCursor(sequence, Object.assign(new Error('The browser guest is closing'), { code: 'CONTROL_STOPPED' }));
-    const results = [];
-    for (const cleanup of record.cleanup) {
-      try { await cleanup(); } catch (reason) { results.push({ status: 'rejected', reason }); }
-    }
-    if (Initial.AW.pages.getHost(record.ids.conversationId, record.ids.browserTabId) === record.host) {
-      Initial.AW.pages.disposeHost(record.ids.conversationId, record.ids.browserTabId, 'closed');
-      Initial.AW.removeTab(record.ids.conversationId, record.ids.browserTabId);
-    } else record.host.dispose();
-    const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
-    if (failures.length) throw new AggregateError(failures, 'OpenCU guest cleanup failed');
+    record.release = Promise.resolve().then(async () => {
+      const failures = [];
+      for (const cleanup of [...record.cleanup]) {
+        try { await cleanup(); record.cleanup.splice(record.cleanup.indexOf(cleanup), 1); }
+        catch (error) { failures.push(error); }
+      }
+      if (failures.length) throw new AggregateError(failures, 'OpenCU guest cleanup failed');
+      await record.releaseLease?.(); record.releaseLease = undefined;
+      if (Initial.AW.pages.getHost(record.ids.conversationId, record.ids.browserTabId) === record.host) {
+        Initial.AW.pages.disposeHost(record.ids.conversationId, record.ids.browserTabId, 'closed');
+        Initial.AW.removeTab(record.ids.conversationId, record.ids.browserTabId);
+      } else record.host.dispose();
+      if (resources.get(key) === record) resources.delete(key);
+    }).catch(error => { record.release = undefined; throw error; });
+    return record.release;
   }
+
   async function openLink(message) {
     return Shared.e6.navigation.open({ ...message, href: message.url });
   }
@@ -309,7 +610,7 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       return waitForGuest({ conversationId: sessionId, browserTabId: tab.id });
     },
     focus: ids => focusPage(ids.conversationId, ids.browserTabId),
-    close: async ids => { await service.disposeTab(ids.conversationId, ids.browserTabId); await sidebar.closeIn(ids.conversationId, ids.browserTabId); },
+    close: ids => closePage(ids.conversationId, ids.browserTabId),
   });
   const service = {
     ...extensions.service,
@@ -481,291 +782,46 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       const key = keyFor(args.conversationId, args.browserTabId);
       const host = Initial.AW.pages.getHost(args.conversationId, args.browserTabId);
       if (!host?.webview) throw new Error('REA did not create the requested guest');
-      const previous = registrations.get(key);
-      if (previous?.host === host) return true;
-      if (previous) await releaseRecord(key, previous);
-      const lease = await desktop.acquireOpenCU();
-      const initialNavigation = initialNavigations.get(key);
-      if (initialNavigation !== undefined) {
-        try { await desktop.automation(lease.lease, 'prepareNavigation', initialNavigation); }
-        catch (error) { pendingGuests.get(key)?.reject(error); await desktop.release(lease.lease); throw error; }
-      }
-      if (disposed) { await desktop.release(lease.lease); throw new Error('OpenCU browser host closed'); }
-      const element = host.webview;
-      element.setAttribute('name', lease.lease);
-      element.setAttribute('partition', lease.partition);
-      element.setAttribute('allowpopups', '');
-      const ids = { conversationId: args.conversationId, browserTabId: args.browserTabId };
-      const record = { ids, lease, host, element, state: { ...jl, ...annotationState.get(key) }, cleanup: [], navigationGeneration: 0 };
-      let detachDownloads;
-      try { detachDownloads = await downloads.attach(lease.lease); }
-      catch (error) { await desktop.release(lease.lease); throw error; }
-      if (disposed) { await detachDownloads?.(); await desktop.release(lease.lease); throw new Error('OpenCU browser host closed'); }
-      if (detachDownloads) record.cleanup.push(detachDownloads);
-      const navigationFailed = (url, errorCode, message) => {
-        const failure = { code: 'BROWSER_NAVIGATION_FAILED', errorCode, message, url };
-        if (record.navigation) record.navigation.failed = true;
-        record.state = { ...record.state, navigationError: failure, isLoading: false };
-        emit('browser-sidebar-command-error', { ...ids, error: failure });
-        update(record);
+      const before = mounts.get(key);
+      if (before?.host === host && !before.cancelled) return before.work;
+      if (registrations.get(key)?.host === host && !before) return true;
+      const ticket = {host};
+      mounts.set(key, ticket);
+      const check = () => {
+        if (disposed || ticket.cancelled || mounts.get(key) !== ticket || Initial.AW.pages.getHost(args.conversationId,args.browserTabId) !== host)
+          throw new Error('The browser guest was replaced before registration');
       };
-      const navigationStarted = event => {
-        if (event.isMainFrame === false || event.isInPlace) return;
-        record.navigation = { generation: ++record.navigationGeneration, url: event.url, completed: false, failed: false };
-        record.state = { ...record.state, navigationError: null };
-        update(record);
-      };
-      const navigationRedirected = event => {
-        if (event.isMainFrame !== false && record.navigation && !record.navigation.completed) record.navigation.url = event.url;
-      };
-      const navigationFinished = event => {
-        const navigation = record.navigation;
-        if (event.isMainFrame === false || !navigation || navigation.failed || !sameNavigationURL(navigation.url, event.url)) return;
-        navigation.completed = true;
-        record.state = { ...record.state, navigationError: null };
-      };
-      const pageLoadFailed = event => {
-        const navigation = record.navigation;
-        // A late failure from a replaced navigation or a subframe must not turn
-        // the current successful page into an error state.
-        if (event.isMainFrame === false || event.errorCode === -3 || !navigation || navigation.completed
-          || !sameNavigationURL(navigation.url, event.validatedURL)) return;
-        navigationFailed(event.validatedURL, event.errorCode, `${event.errorDescription} loading ${event.validatedURL}`);
-      };
-      for (const [event, listener] of [['did-start-navigation', navigationStarted], ['did-redirect-navigation', navigationRedirected],
-        ['did-navigate', navigationFinished], ['did-fail-load', pageLoadFailed]]) {
-        element.addEventListener(event, listener); record.cleanup.push(() => element.removeEventListener(event, listener));
-      }
-      const initialPageLoad = async (load, url) => {
-        const before = record.navigationGeneration;
-        try { await load(); }
-        catch (error) {
-          const code = pageNavigationCode(error), navigation = record.navigation;
-          if (!code || disposed || registrations.get(key) !== record) throw error;
-          const replaced = navigation && (navigation.generation > before + 1 || !sameNavigationURL(navigation.url, url));
-          if (replaced || navigation?.completed) return;
-          if (code === 'ERR_ABORTED') throw error;
-          if (!record.state.navigationError) navigationFailed(navigation?.url || url, code, `${code} loading ${navigation?.url || url}`);
-        }
-      };
-      record.ready = new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Electron browser guest readiness timed out')), 15000);
-        const ready = () => { clearTimeout(timeout); resolve(); };
-        element.addEventListener('dom-ready', ready, { once: true });
-        record.cleanup.push(() => { clearTimeout(timeout); element.removeEventListener('dom-ready', ready); reject(new Error('Browser guest was closed')); });
-      });
-      record.ready = record.ready.then(async () => {
-        if (disposed || registrations.get(key) !== record) throw new Error('The browser guest was replaced before it became ready');
-        if (desktop.permissions) await desktop.permissions(lease.lease, 'configure', { ...ids, mountGeneration: args.mountGeneration ?? 0 });
-        const restore = restoreTargets.get(key);
-        if (initialNavigation !== undefined) {
-          await initialPageLoad(() => desktop.automation(lease.lease, 'finishNavigation', {}), initialNavigation.entries[initialNavigation.index].url);
-          initialNavigations.delete(key); restoreTargets.delete(key);
-        } else if (restore) {
-          await initialPageLoad(() => element.loadURL(restore), restore);
-          if (restoreTargets.get(key) === restore) restoreTargets.delete(key);
-        }
-        pendingGuests.get(key)?.resolve(record);
-      });
-      record.ready.catch(error => {
-        pendingGuests.get(key)?.reject(error);
-        console.error('OpenCU browser guest', error);
-        emit('browser-sidebar-command-error', { ...ids, error: { message: error.message } });
-      });
-      let capturing, composedCapture, captureCancellation;
-      const compositor = createCaptureCompositor();
-      record.cleanup.unshift(() => { record.capture.cancel(); compositor.dispose(); composedCapture = undefined; });
-      record.capture = ({ offThread = false } = {}) => {
-        if (capturing) return capturing;
-        const cancellation = new AbortController(); captureCancellation = cancellation;
-        Initial.AW.setTabCaptureActive(ids.conversationId, ids.browserTabId, true);
-        capturing = (async () => {
-          // Hidden owner windows can suspend animation frames without suspending IPC.
-          await new Promise((resolve, reject) => {
-            let frame;
-            const finish = () => {
-              clearTimeout(timer); cancelAnimationFrame(frame); cancellation.signal.removeEventListener('abort', finish);
-              cancellation.signal.aborted ? reject(cancellation.signal.reason) : resolve();
-            };
-            const timer = setTimeout(finish, 250);
-            cancellation.signal.addEventListener('abort', finish, { once: true });
-            frame = requestAnimationFrame(() => { frame = requestAnimationFrame(finish); });
-          });
-          const page = await element.executeJavaScript('({ scheme: getComputedStyle(document.documentElement).colorScheme, prefersDark: matchMedia("(prefers-color-scheme: dark)").matches })');
-          cancellation.signal.throwIfAborted();
-          const image = await desktop.automation(lease.lease, 'capture', {});
-          cancellation.signal.throwIfAborted();
-          const { width, height } = image;
-          const canvas = document.createElement('canvas');
-          const schemes = page.scheme.split(/\s+/u);
-          canvas.style.colorScheme = schemes.includes('dark') && (!schemes.includes('light') || page.prefersDark) ? 'dark' : 'light';
-          canvas.style.display = 'none'; canvas.style.color = 'Canvas'; document.body.append(canvas);
-          try {
-            // Nested guest captures retain alpha; resolve its default canvas without changing the page.
-            const background = getComputedStyle(canvas).color;
-            if (composedCapture?.source === image.dataUrl && composedCapture.width === width
-              && composedCapture.height === height && composedCapture.background === background) return composedCapture.result;
-            let dataUrl;
-            if (offThread) {
-              dataUrl = await compositor.compose({ source: image.dataUrl, width, height, background });
-            } else {
-              const frame = new Image(); frame.src = image.dataUrl; await frame.decode();
-              cancellation.signal.throwIfAborted();
-              canvas.width = width; canvas.height = height;
-              const context = canvas.getContext('2d', { alpha: false });
-              context.fillStyle = background; context.fillRect(0, 0, width, height); context.drawImage(frame, 0, 0);
-              dataUrl = canvas.toDataURL('image/png');
-            }
-            cancellation.signal.throwIfAborted();
-            const result = { toDataURL: () => dataUrl, getSize: () => ({ width, height }) };
-            // Retain one successful image per guest; all capture metadata stays on the current request.
-            composedCapture = { source: image.dataUrl, width, height, background, result };
-            return result;
-          } finally { canvas.remove(); }
-        })().finally(() => {
-          capturing = undefined; captureCancellation = undefined;
-          Initial.AW.setTabCaptureActive(ids.conversationId, ids.browserTabId, false);
-        });
-        return capturing;
-      };
-      record.capture.cancel = () => {
-        captureCancellation?.abort(Object.assign(new Error('Browser frame capture was cancelled'), { code: 'CONTROL_STOPPED' }));
-        compositor.cancel();
-      };
-      record.annotations = createAnnotationHost({ element, capture: record.capture, ids, target: () => transport.targetFor(ids.conversationId, ids.browserTabId), state: () => record.state,
-        changed: patch => { record.state = { ...record.state, ...patch }; update(record); }, deliver: deliverAnnotations,
-        settings, intl: reaIntl, inputMonitor: args => desktop.automation(lease.lease, 'inputMonitor', args), saveImage: async image => (await client.request('image/save', image)).image,
-        userActivity: async kind => {
-          const target = transport.targetFor(ids.conversationId, ids.browserTabId);
-          try { await client.request('userActivity', { targetId: target.id, kind }); }
-          catch (error) { if (error.code !== 'TARGET_NOT_SELECTED') throw error; }
-        } });
-      const contextMenu = event => {
-        event.preventDefault();
-        const pageUrl = element.getURL(), source = event.params;
-        if (!source || !desktop.permissions) return;
-        const params = Object.fromEntries(['x', 'y', 'formControlType', 'mediaType', 'linkURL', 'srcURL', 'selectionText', 'isEditable', 'hasImageContents'].map(key => [key, source[key]]));
-        params.editFlags = { canCut: source.editFlags?.canCut === true, canCopy: source.editFlags?.canCopy === true, canPaste: source.editFlags?.canPaste === true };
-        const intl = reaIntl(), defaults = { inspect: 'Inspect', back: 'Back', forward: 'Forward', reload: 'Reload', openLinkInNewTab: 'Open in new tab',
-          openExternalBrowser: 'Open in external browser', copyLink: 'Copy link address', commentWithCodex: 'Annotate', quickAnnotate: 'Quick annotate', attachImage: 'Attach image to chat' };
-        const labels = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => {
-          const id = `browserSidebar.contextMenu.${key}`; return [id, intl.messages[id] ?? fallback];
-        }));
-        Object.assign(labels, intl.locale.startsWith('zh') ? { cut: '剪切', copy: '复制', paste: '粘贴' } : { cut: 'Cut', copy: 'Copy', paste: 'Paste' });
-        void desktop.permissions(lease.lease, 'contextMenu', { pageUrl, params, labels }).then(async action => {
-          if (!action || element.getURL() !== pageUrl || registrations.get(key) !== record) return;
-          if (action.type === 'annotate') return record.annotations.annotateAt(action.point, action.flow, action.selectedText);
-          if (action.type === 'new-tab') return service.newTab({ ...ids, url: action.url });
-          if (action.type === 'open-external') return openLink({ url: action.url, useExternalBrowser: true });
-          if (action.type === 'attach-image') {
-            const { dataUrl } = await desktop.automation(lease.lease, 'readPageImage', { url: action.url, pageUrl });
-            if (element.getURL() !== pageUrl || registrations.get(key) !== record) throw new Error('The image page changed');
-            return deliverScreenshot(ids.conversationId, dataUrl, 'page-image');
-          }
-          return command({ ...ids, command: action });
-        }).catch(error => { Shared.WFt().danger(error.message); });
-      };
-      element.addEventListener('context-menu', contextMenu);
-      record.cleanup.push(() => element.removeEventListener('context-menu', contextMenu));
-      const installAnnotations = () => void record.annotations.install().catch(error => {
-        console.error('OpenCU page annotation install', error);
-        emit('browser-sidebar-command-error', { ...ids, error: { message: error.message } });
-      });
-      const invalidateAnnotations = event => { if (event.isMainFrame !== false && !event.isInPlace) record.annotations.invalidate(); };
-      element.addEventListener('dom-ready', installAnnotations);
-      element.addEventListener('did-start-navigation', invalidateAnnotations);
-      const notifyEditor = record.annotations.subscribe(() => { for (const listener of editorListeners) listener(); });
-      record.cleanup.unshift(async () => {
-        element.removeEventListener('dom-ready', installAnnotations); element.removeEventListener('did-start-navigation', invalidateAnnotations);
-        notifyEditor(); await record.annotations.dispose();
-      });
-      registrations.set(key, record);
-      const refresh = () => update(record);
-      const rendererExited = () => {
-        if (registrations.get(key) !== record) return;
-        record.recoveryFrame = true;
-        record.annotations.invalidate();
-        record.findQuery = ''; record.findRequestId = null;
-        record.siteToolsGeneration = (record.siteToolsGeneration ?? 0) + 1;
-        record.state = { ...record.state, isLoading: false, webMcpTools: [], siteToolsAvailability: { ...record.state.siteToolsAvailability, webMcp: 'unavailable' } };
-        for (const [sequence, pending] of cursorMoves) if (pending.record === record) finishCursor(sequence);
-        const message = reaIntl().messages['opencu.browser.rendererExited'] ?? 'The browser page process exited. Reload the page to continue.';
-        emit('browser-sidebar-command-error', { ...ids, error: { code: 'BROWSER_GUEST_CRASHED', message } });
-        update(record);
-      };
-      element.addEventListener('render-process-gone', rendererExited);
-      record.cleanup.push(() => element.removeEventListener('render-process-gone', rendererExited));
-      const navigated = event => {
-        if (event.isMainFrame === false) return;
-        if (event.type === 'did-navigate-in-page') installAnnotations();
-        record.historySignature = null; record.historyVisit = null;
-        record.siteToolsGeneration = (record.siteToolsGeneration ?? 0) + 1;
-        record.state = { ...record.state, webMcpTools: [], siteToolsAvailability: { ...record.state.siteToolsAvailability, webMcp: 'unavailable' } };
-      };
-      for (const event of ['did-navigate', 'did-navigate-in-page']) {
-        element.addEventListener(event, navigated); record.cleanup.push(() => element.removeEventListener(event, navigated));
-      }
-      for (const event of ['dom-ready', 'did-start-loading', 'did-stop-loading', 'did-navigate', 'did-navigate-in-page', 'page-title-updated', 'media-started-playing', 'media-paused']) {
-        element.addEventListener(event, refresh); record.cleanup.push(() => element.removeEventListener(event, refresh));
-      }
-      let toolsTimer, toolsClosed = false;
-      const refreshTools = async () => {
-        clearTimeout(toolsTimer);
-        if (toolsClosed) return;
-        try { await record.ready; await inspectSiteTools(record); }
-        catch (error) { if (!toolsClosed && !element.isLoading()) console.error('OpenCU site tools', error); }
-        if (!toolsClosed) toolsTimer = setTimeout(refreshTools, 2000);
-      };
-      if (desktop?.automation) void refreshTools();
-      record.cleanup.unshift(() => { toolsClosed = true; clearTimeout(toolsTimer); });
-      const favicon = event => { record.state = { ...record.state, faviconUrl: event.favicons?.[0] ?? null }; update(record); };
-      element.addEventListener('page-favicon-updated', favicon);
-      record.cleanup.push(() => element.removeEventListener('page-favicon-updated', favicon));
-      const found = event => {
-        if (record.findRequestId == null || event.result.requestId !== record.findRequestId || registrations.get(key) !== record) return;
-        emit('browser-sidebar-find-state', { ...ids, state: {
-          query: record.findQuery, matches: event.result.matches, activeMatchOrdinal: event.result.activeMatchOrdinal,
-        } });
-      };
-      element.addEventListener('found-in-page', found);
-      record.cleanup.push(() => element.removeEventListener('found-in-page', found));
-      const detach = await transport.attach(element, { sessionId: args.conversationId, tabId: args.browserTabId,
-        automate: desktop.automation ? async (operation, payload) => {
-          if (record.recoveryFrame && ['input', 'insertText'].includes(operation)) {
-            await record.capture(); record.recoveryFrame = false;
-          }
-          if (operation === 'siteTools') return inspectSiteTools(record);
-          if (operation === 'invokeSiteTool') {
-            const policy = (await settings.readAll()).values[siteToolsPolicyKey];
-            const descriptors = await desktop.automation(lease.lease, 'siteTools', {});
-            const tool = descriptors.tools.find(tool => tool.registrationId === payload.registrationId);
-            if (!tool) throw Object.assign(new Error('The site tool changed; discover the current tools again'), { code: 'STALE_SITE_TOOL' });
-            if (!siteToolsAllowed(policy, element.getURL()) || !siteToolsAllowed(policy, tool.origin)) throw Object.assign(new Error('Site tools are disabled for this website in browser settings'), { code: 'SITE_TOOLS_DISABLED' });
-          }
-          if (!['getDialog', 'handleDialog', 'closedState', 'releaseInput', 'cancelUpload', 'cancelSiteTool'].includes(operation)) await record.annotations.ensureInputMonitoring();
-          return desktop.automation(lease.lease, operation, payload);
-        } : undefined,
-        capture: record.capture,
-        cursor: state => moveCursor(record, state),
-        focus: () => focusPage(args.conversationId, args.browserTabId) });
-      record.cleanup.push(detach, () => desktop.release(lease.lease));
-      record.cleanup.push(desktop.onOpenRequested(lease.lease, url => {
-        if (disposed || registrations.get(key) !== record) return;
-        const presented = isPagePresented ? isPagePresented(ids) : record.presented === true;
-        const active = presented && !Initial.AW.isBrowserUseActive(args.conversationId, args.browserTabId);
+      ticket.work = Promise.resolve(before?.work).catch(() => {}).then(async () => {
+        check();
+        const previous = resources.get(key);
+        if (previous) await releaseRecord(key, previous);
+        check();
+        const lease = await desktop.acquireOpenCU();
+        const element = host.webview, ids = {conversationId:args.conversationId,browserTabId:args.browserTabId};
+        const record = { ids, lease, host, element, state: { ...jl, ...annotationState.get(key) }, cleanup: [], navigationGeneration: 0,
+          releaseLease: () => desktop.release(lease.lease) };
+        resources.set(key, record);
         try {
-          void Promise.resolve(sidebar.openTabIn(args.conversationId, 'browser', { params: { url }, revealIfOpened: false, active })).catch(error => {
-            emit('browser-sidebar-command-error', { ...ids, error: { message: error.message } });
-          });
-        } catch (error) { emit('browser-sidebar-command-error', { ...ids, error: { message: error.message } }); }
-      }));
-      // Electron needs the approved element attached before dom-ready; Owl can
-      // complete native hidden-view registration before its DOM host is painted.
-      // Start navigation only after readiness listeners and the transport exist;
-      // downloads/settings IPC above can otherwise outlive the first dom-ready.
-      element.setAttribute('src', `about:blank#${lease.lease}`);
-      host.markRegistered();
-      return true;
+          check();
+          const initialNavigation = initialNavigations.get(key);
+          if (initialNavigation !== undefined) { await desktop.automation(lease.lease, 'prepareNavigation', initialNavigation); check(); }
+          element.setAttribute('name', lease.lease);
+          element.setAttribute('partition', lease.partition);
+          element.setAttribute('allowpopups', '');
+          const detachDownloads = await downloads.attach(lease.lease);
+          if (detachDownloads) record.cleanup.push(detachDownloads);
+          check();
+          await installGuest(args, key, record, initialNavigation, check);
+          check();
+          return true;
+        } catch (error) {
+          if (mounts.get(key) === ticket) pendingGuests.get(key)?.reject(error);
+          try { await releaseRecord(key, record); }
+          catch (cleanup) { throw new AggregateError([error,cleanup], 'Browser guest setup and cleanup failed'); }
+          throw error;
+        }
+      }).finally(() => { if (mounts.get(key) === ticket) mounts.delete(key); });
+      return ticket.work;
     },
     async syncView(args) {
       const record = get(args);
@@ -777,9 +833,10 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       return true;
     },
     async disposeTab(conversationId, browserTabId) {
-      const key = keyFor(conversationId, browserTabId), record = registrations.get(key);
-      if (!record) return;
-      await releaseRecord(key, record);
+      const key = keyFor(conversationId, browserTabId), ticket = mounts.get(key);
+      if (ticket) { ticket.cancelled = true; await ticket.work.catch(() => {}); }
+      const record = resources.get(key);
+      if (record && (!ticket || record.host === ticket.host)) await releaseRecord(key, record);
     },
     async respondToSiteAnnotationPermission(args) {
       const record = get(args);
@@ -859,13 +916,14 @@ export function createReaBrowserHost({ desktop, transport, client, sidebar, open
       }
     },
     async dispose() {
-      disposed = true;
+      disposed = true; lifetime.abort(new Error('OpenCU browser host closed'));
       for (const unsubscribe of restorationDisposers) unsubscribe();
       window.removeEventListener('codex-message-from-view', onMessage);
       unsubscribeActivity(); extensions.dispose();
       for (const cancel of [...viewportWaits.values()]) cancel();
       for (const pending of [...pendingGuests.values()]) pending.reject(new Error('OpenCU browser host closed'));
-      const releases = await Promise.allSettled([...registrations.values()].map(record => service.disposeTab(record.ids.conversationId, record.ids.browserTabId)));
+      await Promise.allSettled([...mounts.values()].map(ticket => ticket.work));
+      const releases = await Promise.allSettled([...resources].map(([key,record]) => releaseRecord(key,record)));
       for (const page of retainedPages.values()) page.cleanup();
       retainedPages.clear(); publishPages();
       rendererSessions.clear(); annotationState.clear();

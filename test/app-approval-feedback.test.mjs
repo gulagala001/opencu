@@ -105,8 +105,8 @@ test('a disposed original session never falls back to the active session', async
 for (const id of [undefined, null, '', 0]) test(`missing or invalid conversation identity (${String(id)}) never chooses a notification recipient`, async () => {
   const error = new Error('request rejected');
   const fixture = await approvalFeedbackFixture({ request: () => Promise.reject(error) });
-  await assert.rejects(fixture.service.respondAppApproval({ ...response(), conversationId: id }), thrown => thrown === error);
-  assert.equal(fixture.calls.length, 1);
+  await assert.rejects(fixture.service.respondAppApproval({ ...response(), conversationId: id }), /审批已失效/);
+  assert.equal(fixture.calls.length, 0);
   assert.deepEqual(fixture.notices, []);
   assert.deepEqual(fixture.scopeLookups, []);
   assert.equal(fixture.activeReads, 0);

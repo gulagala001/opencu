@@ -1,9 +1,10 @@
+import {closeSidebarTab} from '../src/client/sidebar-occurrence.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 
-async function fixture({automation,ensureInputMonitoring=async()=>{}}={}) {
+async function fixture({automation,ensureInputMonitoring=async()=>{}, acquire=async()=>({lease:'original',partition:'isolated'}), release}={}) {
   const events=[], snapshots=new Map(), releases=[];
   let url='about:blank', configured=false, attached=false, registered=false, automate;
   const element=Object.assign(new EventTarget(), {
@@ -19,6 +20,7 @@ async function fixture({automation,ensureInputMonitoring=async()=>{}}={}) {
     getSnapshot:(s,t)=>snapshots.get(s+t),isBrowserUseActive:()=>false};
   const noop=()=>{};
   const stubs={
+    './sidebar-occurrence.mjs': {closeSidebarTab},
     './rea/app-shared-2f2228189a8d.js':{Ff:{dispatchHostMessage(value){if(value.snapshot)snapshots.set(value.conversationId+value.browserTabId,value.snapshot);}},WFt:()=>({danger:noop})},
     './rea/app-initial-c468e3fd7f91.js':{AW:state},
     './rea/tab-content-6a1dfa5c5ac1.js':{jl:{}},
@@ -35,7 +37,7 @@ async function fixture({automation,ensureInputMonitoring=async()=>{}}={}) {
   await module.evaluate();
   const lifetime=new AbortController();
   const host=module.namespace.createReaBrowserHost({
-    desktop:{automation,acquireOpenCU:async()=>({lease:'original',partition:'isolated'}),release:async lease=>releases.push(lease),onOpenRequested:()=>noop},
+    desktop:{automation,acquireOpenCU:acquire,release:release ?? (async lease=>releases.push(lease)),onOpenRequested:()=>noop},
     transport:{setTabOwner:noop,attach:async(_element,options)=>{automate=options.automate;attached=true;events.push('transport');return async()=>{};}},
     client:{getSnapshot:()=>({sessions:[]}),subscribe:()=>noop},sidebar:{tabsIn:()=>[],mounted:{getSnapshot:()=> 'other'}},settings:{readAll:async()=>({values:{}})},history:{},
     downloads:{async attach(){await new Promise(resolve=>setTimeout(resolve,5));configured=true;events.push('downloads');return noop;}},
@@ -79,4 +81,32 @@ test('closed-state proof and cleanup reach the original lease when page monitori
     await assert.rejects(f.automate('input',{}),/cannot install a monitor/);
     assert.deepEqual(calls.map(([lease,operation])=>[lease,operation]),['closedState','releaseInput','cancelUpload','cancelSiteTool'].map(operation=>['original',operation]));
   } finally {await f.host.dispose();}
+});
+
+test('concurrent registrations join the exact host and cleanup failure retains its lease', async () => {
+ const gate=Promise.withResolvers();let allocations=0,attempts=0;
+ const f=await fixture({acquire:async()=>{allocations++;await gate.promise;return {lease:'one',partition:'test'};},
+   release:async()=>{if(++attempts===1)throw Error('busy');}});
+ const args={rendererInstanceId:'renderer',conversationId:'s',browserTabId:'t'};
+ await f.host.service.registerWebviewHostSession(args);
+ const a=f.host.service.registerWebviewHost(args),b=f.host.service.registerWebviewHost(args);gate.resolve();
+ await Promise.all([a,b]);assert.equal(allocations,1);
+ await assert.rejects(f.host.service.disposeTab('s','t'),/busy/);
+ await f.host.service.disposeTab('s','t');assert.equal(attempts,2);await f.host.dispose();
+});
+test('an occurrence closed while allocating never mounts and retires the late lease', async () => {
+ const gate=Promise.withResolvers(),entered=Promise.withResolvers();
+ const f=await fixture({acquire:async()=>{entered.resolve();return gate.promise;}});
+ const args={rendererInstanceId:'renderer',conversationId:'s',browserTabId:'t'};
+ await f.host.service.registerWebviewHostSession(args);
+ const opening=f.host.service.registerWebviewHost(args);await entered.promise;
+ const closing=f.host.service.disposeTab('s','t');gate.resolve({lease:'late',partition:'test'});
+ await assert.rejects(opening,/replaced/);await closing;assert.deepEqual(f.releases,['late']);await f.host.dispose();
+});
+test('a delayed sidebar veto leaves the tab intact; a stock void close needs removal evidence',async()=>{
+ let tabs=[{id:'t'}], gate=Promise.withResolvers();
+ const sidebar={tabsIn:()=>tabs,closeIn:()=>gate.promise};
+ const closing=closeSidebarTab(sidebar,'s','t');gate.resolve(false);
+ await assert.rejects(closing,{code:'TAB_CLOSE_REFUSED'});assert.equal(tabs.length,1);
+ sidebar.closeIn=()=>{tabs=[];};assert.equal(await closeSidebarTab(sidebar,'s','t'),true);
 });

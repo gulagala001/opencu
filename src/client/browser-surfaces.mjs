@@ -1,3 +1,4 @@
+import { closeSidebarTab } from './sidebar-occurrence.mjs';
 import * as Shared from './rea/app-shared-2f2228189a8d.js';
 import * as Initial from './rea/app-initial-c468e3fd7f91.js';
 import { reaIntl } from './rea-locale.mjs';
@@ -36,6 +37,7 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
     if (!record.detached) {
       if (sidebar.mounted.getSnapshot() !== sessionId) await wait(openSession(sessionId), record.lifetime.signal);
       live(record);
+      if (sidebar.mounted.getSnapshot() !== sessionId) throw Error('The target conversation is no longer visible');
       if (!sidebar.isExpanded()) sidebar.toggleExpanded();
       sidebar.focus(tabId);
       await new Promise((resolve, reject) => {
@@ -204,7 +206,7 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
         return page(next, 'webContentsId');
       }
       case 'cloneTab': return cloneTab({ ...args, conversationId: record.ids.sessionId, browserTabId: record.ids.tabId });
-      case 'closeTab': return sidebar.closeIn(record.ids.sessionId, record.ids.tabId);
+      case 'closeTab': return closeSidebarTab(sidebar, record.ids.sessionId, record.ids.tabId);
       case 'focusPage': return focusPage(record.ids.sessionId, record.ids.tabId);
       case 'detachTab': return service.detachTab(record.ids);
       case 'deliverAnnotations': return deliverAnnotations({ ...args, conversationId: record.ids.sessionId, browserTabId: record.ids.tabId, target: record.remote.target });
@@ -264,7 +266,7 @@ export function createBrowserSurfaces({ desktop, transport, client, sidebar, ope
       }
     }
   });
-  transport.setTabOwner(args => newTab({ ...args, active: false }), async args => { const record = get(args); await close(record); sidebar.closeIn(record.ids.sessionId, record.ids.tabId); });
+  transport.setTabOwner(args => newTab({ ...args, active: false }), async args => { const record = get(args); await closeSidebarTab(sidebar, record.ids.sessionId, record.ids.tabId); await close(record); });
   return { service, mountTab: retain,
     async updateBounds(args) {
       const record = get(args);
