@@ -40,7 +40,7 @@ for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ['rc1', 
   const { files, hashes, pkg } = await loadBuildInputs(id, manifest);
   const peers = pkg.peerDependencies;
   await installBuildInputs(sdk, files);
-  if (id === '022rc3') prepareSdk(sdk);
+  if (['022rc3', '022rc4', '022rc5'].includes(id)) prepareSdk(sdk, id);
   if (id === '022rc2') {
     const { prepareSdk: prepareRc2 } = await import('./prepare-rc2-sdk.mjs');
     prepareRc2(sdk);

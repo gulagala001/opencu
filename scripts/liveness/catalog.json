@@ -17779,7 +17779,7 @@
     {
       "file": "host/apply.mjs",
       "contract": "sidebar",
-      "sha256": "2809fef1ad1df37e6b5d21ee63c3e300b106771f96d8386bd9dd158624c56504",
+      "sha256": "d1ef60a7d2347795c9c3e1fae56753da715ae9dedb5334ceea633b72ec477746",
       "kind": "javascript",
       "sites": [
         {
@@ -19673,7 +19673,7 @@
     {
       "file": "host/compatibility.mjs",
       "contract": "sidebar",
-      "sha256": "88a9ce716b7e7d27f753d0f036c910da21bdac7ff9c4d95db82b37e1515c858f",
+      "sha256": "c1eaad855b4529a6191d80bed3079387dbf05a36485308b5d84b366867d17cac",
       "kind": "javascript",
       "sites": []
     },

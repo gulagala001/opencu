@@ -49,13 +49,13 @@ export async function loadBuildInputs(id, manifest) {
   const target = hostTargets[id];
   const pkg = hostManifest(manifest, id);
   const expected = { ...pkg.peerDependencies, ...pkg.dependencies, '@deepseek-ai/dsh-system-prompt': target.version,
-    '@deepseek-ai/dsh-attachment-local': target.version, typescript: '6.0.3', '@types/node': '22.20.1', electron: target.electron, 'electron-chrome-extensions': '4.9.0', ...(['022a2', '022a3', '022rc1', '022rc2', '022rc3'].includes(id) ? { '@deepseek-ai/dsh-tool-executor-native': target.version, '@deepseek-ai/dsh-util-file-drag': target.version } : {}) };
+    '@deepseek-ai/dsh-attachment-local': target.version, typescript: '6.0.3', '@types/node': '22.20.1', electron: target.electron, 'electron-chrome-extensions': '4.9.0', ...(['022a2', '022a3', '022rc1', '022rc2', '022rc3', '022rc4', '022rc5'].includes(id) ? { '@deepseek-ai/dsh-tool-executor-native': target.version, '@deepseek-ai/dsh-util-file-drag': target.version } : {}) };
   if (JSON.stringify(sdk.dependencies) !== JSON.stringify(expected)) throw new Error(`Fixed SDK manifest does not match source dependencies: ${id}`);
   // Check every package and peer context, including transitive DSH packages.
   const lock = files['pnpm-lock.yaml'].toString();
   const versions = [...lock.matchAll(/@deepseek-ai\/dsh-[\w-]+@([^\s'"():]+)/g)];
-  if ((!versions.length && !['022rc2', '022rc3'].includes(id)) || versions.some(([, version]) => version !== target.version)) throw new Error(`Mixed host resolution graph: ${id}`);
-  if (['022rc2', '022rc3'].includes(id)) {
+  if ((!versions.length && !['022rc2', '022rc3', '022rc4', '022rc5'].includes(id)) || versions.some(([, version]) => version !== target.version)) throw new Error(`Mixed host resolution graph: ${id}`);
+  if (['022rc2', '022rc3', '022rc4', '022rc5'].includes(id)) {
     for (const name of Object.keys(expected).filter(name => name.startsWith('@deepseek-ai/dsh-'))) {
       if (!lock.includes("'" + name + "': link:../.local/dsh-sdk-" + target.commit.slice(0, 8) + "/packages/")) throw new Error('Missing fixed source dependency: ' + name);
     }
@@ -93,7 +93,7 @@ export async function checkInstalledSdk(directory, id, files) {
     found.add(key);
   }
   for (const key of expected) if (!found.has(key)) throw new Error(`Missing installed DSH package: ${key}`);
-  if (['022rc2', '022rc3'].includes(id)) {
+  if (['022rc2', '022rc3', '022rc4', '022rc5'].includes(id)) {
     const queue = Object.keys(sdk.dependencies).map(name => [directory + '/package.json', name]);
     for (const [parent, name] of queue) {
       if (!name.startsWith('@deepseek-ai/dsh-')) continue;
