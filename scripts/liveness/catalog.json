@@ -3390,7 +3390,7 @@
     {
       "file": "src/client/annotation-delivery.mjs",
       "contract": "resources",
-      "sha256": "7c83d08f78b016ef6bf3b453abd6212aa73490149cc9ccae641fcc551d5bffa8",
+      "sha256": "c38e2679e842571a1d0798999d6e14cf0ec52cad7930c0490c1ae52cfc43cb9f",
       "kind": "javascript",
       "sites": [
         {
@@ -3407,55 +3407,55 @@
         },
         {
           "id": "run:await:send():1",
-          "line": 30,
+          "line": 31,
           "kind": "await",
           "callee": "send()"
         },
         {
           "id": "run:handoff:send:1",
-          "line": 30,
+          "line": 31,
           "kind": "handoff",
           "callee": "send"
         },
         {
           "id": "run:await:commit():1",
-          "line": 36,
+          "line": 37,
           "kind": "await",
           "callee": "commit()"
         },
         {
           "id": "deliverAnnotation:handoff:locks.request:1",
-          "line": 45,
+          "line": 46,
           "kind": "handoff",
           "callee": "locks.request"
         },
         {
           "id": "version:await:annotationFingerprint():1",
-          "line": 52,
+          "line": 53,
           "kind": "await",
           "callee": "annotationFingerprint()"
         },
         {
           "id": "run:await:Promise.all():1",
-          "line": 54,
+          "line": 55,
           "kind": "await",
           "callee": "Promise.all()"
         },
         {
           "id": "run:await:Promise.all():2",
-          "line": 58,
+          "line": 59,
           "kind": "await",
           "callee": "Promise.all()"
         },
         {
           "id": "run:await:deliver():1",
-          "line": 73,
+          "line": 75,
           "kind": "await",
           "callee": "deliver()"
         },
         {
           "id": "deliverBrowserSelection:handoff:locks.request:1",
-          "line": 90,
+          "line": 92,
           "kind": "handoff",
           "callee": "locks.request"
         }
@@ -3464,7 +3464,7 @@
     {
       "file": "src/client/annotation-host.mjs",
       "contract": "resources",
-      "sha256": "defcfaede0cc5087dce63cc445bedcbbbf1de680bbf069913c4af097b4c9a914",
+      "sha256": "d1126d1df23db25ba3a094d6e53b2809ac7e8c0f0694bea75c21024b994fd2d3",
       "kind": "javascript",
       "sites": [
         {
@@ -5029,7 +5029,7 @@
     {
       "file": "src/client/document-slot.jsx",
       "contract": "resources",
-      "sha256": "d1b890c6848c135f9ac2c0702ebd3b7aa31d16ac1d08f23f79a0efc9cde1e513",
+      "sha256": "0cae57fbb248d525fc73ae777de45825365d0f6eba72f18882ceb58d67763fa3",
       "kind": "javascript",
       "sites": [
         {
@@ -6409,330 +6409,330 @@
     {
       "file": "src/client/index.jsx",
       "contract": "resources",
-      "sha256": "ff27da8a1075e26837cef01f3be1ccbfeb675f7f9b0666429ec8d2c07e985cbb",
+      "sha256": "db0a250b734fa089f4e8bea1a8aaaaf96488bb69511c12ad24327c35af98ee94",
       "kind": "javascript",
       "sites": [
         {
           "id": "apply:await:entry.closing:1",
-          "line": 64,
+          "line": 65,
           "kind": "await",
           "callee": "entry.closing"
         },
         {
           "id": "apply:await:entry.beforeDispose():1",
-          "line": 74,
+          "line": 75,
           "kind": "await",
           "callee": "entry.beforeDispose()"
         },
         {
           "id": "apply:await:entry.fiber.dispose():1",
-          "line": 74,
+          "line": 75,
           "kind": "await",
           "callee": "entry.fiber.dispose()"
         },
         {
           "id": "apply:await:entry.closing:2",
-          "line": 75,
+          "line": 76,
           "kind": "await",
           "callee": "entry.closing"
         },
         {
           "id": "apply:await:entry.fiber:1",
-          "line": 79,
+          "line": 80,
           "kind": "await",
           "callee": "entry.fiber"
         },
         {
           "id": "mountClient:handoff:client.request().catch().then:1",
-          "line": 104,
+          "line": 105,
           "kind": "handoff",
           "callee": "client.request().catch().then"
         },
         {
           "id": "mountClient:handoff:client.request:1",
-          "line": 104,
+          "line": 105,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "mountClient:handoff:client.request:2",
-          "line": 111,
+          "line": 112,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "focus:await:ctx.uiWorkspace.openSession():1",
-          "line": 127,
+          "line": 128,
           "kind": "await",
           "callee": "ctx.uiWorkspace.openSession()"
         },
         {
           "id": "focus:await:ctx.uiWorkspace.openSession():2",
-          "line": 131,
+          "line": 132,
           "kind": "await",
           "callee": "ctx.uiWorkspace.openSession()"
         },
         {
           "id": "remove:await:ctx.sessions.scope().bail():1",
-          "line": 145,
+          "line": 146,
           "kind": "await",
           "callee": "ctx.sessions.scope().bail()"
         },
         {
-          "id": "submit:await:ctx.sessions.sessionOf().prompt():1",
-          "line": 165,
+          "id": "submit:await:promptAnnotation():1",
+          "line": 166,
           "kind": "await",
-          "callee": "ctx.sessions.sessionOf().prompt()"
+          "callee": "promptAnnotation()"
         },
         {
-          "id": "submit:await:ctx.sessions.sessionOf().prompt():2",
-          "line": 173,
+          "id": "submit:await:promptAnnotation():2",
+          "line": 174,
           "kind": "await",
-          "callee": "ctx.sessions.sessionOf().prompt()"
+          "callee": "promptAnnotation()"
         },
         {
           "id": "deliverAnnotations:await:Promise.all():1",
-          "line": 225,
+          "line": 226,
           "kind": "await",
           "callee": "Promise.all()"
         },
         {
           "id": "deliverAnnotations:await:client.request():1",
-          "line": 230,
+          "line": 231,
           "kind": "await",
           "callee": "client.request()"
         },
         {
           "id": "deliverAnnotations:handoff:client.request:1",
-          "line": 230,
+          "line": 231,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
-          "id": "deliverAnnotations:await:session.prompt():1",
-          "line": 239,
+          "id": "deliverAnnotations:await:promptAnnotation():1",
+          "line": 240,
           "kind": "await",
-          "callee": "session.prompt()"
+          "callee": "promptAnnotation()"
         },
         {
           "id": "mountClient:await:artifactDocuments.dispose():1",
-          "line": 293,
+          "line": 294,
           "kind": "await",
           "callee": "artifactDocuments.dispose()"
         },
         {
           "id": "add:await:client.request():1",
-          "line": 348,
+          "line": 349,
           "kind": "await",
           "callee": "client.request()"
         },
         {
           "id": "add:handoff:client.request:1",
-          "line": 348,
+          "line": 349,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "getAppApprovals:handoff:client.request().then:1",
-          "line": 353,
+          "line": 354,
           "kind": "handoff",
           "callee": "client.request().then"
         },
         {
           "id": "getAppApprovals:handoff:client.request:1",
-          "line": 353,
+          "line": 354,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "removeAppApproval:handoff:client.request().then:1",
-          "line": 354,
+          "line": 355,
           "kind": "handoff",
           "callee": "client.request().then"
         },
         {
           "id": "removeAppApproval:handoff:client.request:1",
-          "line": 354,
+          "line": 355,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "getPendingAppApprovals:handoff:client.request().then:1",
-          "line": 355,
+          "line": 356,
           "kind": "handoff",
           "callee": "client.request().then"
         },
         {
           "id": "getPendingAppApprovals:handoff:client.request:1",
-          "line": 355,
+          "line": 356,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "prepareRecovery:handoff:client.request:1",
-          "line": 372,
-          "kind": "handoff",
-          "callee": "client.request"
-        },
-        {
-          "id": "retryRecovery:handoff:client.request:1",
           "line": 373,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
-          "id": "confirmRecovery:handoff:client.request:1",
+          "id": "retryRecovery:handoff:client.request:1",
           "line": 374,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
+          "id": "confirmRecovery:handoff:client.request:1",
+          "line": 375,
+          "kind": "handoff",
+          "callee": "client.request"
+        },
+        {
           "id": "read:await:Promise.all():1",
-          "line": 377,
+          "line": 378,
           "kind": "await",
           "callee": "Promise.all()"
         },
         {
           "id": "read:handoff:client.request:1",
-          "line": 377,
+          "line": 378,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "read:handoff:client.request:2",
-          "line": 377,
+          "line": 378,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "connectBrowser:handoff:client.request:1",
-          "line": 382,
-          "kind": "handoff",
-          "callee": "client.request"
-        },
-        {
-          "id": "manageConnection:handoff:client.request:1",
           "line": 383,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
-          "id": "disconnectBrowser:handoff:client.request:1",
+          "id": "manageConnection:handoff:client.request:1",
           "line": 384,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
-          "id": "forgetBrowser:handoff:client.request:1",
+          "id": "disconnectBrowser:handoff:client.request:1",
           "line": 385,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
+          "id": "forgetBrowser:handoff:client.request:1",
+          "line": 386,
+          "kind": "handoff",
+          "callee": "client.request"
+        },
+        {
           "id": "showExtensionFiles:await:client.request():1",
-          "line": 387,
+          "line": 388,
           "kind": "await",
           "callee": "client.request()"
         },
         {
           "id": "showExtensionFiles:handoff:client.request:1",
-          "line": 387,
+          "line": 388,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "showExtensionFiles:await:desktop.files():1",
-          "line": 394,
+          "line": 395,
           "kind": "await",
           "callee": "desktop.files()"
         },
         {
           "id": "installBrowser:handoff:client.request:1",
-          "line": 401,
-          "kind": "handoff",
-          "callee": "client.request"
-        },
-        {
-          "id": "openPermissionSettings:handoff:client.request:1",
           "line": 402,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
-          "id": "requestPermission:handoff:client.request:1",
+          "id": "openPermissionSettings:handoff:client.request:1",
           "line": 403,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
-          "id": "revealPermissionHelper:handoff:client.request:1",
+          "id": "requestPermission:handoff:client.request:1",
           "line": 404,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
+          "id": "revealPermissionHelper:handoff:client.request:1",
+          "line": 405,
+          "kind": "handoff",
+          "callee": "client.request"
+        },
+        {
           "id": "dock:await:ctx.uiWorkspace.openSession():1",
-          "line": 410,
+          "line": 411,
           "kind": "await",
           "callee": "ctx.uiWorkspace.openSession()"
         },
         {
           "id": "report:handoff:client.request:1",
-          "line": 423,
+          "line": 424,
           "kind": "handoff",
           "callee": "client.request"
         },
         {
           "id": "mountClient:handoff:transport.start().then:1",
-          "line": 451,
+          "line": 452,
           "kind": "handoff",
           "callee": "transport.start().then"
         },
         {
           "id": "mountClient:await:starting.catch():1",
-          "line": 455,
+          "line": 456,
           "kind": "await",
           "callee": "starting.catch()"
         },
         {
           "id": "mountClient:await:dispose():1",
-          "line": 458,
+          "line": 459,
           "kind": "await",
           "callee": "dispose()"
         },
         {
           "id": "mountClient:await:artifactDocuments.dispose():2",
-          "line": 460,
+          "line": 461,
           "kind": "await",
           "callee": "artifactDocuments.dispose()"
         },
         {
-          "id": "deliverDocument:await:ctx.sessions.sessionOf().prompt():1",
-          "line": 494,
+          "id": "deliverDocument:await:promptAnnotation():1",
+          "line": 495,
           "kind": "await",
-          "callee": "ctx.sessions.sessionOf().prompt()"
+          "callee": "promptAnnotation()"
         },
         {
           "id": "deliverImage:await:fetch():1",
-          "line": 512,
+          "line": 513,
           "kind": "await",
           "callee": "fetch()"
         },
         {
           "id": "deliverImage:await:response.blob():1",
-          "line": 514,
+          "line": 515,
           "kind": "await",
           "callee": "response.blob()"
         },
         {
           "id": "deliverImage:await:fetch():2",
-          "line": 517,
+          "line": 518,
           "kind": "await",
           "callee": "fetch()"
         },
         {
           "id": "deliverImage:await:response.blob():2",
-          "line": 519,
+          "line": 520,
           "kind": "await",
           "callee": "response.blob()"
         }
@@ -8664,7 +8664,7 @@
     {
       "file": "src/client/text-annotations.mjs",
       "contract": "resources",
-      "sha256": "2cf545f8b59ed358b516e0fca79149ecc2afb894e25b4e2e44260d54bdcc23f5",
+      "sha256": "b1e48e4a2a06efea30333b864587a1db8cfc4a6bb17ae38a0de118fedf06ab76",
       "kind": "javascript",
       "sites": [
         {

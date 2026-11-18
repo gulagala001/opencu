@@ -156,7 +156,7 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
           if (insertQuote({ ...value, quoteText: value.quoteText ?? value.text }) === false) throw Error('The message draft could not accept the quote; try again');
         } else if (directly) {
           await deliverAnnotation({ scope: key(value), intent: [body, value.quoteText ?? value.text],
-            send: requestId => submit({ ...value, body, requestId }, true),
+            send: (requestId, retry) => submit({ ...value, body, requestId, retry }, true),
             commit: () => localStorage.removeItem(key(value)),
           });
         } else await submit({ ...value, body }, false);

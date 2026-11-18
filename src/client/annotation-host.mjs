@@ -181,9 +181,9 @@ export function createAnnotationHost({ element, capture, ids, target, state, cha
       if (items.some(comment => comment.anchor?.pageUrl !== pageUrl)) throw new Error('Return to the annotated page before sending its comments');
       sending = (async () => {
         await deliverBrowserSelection({ scope: key + ':' + pageUrl, items, direct: directly, current: pending,
-          deliver: (comments, direct, requestId) => {
+          deliver: (comments, direct, requestId, retry) => {
             if (disposed || epoch !== generation || element.getURL() !== pageUrl) throw Error('The annotated page changed before delivery');
-            return deliver({ ...ids, requestId, target: target(), comments, directly: direct, url: pageUrl, title: element.getTitle() });
+            return deliver({ ...ids, requestId, retry, target: target(), comments, directly: direct, url: pageUrl, title: element.getTitle() });
           },
           mark: (comments, direct) => {
             const sent = new Set(comments.map(comment => JSON.stringify(comment)));

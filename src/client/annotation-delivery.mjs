@@ -24,10 +24,11 @@ export async function deliverAnnotation({ scope, intent, direct = true, versione
     const record = accepted.get(key) ?? (stored ? JSON.parse(stored) : { id: versioned ? versionId : crypto.randomUUID(), phase: 'prepared' });
     if (!stored && !accepted.has(key)) localStorage.setItem(key, JSON.stringify(record));
     if (record.phase !== 'accepted') {
-      if (!direct) {
-        resumeDraft(record); record.phase = 'editing'; localStorage.setItem(key, JSON.stringify(record));
-      }
-      await send(record.id);
+      const retry = record.phase === 'sending';
+      if (!direct) resumeDraft(record);
+      record.phase = direct ? 'sending' : 'editing';
+      localStorage.setItem(key, JSON.stringify(record));
+      await send(record.id, retry);
       record.phase = 'accepted';
       accepted.set(key, record);
       // Even if storage is full, finish the local transaction when possible.
@@ -67,10 +68,11 @@ export async function deliverBrowserSelection({ scope, items, direct, current, d
         if (members.length !== batch.versions.length || batch.direct !== direct || batch.versions.some(id => !wanted.has(id))) {
           throw Error('An earlier annotation delivery is unconfirmed. Retry its original selection or review it before editing or removing the pending comments.');
         }
-        if (!batch.direct) {
-          resumeDraft(batch); batch.phase = 'editing'; localStorage.setItem(key, JSON.stringify(batch));
-        }
-        await deliver(members, batch.direct, batch.id);
+        const retry = batch.phase === 'sending';
+        if (!batch.direct) resumeDraft(batch);
+        batch.phase = batch.direct ? 'sending' : 'editing';
+        localStorage.setItem(key, JSON.stringify(batch));
+        await deliver(members, batch.direct, batch.id, retry);
         batch.phase = 'accepted';
         accepted.set(key, batch);
         try { localStorage.setItem(key, JSON.stringify(batch)); } catch {}
@@ -88,4 +90,22 @@ export async function deliverBrowserSelection({ scope, items, direct, current, d
   }
   const locks = globalThis.navigator?.locks;
   return locks ? locks.request(key, run) : run();
+}
+
+// Ordinary session admission deduplicates rpcId durably. The child-session
+// route has a different contract; a missing event in a partial window is unknown.
+export async function promptAnnotation(binding, session, content, requestId, retry) {
+  if (retry && binding?.session.getSnapshot().subagent !== null) {
+    const entries = binding?.eventSource.getSnapshot().entries ?? [];
+    const acceptedHere = entries.some(entry => {
+      const event = entry.event ?? entry;
+      const messages = event.type === 'agent/inbox/spliced' ? event.data.inserted : event.type === 'user/message' ? [event.data] : [];
+      return messages.some(message => message.source?.kind === 'user' && message.source.rpcId === requestId);
+    });
+    if (acceptedHere) return { ok: true };
+    if (!globalThis.confirm?.('Delivery to the child conversation is unconfirmed. Check its messages and queue. Send the annotations again?')) {
+      throw Error('Child conversation delivery is unconfirmed. The annotations were kept.');
+    }
+  }
+  return session.prompt(content, 'queue', undefined, requestId);
 }

@@ -1,3 +1,4 @@
+import { promptAnnotation } from './annotation-delivery.mjs';
 import { applySessionTimeZone } from './session-time-zone.mjs';
 import { downloadExtensionZip } from './extension-download.mjs';
 import { resolveDesktopBrowserHost } from './host-compat.mjs';
@@ -162,7 +163,7 @@ function mountClient(ctx, entry) {
       if (!scope) throw new Error('The annotated conversation is no longer available');
       if (directly && !value.body.trim()) {
         const text = (value.quoteText ?? value.text).replace(/\r\n?/g, '\n').split('\n').map(line => `> ${line}`).join('\n');
-        const result = await ctx.sessions.sessionOf(scope).prompt([{ type: 'text', text }], 'queue', undefined, value.requestId);
+        const result = await promptAnnotation(ctx.sessions.binding(value.sessionId), ctx.sessions.sessionOf(scope), [{ type: 'text', text }], value.requestId, value.retry);
         if (!result.ok) throw new Error(result.error.message);
         return;
       }
@@ -170,7 +171,7 @@ function mountClient(ctx, entry) {
         selectedText: value.text, textOffset: value.start, comments: [{ body: value.body }] };
       const reference = references.chip({ kind: 'text-annotations', payload }, payload.selectedText.slice(0, 64));
       if (directly) {
-        const result = await ctx.sessions.sessionOf(scope).prompt([{ type: 'text', text: references.serialize(reference.ref) }], 'queue', undefined, value.requestId);
+        const result = await promptAnnotation(ctx.sessions.binding(value.sessionId), ctx.sessions.sessionOf(scope), [{ type: 'text', text: references.serialize(reference.ref) }], value.requestId, value.retry);
         if (!result.ok) throw new Error(result.error.message);
       } else {
         const input = ctx.conversation.input.for(scope), state = input.state.getSnapshot();
@@ -215,7 +216,7 @@ function mountClient(ctx, entry) {
       const mediaType = dataURL.slice(5, dataURL.indexOf(';')), extension = mediaType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
       addImageDrafts(conversationId, [{ mediaType, data: dataURL.slice(dataURL.indexOf(',') + 1), name: `${title || 'screenshot'}.${extension}` }]);
     },
-    async deliverAnnotations({ conversationId, browserTabId, comments, directly, url, title, target, requestId }) {
+    async deliverAnnotations({ conversationId, browserTabId, comments, directly, url, title, target, requestId, retry }) {
       const scope = ctx.sessions.scope(conversationId);
       if (!scope) throw new Error('The annotation conversation is no longer available');
       const input = ctx.conversation.input.for(scope);
@@ -236,7 +237,7 @@ function mountClient(ctx, entry) {
       }));
       if (directly) {
         const reference = references.chip({ kind: 'annotations', payload }, `${label} (${comments.length})`);
-        const result = await session.prompt([{ type: 'text', text: references.serialize(reference.ref) }, ...images], 'queue', undefined, requestId);
+        const result = await promptAnnotation(ctx.sessions.binding(conversationId), session, [{ type: 'text', text: references.serialize(reference.ref) }, ...images], requestId, retry);
         if (!result.ok) throw new Error(result.error.message);
         return;
       }
@@ -487,11 +488,11 @@ function mountClient(ctx, entry) {
     }), 'opencu: REA document previews');
     previewCtx.effect(() => previewCtx.slots.inject('sidebar.right.tab.document', () => previewCtx.slots.register({
       name: 'sidebar.right.tab.document', key: 'opencu.document',
-      inject: sessionId => ({ sessionId, ...paneActions(sessionId), async deliverDocument({ requestId, ...payload }) {
+      inject: sessionId => ({ sessionId, ...paneActions(sessionId), async deliverDocument({ requestId, retry, ...payload }) {
         const scope = ctx.sessions.scope(sessionId);
         if (!scope) throw new Error('The document conversation is no longer available');
         const reference = references.chip({ kind: 'document-annotations', payload }, `${payload.title} (${payload.comments.length})`);
-        const result = await ctx.sessions.sessionOf(scope).prompt([{ type: 'text', text: references.serialize(reference.ref) }], 'queue', undefined, requestId);
+        const result = await promptAnnotation(ctx.sessions.binding(sessionId), ctx.sessions.sessionOf(scope), [{ type: 'text', text: references.serialize(reference.ref) }], requestId, retry);
         if (!result.ok) throw new Error(result.error.message);
       } }),
     }, DocumentSlot)), 'opencu: REA document body and comments');

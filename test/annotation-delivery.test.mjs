@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deliverBrowserSelection } from '../src/client/annotation-delivery.mjs';
+import { deliverBrowserSelection, promptAnnotation } from '../src/client/annotation-delivery.mjs';
 
 test('a lost admission reply retries the same selection before sending newly added comments', async t => {
   const old = globalThis.localStorage, storage = new Map(), received = new Set(), calls = [];
@@ -23,4 +23,15 @@ test('a lost admission reply retries the same selection before sending newly add
   await send();
   assert.deepEqual(calls.map(([ids]) => ids), [['a'], ['a'], ['b']]);
   assert.equal(calls[0][1], calls[1][1]); assert.equal(received.size, 2); assert.deepEqual(items, []);
+});
+
+test('an uncertain child-session receipt is checked before another dispatch', async () => {
+  let calls = 0;
+  const session = { prompt() { calls++; return { ok: true }; } };
+  const entries = [];
+  const binding = { session: { getSnapshot: () => ({ subagent: {} }) }, eventSource: { getSnapshot: () => ({ entries }) } };
+  await assert.rejects(promptAnnotation(binding, session, [], 'fixture', true), /unconfirmed/);
+  entries.push({ type: 'user/message', data: { source: { kind: 'user', rpcId: 'fixture' } } });
+  assert.equal((await promptAnnotation(binding, session, [], 'fixture', true)).ok, true);
+  assert.equal(calls, 0);
 });

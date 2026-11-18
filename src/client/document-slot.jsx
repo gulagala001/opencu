@@ -41,7 +41,7 @@ function DocumentContent({ sessionId, resourceAddress, data, path, title, kind, 
         if (submission?.sessionId === message.sessionId) { submission.onAccepted?.(); Shared.iGr(scope, target); }
       };
       void deliverAnnotation({ scope: storageKey, intent: selected, versioned: true,
-        send: requestId => deliver({ sessionId, resourceAddress, path, title, comments: selected, requestId }),
+        send: (requestId, retry) => deliver({ sessionId, resourceAddress, path, title, comments: selected, requestId, retry }),
         commit: () => {
           const sent = new Set(selected.map(comment => JSON.stringify(comment)));
           Shared.rGr(scope, target, current => current.filter(comment => !sent.has(JSON.stringify(comment))));
