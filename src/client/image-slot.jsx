@@ -1,3 +1,4 @@
+import { deliverAnnotation } from './annotation-delivery.mjs';
 import * as HostReact from 'react-host';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -78,9 +79,18 @@ function ImagePreview({ src, title, resourceAddress, sessionId, data, mediaType,
     const controller = new AbortController(); lifetime.current = controller;
     submitting.current = true; setBusy(true); setError(null);
     try {
-      await deliver({ sessionId, resourceAddress, title, data, mediaType, comments, prompt, maskSrc, signal: controller.signal });
+      const send = () => deliver({ sessionId, resourceAddress, title, data, mediaType, comments, prompt, maskSrc, signal: controller.signal });
+      if (mode === 'comment') {
+        await deliverAnnotation({ scope: storageKey, intent: [comments, prompt], direct: false, send,
+          commit: () => {
+            const sent = new Set(comments.map(comment => JSON.stringify(comment)));
+            const next = JSON.parse(localStorage.getItem(storageKey) || '[]').filter(comment => !sent.has(JSON.stringify(comment)));
+            if (!controller.signal.aborted) setComments(next);
+            localStorage.setItem(storageKey, JSON.stringify(next));
+          },
+        });
+      } else await send();
       controller.signal.throwIfAborted();
-      if (mode === 'comment') save([]);
       setMode('view');
     } catch (error) { if (!controller.signal.aborted) setError(error.message); }
     finally { submitting.current = false; if (!controller.signal.aborted) setBusy(false); }

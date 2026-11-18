@@ -1,3 +1,4 @@
+import { deliverAnnotation } from './annotation-delivery.mjs';
 const prefix = 'opencu:text-annotation:';
 export const textInteraction = 'conversation.chat.text-interaction';
 
@@ -153,11 +154,21 @@ export function createTextAnnotations({ submit, insertQuote, notify }) {
       try {
         if (!directly && !body.trim()) {
           if (insertQuote({ ...value, quoteText: value.quoteText ?? value.text }) === false) throw Error('The message draft could not accept the quote; try again');
-        } else await submit({ ...value, body }, directly);
+        } else if (directly) {
+          await deliverAnnotation({ scope: key(value), intent: [body, value.quoteText ?? value.text],
+            send: requestId => submit({ ...value, body, requestId }, true),
+            commit: () => localStorage.removeItem(key(value)),
+          });
+        } else await submit({ ...value, body }, false);
         try { localStorage.removeItem(key(value)); }
         catch (error) { notify(value.sessionId, error.message); }
         if (current && key(current) === key(value)) { clearMatchedSelection(); close(); }
-      } catch (error) { if (current && key(current) === key(value)) publish({ ...value, body, error: error.message, pending: false }); }
+      } catch (error) {
+        if (error.accepted) {
+          notify(value.sessionId, error.message);
+          if (current && key(current) === key(value)) { clearMatchedSelection(); close(); }
+        } else if (current && key(current) === key(value)) publish({ ...value, body, error: error.message, pending: false });
+      }
     },
     dispose() {
       disposed = true;

@@ -1,3 +1,4 @@
+import { deliverBrowserSelection } from './annotation-delivery.mjs';
 import { createFrameInputMonitoring } from './frame-input-monitor.mjs';
 let pageSource;
 /** The page runtime is large and only needed once a page is annotated; fetch it on first install. */
@@ -179,10 +180,16 @@ export function createAnnotationHost({ element, capture, ids, target, state, cha
       const pageUrl = element.getURL(), epoch = generation, activeEditor = editor?.sessionId;
       if (items.some(comment => comment.anchor?.pageUrl !== pageUrl)) throw new Error('Return to the annotated page before sending its comments');
       sending = (async () => {
-        await deliver({ ...ids, target: target(), comments: items, directly, url: pageUrl, title: element.getTitle() });
-        const sent = new Map(items.map(item => [item.id, JSON.stringify(item)]));
-        persist(readComments().map(item => sent.get(item.id) === JSON.stringify(item)
-          ? { ...item, status: directly ? 'sent' : 'draft' } : item));
+        await deliverBrowserSelection({ scope: key + ':' + pageUrl, items, direct: directly, current: pending,
+          deliver: (comments, direct, requestId) => {
+            if (disposed || epoch !== generation || element.getURL() !== pageUrl) throw Error('The annotated page changed before delivery');
+            return deliver({ ...ids, requestId, target: target(), comments, directly: direct, url: pageUrl, title: element.getTitle() });
+          },
+          mark: (comments, direct) => {
+            const sent = new Set(comments.map(comment => JSON.stringify(comment)));
+            persist(readComments().map(item => sent.has(JSON.stringify(item)) ? { ...item, status: direct ? 'sent' : 'draft' } : item));
+          },
+        });
         if (!disposed && epoch === generation) {
           if (editor?.sessionId === activeEditor) await close();
           await sync();

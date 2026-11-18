@@ -1,3 +1,4 @@
+import { deliverAnnotation } from './annotation-delivery.mjs';
 import * as HostReact from 'react-host';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -35,15 +36,24 @@ function DocumentContent({ sessionId, resourceAddress, data, path, title, kind, 
       if (!selected.length || selected.some(comment => (comment?.localArtifactAnnotationContext?.path ?? comment?.localPdfContext?.path ?? comment?.position?.path) !== path)) return;
       if (sending) return;
       sending = true;
-      void deliver({ sessionId, resourceAddress, path, title, comments: selected }).then(() => {
+      const acknowledge = () => {
         const submission = scope.get(Shared.g2, target);
-        const sent = new Set(selected);
-        Shared.rGr(scope, target, current => current.filter(comment => !sent.has(comment)));
         if (submission?.sessionId === message.sessionId) { submission.onAccepted?.(); Shared.iGr(scope, target); }
-        localStorage.setItem(storageKey, JSON.stringify(scope.get(Shared.h2, target)));
+      };
+      void deliverAnnotation({ scope: storageKey, intent: selected, versioned: true,
+        send: requestId => deliver({ sessionId, resourceAddress, path, title, comments: selected, requestId }),
+        commit: () => {
+          const sent = new Set(selected.map(comment => JSON.stringify(comment)));
+          Shared.rGr(scope, target, current => current.filter(comment => !sent.has(JSON.stringify(comment))));
+          localStorage.setItem(storageKey, JSON.stringify(scope.get(Shared.h2, target)));
+        },
+      }).then(() => {
+        acknowledge();
         if (!disposed) setError(null);
       }).catch(error => {
-        Shared.tGr(scope, { ...target, sessionId: message.sessionId }); if (!disposed) setError(error.message);
+        if (error.accepted) acknowledge();
+        else Shared.tGr(scope, { ...target, sessionId: message.sessionId });
+        if (!disposed) setError(error.message);
       }).finally(() => { sending = false; });
     };
     const dispose = ['artifact-direct-comment', 'pdf-direct-comment'].map(type => Shared.Ff.subscribe(type, receive));

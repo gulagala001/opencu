@@ -3388,254 +3388,328 @@
       ]
     },
     {
+      "file": "src/client/annotation-delivery.mjs",
+      "contract": "resources",
+      "sha256": "7c83d08f78b016ef6bf3b453abd6212aa73490149cc9ccae641fcc551d5bffa8",
+      "kind": "javascript",
+      "sites": [
+        {
+          "id": "annotationFingerprint:await:crypto.subtle.digest():1",
+          "line": 6,
+          "kind": "await",
+          "callee": "crypto.subtle.digest()"
+        },
+        {
+          "id": "deliverAnnotation:await:annotationFingerprint():1",
+          "line": 18,
+          "kind": "await",
+          "callee": "annotationFingerprint()"
+        },
+        {
+          "id": "run:await:send():1",
+          "line": 30,
+          "kind": "await",
+          "callee": "send()"
+        },
+        {
+          "id": "run:handoff:send:1",
+          "line": 30,
+          "kind": "handoff",
+          "callee": "send"
+        },
+        {
+          "id": "run:await:commit():1",
+          "line": 36,
+          "kind": "await",
+          "callee": "commit()"
+        },
+        {
+          "id": "deliverAnnotation:handoff:locks.request:1",
+          "line": 45,
+          "kind": "handoff",
+          "callee": "locks.request"
+        },
+        {
+          "id": "version:await:annotationFingerprint():1",
+          "line": 52,
+          "kind": "await",
+          "callee": "annotationFingerprint()"
+        },
+        {
+          "id": "run:await:Promise.all():1",
+          "line": 54,
+          "kind": "await",
+          "callee": "Promise.all()"
+        },
+        {
+          "id": "run:await:Promise.all():2",
+          "line": 58,
+          "kind": "await",
+          "callee": "Promise.all()"
+        },
+        {
+          "id": "run:await:deliver():1",
+          "line": 73,
+          "kind": "await",
+          "callee": "deliver()"
+        },
+        {
+          "id": "deliverBrowserSelection:handoff:locks.request:1",
+          "line": 90,
+          "kind": "handoff",
+          "callee": "locks.request"
+        }
+      ]
+    },
+    {
       "file": "src/client/annotation-host.mjs",
       "contract": "resources",
-      "sha256": "96da7a14d89f767559247ac687024a9eb52568ca0dc810892beff36b32fb7631",
+      "sha256": "defcfaede0cc5087dce63cc445bedcbbbf1de680bbf069913c4af097b4c9a914",
       "kind": "javascript",
       "sites": [
         {
           "id": "loadPageSource:handoff:fetch().then:1",
-          "line": 4,
+          "line": 5,
           "kind": "handoff",
           "callee": "fetch().then"
         },
         {
           "id": "sync:await:dispatch():1",
-          "line": 31,
+          "line": 32,
           "kind": "await",
           "callee": "dispatch()"
         },
         {
           "id": "close:await:dispatch():1",
-          "line": 35,
+          "line": 36,
           "kind": "await",
           "callee": "dispatch()"
         },
         {
           "id": "close:await:sync():1",
-          "line": 36,
+          "line": 37,
           "kind": "await",
           "callee": "sync()"
         },
         {
           "id": "receive:await:userActivity():1",
-          "line": 40,
+          "line": 41,
           "kind": "await",
           "callee": "userActivity()"
         },
         {
           "id": "receive:await:sync():1",
-          "line": 47,
+          "line": 48,
           "kind": "await",
           "callee": "sync()"
         },
         {
           "id": "receive:await:sync():2",
-          "line": 61,
+          "line": 62,
           "kind": "await",
           "callee": "sync()"
         },
         {
           "id": "receive:await:close():1",
-          "line": 67,
+          "line": 68,
           "kind": "await",
           "callee": "close()"
         },
         {
           "id": "receive:await:close():2",
-          "line": 68,
+          "line": 69,
           "kind": "await",
           "callee": "close()"
         },
         {
           "id": "receive:await:sync():3",
-          "line": 68,
-          "kind": "await",
-          "callee": "sync()"
-        },
-        {
-          "id": "receive:await:sync():4",
           "line": 69,
           "kind": "await",
           "callee": "sync()"
         },
         {
-          "id": "receive:await:sync():5",
+          "id": "receive:await:sync():4",
           "line": 70,
           "kind": "await",
           "callee": "sync()"
         },
         {
-          "id": "receive:await:sync():6",
+          "id": "receive:await:sync():5",
           "line": 71,
           "kind": "await",
           "callee": "sync()"
         },
         {
+          "id": "receive:await:sync():6",
+          "line": 72,
+          "kind": "await",
+          "callee": "sync()"
+        },
+        {
           "id": "receive:await:dispatch():1",
-          "line": 73,
+          "line": 74,
           "kind": "await",
           "callee": "dispatch()"
         },
         {
           "id": "drain:await:element.executeJavaScript():1",
-          "line": 82,
+          "line": 83,
           "kind": "await",
           "callee": "element.executeJavaScript()"
         },
         {
           "id": "drain:await:receive():1",
-          "line": 86,
+          "line": 87,
           "kind": "await",
           "callee": "receive()"
         },
         {
           "id": "drain:handoff:setTimeout:1",
-          "line": 91,
+          "line": 92,
           "kind": "handoff",
           "callee": "setTimeout"
         },
         {
           "id": "install:await:loadPageSource():1",
-          "line": 106,
+          "line": 107,
           "kind": "await",
           "callee": "loadPageSource()"
         },
         {
           "id": "install:await:element.executeJavaScript():1",
-          "line": 108,
+          "line": 109,
           "kind": "await",
           "callee": "element.executeJavaScript()"
         },
         {
           "id": "annotateAt:await:sync():1",
-          "line": 120,
+          "line": 121,
           "kind": "await",
           "callee": "sync()"
         },
         {
           "id": "annotateAt:await:dispatch():1",
-          "line": 121,
+          "line": 122,
           "kind": "await",
           "callee": "dispatch()"
         },
         {
           "id": "allowSite:await:sync():1",
-          "line": 127,
+          "line": 128,
           "kind": "await",
           "callee": "sync()"
         },
         {
           "id": "save:await:settings.readAll():1",
-          "line": 139,
+          "line": 140,
           "kind": "await",
           "callee": "settings.readAll()"
         },
         {
           "id": "save:await:capture():1",
-          "line": 143,
+          "line": 144,
           "kind": "await",
           "callee": "capture()"
         },
         {
           "id": "save:await:saveImage():1",
-          "line": 145,
+          "line": 146,
           "kind": "await",
           "callee": "saveImage()"
         },
         {
           "id": "save:await:close():1",
-          "line": 156,
+          "line": 157,
           "kind": "await",
           "callee": "close()"
         },
         {
           "id": "save:await:sync():1",
-          "line": 156,
+          "line": 157,
           "kind": "await",
           "callee": "sync()"
         },
         {
           "id": "save:await:this.send():1",
-          "line": 157,
+          "line": 158,
           "kind": "await",
           "callee": "this.send()"
         },
         {
           "id": "save:handoff:this.send:1",
-          "line": 157,
+          "line": 158,
           "kind": "handoff",
           "callee": "this.send"
         },
         {
           "id": "save:await:saving:1",
-          "line": 159,
+          "line": 160,
           "kind": "await",
           "callee": "saving"
         },
         {
           "id": "remove:await:close():1",
-          "line": 163,
+          "line": 164,
           "kind": "await",
           "callee": "close()"
         },
         {
           "id": "remove:await:sync():1",
-          "line": 163,
+          "line": 164,
           "kind": "await",
           "callee": "sync()"
         },
         {
           "id": "design:await:sync():1",
-          "line": 165,
+          "line": 166,
           "kind": "await",
           "callee": "sync()"
         },
         {
           "id": "clear:await:close():1",
-          "line": 174,
+          "line": 175,
           "kind": "await",
           "callee": "close()"
         },
         {
           "id": "clear:await:sync():1",
-          "line": 174,
+          "line": 175,
           "kind": "await",
           "callee": "sync()"
         },
         {
-          "id": "send:await:deliver():1",
-          "line": 182,
+          "id": "send:await:deliverBrowserSelection():1",
+          "line": 183,
           "kind": "await",
-          "callee": "deliver()"
+          "callee": "deliverBrowserSelection()"
         },
         {
           "id": "send:await:close():1",
-          "line": 187,
+          "line": 194,
           "kind": "await",
           "callee": "close()"
         },
         {
           "id": "send:await:sync():1",
-          "line": 188,
+          "line": 195,
           "kind": "await",
           "callee": "sync()"
         },
         {
           "id": "send:await:sending:1",
-          "line": 191,
+          "line": 198,
           "kind": "await",
           "callee": "sending"
         },
         {
           "id": "dispose:await:monitoring.dispose():1",
-          "line": 195,
+          "line": 202,
           "kind": "await",
           "callee": "monitoring.dispose()"
         },
         {
           "id": "dispose:await:element.executeJavaScript():1",
-          "line": 196,
+          "line": 203,
           "kind": "await",
           "callee": "element.executeJavaScript()"
         }
@@ -4955,36 +5029,36 @@
     {
       "file": "src/client/document-slot.jsx",
       "contract": "resources",
-      "sha256": "5e6a83431400a43e349b91835e14fb26e994931f650ca6323accb5a01814e69d",
+      "sha256": "d1b890c6848c135f9ac2c0702ebd3b7aa31d16ac1d08f23f79a0efc9cde1e513",
       "kind": "javascript",
       "sites": [
         {
-          "id": "receive:handoff:deliver().then:1",
-          "line": 38,
+          "id": "receive:handoff:deliverAnnotation().then:1",
+          "line": 43,
           "kind": "handoff",
-          "callee": "deliver().then"
+          "callee": "deliverAnnotation().then"
         },
         {
           "id": "DocumentContent:handoff:services.workspaceFiles.getMetadata().then:1",
-          "line": 58,
+          "line": 68,
           "kind": "handoff",
           "callee": "services.workspaceFiles.getMetadata().then"
         },
         {
           "id": "DocumentContent:await:preview.current.flush():1",
-          "line": 64,
+          "line": 74,
           "kind": "await",
           "callee": "preview.current.flush()"
         },
         {
           "id": "DocumentContent:await:flush():1",
-          "line": 80,
+          "line": 90,
           "kind": "await",
           "callee": "flush()"
         },
         {
           "id": "onDownload:await:flush():1",
-          "line": 86,
+          "line": 96,
           "kind": "await",
           "callee": "flush()"
         }
@@ -6273,48 +6347,60 @@
     {
       "file": "src/client/image-slot.jsx",
       "contract": "resources",
-      "sha256": "23f3ee95e16e9af8084c62dc458daf79bef40104699dbb8e7948488523714707",
+      "sha256": "f5b69b4cf73580c6d9faa66c469b109e21dc0b07ccb0ba33ad480f2622860ab1",
       "kind": "javascript",
       "sites": [
         {
           "id": "ImagePreview:promise:Promise:1",
-          "line": 47,
+          "line": 48,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "ImagePreview:handoff:crypto.subtle.digest().then:1",
-          "line": 60,
+          "line": 61,
           "kind": "handoff",
           "callee": "crypto.subtle.digest().then"
         },
         {
-          "id": "submit:await:deliver():1",
-          "line": 81,
+          "id": "submit:await:deliverAnnotation():1",
+          "line": 84,
           "kind": "await",
-          "callee": "deliver()"
+          "callee": "deliverAnnotation()"
+        },
+        {
+          "id": "submit:await:send():1",
+          "line": 92,
+          "kind": "await",
+          "callee": "send()"
+        },
+        {
+          "id": "submit:handoff:send:1",
+          "line": 92,
+          "kind": "handoff",
+          "callee": "send"
         },
         {
           "id": "submitMarkup:await:Promise():1",
-          "line": 108,
+          "line": 118,
           "kind": "await",
           "callee": "Promise()"
         },
         {
           "id": "submitMarkup:promise:Promise:1",
-          "line": 108,
+          "line": 118,
           "kind": "promise",
           "callee": "Promise"
         },
         {
           "id": "submitMarkup:await:createMarkupPreview():1",
-          "line": 113,
+          "line": 123,
           "kind": "await",
           "callee": "createMarkupPreview()"
         },
         {
           "id": "submitMarkup:await:deliver():1",
-          "line": 115,
+          "line": 125,
           "kind": "await",
           "callee": "deliver()"
         }
@@ -6323,7 +6409,7 @@
     {
       "file": "src/client/index.jsx",
       "contract": "resources",
-      "sha256": "b448ba397edc97403d708e369d0480c442e0197479e44a7eaf5055cff4f2c341",
+      "sha256": "ff27da8a1075e26837cef01f3be1ccbfeb675f7f9b0666429ec8d2c07e985cbb",
       "kind": "javascript",
       "sites": [
         {
@@ -8578,18 +8664,24 @@
     {
       "file": "src/client/text-annotations.mjs",
       "contract": "resources",
-      "sha256": "df3c1d0103a849a82ab0b7d82f10f03414cda18942e64d7c74670c0064192da0",
+      "sha256": "2cf545f8b59ed358b516e0fca79149ecc2afb894e25b4e2e44260d54bdcc23f5",
       "kind": "javascript",
       "sites": [
         {
           "id": "copy:await:navigator.clipboard.writeText():1",
-          "line": 139,
+          "line": 140,
           "kind": "await",
           "callee": "navigator.clipboard.writeText()"
         },
         {
+          "id": "submit:await:deliverAnnotation():1",
+          "line": 158,
+          "kind": "await",
+          "callee": "deliverAnnotation()"
+        },
+        {
           "id": "submit:await:submit():1",
-          "line": 156,
+          "line": 162,
           "kind": "await",
           "callee": "submit()"
         }
@@ -9276,144 +9368,150 @@
     {
       "file": "src/core/storage.mjs",
       "contract": "controller",
-      "sha256": "4398f66c2d43ea1bef79cd788adb68493501045d27de170f05152573a1cb7b3a",
+      "sha256": "50a7fcfabeec3172801366533320f2e8fa02a35ea73c3edcce2b8b2200cc235d",
       "kind": "javascript",
       "sites": [
         {
           "id": "createStorage:await:mkdir():1",
-          "line": 9,
+          "line": 10,
           "kind": "await",
           "callee": "mkdir()"
         },
         {
           "id": "createStorage:await:open():1",
-          "line": 14,
+          "line": 24,
           "kind": "await",
           "callee": "open()"
         },
         {
+          "id": "createStorage:await:file.writeFile():1",
+          "line": 25,
+          "kind": "await",
+          "callee": "file.writeFile()"
+        },
+        {
+          "id": "createStorage:await:file.sync():1",
+          "line": 25,
+          "kind": "await",
+          "callee": "file.sync()"
+        },
+        {
+          "id": "createStorage:await:file.close():1",
+          "line": 26,
+          "kind": "await",
+          "callee": "file.close()"
+        },
+        {
+          "id": "createStorage:await:link():1",
+          "line": 28,
+          "kind": "await",
+          "callee": "link()"
+        },
+        {
           "id": "createStorage:await:readFile():1",
-          "line": 18,
+          "line": 31,
           "kind": "await",
           "callee": "readFile()"
         },
         {
-          "id": "createStorage:await:unlink():1",
-          "line": 24,
+          "id": "createStorage:await:rm():1",
+          "line": 41,
           "kind": "await",
-          "callee": "unlink()"
+          "callee": "rm()"
         },
         {
-          "id": "createStorage:await:open():2",
-          "line": 25,
+          "id": "createStorage:await:rm():2",
+          "line": 43,
           "kind": "await",
-          "callee": "open()"
-        },
-        {
-          "id": "createStorage:await:lock.writeFile():1",
-          "line": 28,
-          "kind": "await",
-          "callee": "lock.writeFile()"
-        },
-        {
-          "id": "createStorage:await:lock.close():1",
-          "line": 29,
-          "kind": "await",
-          "callee": "lock.close()"
-        },
-        {
-          "id": "createStorage:await:unlink():2",
-          "line": 30,
-          "kind": "await",
-          "callee": "unlink()"
+          "callee": "rm()"
         },
         {
           "id": "identity:await:lstat():1",
-          "line": 36,
+          "line": 50,
           "kind": "await",
           "callee": "lstat()"
         },
         {
           "id": "read:await:readFile():1",
-          "line": 43,
+          "line": 57,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "write:handoff:tail.then:1",
-          "line": 47,
+          "line": 61,
           "kind": "handoff",
           "callee": "tail.then"
         },
         {
           "id": "write:await:identity():1",
-          "line": 50,
+          "line": 64,
           "kind": "await",
           "callee": "identity()"
         },
         {
           "id": "write:await:open():1",
-          "line": 52,
+          "line": 66,
           "kind": "await",
           "callee": "open()"
         },
         {
           "id": "write:await:handle.writeFile():1",
-          "line": 55,
+          "line": 69,
           "kind": "await",
           "callee": "handle.writeFile()"
         },
         {
           "id": "write:await:handle.sync():1",
-          "line": 55,
+          "line": 69,
           "kind": "await",
           "callee": "handle.sync()"
         },
         {
           "id": "write:await:handle.stat():1",
-          "line": 56,
+          "line": 70,
           "kind": "await",
           "callee": "handle.stat()"
         },
         {
           "id": "write:await:rename():1",
-          "line": 57,
+          "line": 71,
           "kind": "await",
           "callee": "rename()"
         },
         {
           "id": "write:await:handle.stat():2",
-          "line": 58,
+          "line": 72,
           "kind": "await",
           "callee": "handle.stat()"
         },
         {
           "id": "write:await:handle.close():1",
-          "line": 61,
+          "line": 75,
           "kind": "await",
           "callee": "handle.close()"
         },
         {
           "id": "write:await:unlink().catch():1",
-          "line": 62,
+          "line": 76,
           "kind": "await",
           "callee": "unlink().catch()"
         },
         {
           "id": "close:await:tail:1",
-          "line": 68,
+          "line": 82,
           "kind": "await",
           "callee": "tail"
         },
         {
           "id": "close:await:readFile():1",
-          "line": 69,
+          "line": 83,
           "kind": "await",
           "callee": "readFile()"
         },
         {
           "id": "close:await:unlink():1",
-          "line": 71,
+          "line": 85,
           "kind": "await",
           "callee": "unlink()"
         }
