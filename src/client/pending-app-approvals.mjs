@@ -45,23 +45,39 @@ export function createPendingAppApprovals({client, publish}) {
       entry.remove = publish(interaction, async () => { if (entries.get(sessionId) === entry) remove(sessionId); });
     }
   };
+  const inFlight = new Map();
   const off = client.subscribe(() => reconcile()); reconcile();
   return {
     async respond(response) {
       if (disposed) throw new Error('OpenCU approval manager is disposed');
-      const started = sequence;
-      const result = await client.request('appApprovals/respond', response);
-      if (!disposed && result?.settled === true) {
-        // A complete snapshot accepted since this request began may already prove deletion,
-        // even when the response is delayed across a reconnect (revision resets there).
-        const confirmedAbsent = sequence > started && !authoritative.appApprovals.some(value => value.id === response.requestId);
-        if (!confirmedAbsent) settled.set(response.requestId, {generation, revision});
-        if (entries.get(response.conversationId)?.id === response.requestId) remove(response.conversationId);
-        // A newer authoritative snapshot may already contain another UUID.
-        reconcile(true);
+      if (!connected || !client.getSnapshot().connected) throw Error('连接中断，请等待重新连接后再处理审批');
+      if (entries.get(response.conversationId)?.id !== response.requestId) throw Error('这条审批已失效');
+      const pending = inFlight.get(response.requestId);
+      if (pending) {
+        if (pending.action !== response.action || pending.persist !== response.persist) throw Error('这条审批正在处理中');
+        return pending.result;
       }
-      return result;
+      const attempt = {action:response.action, persist:response.persist};
+      inFlight.set(response.requestId, attempt);
+      try {
+        attempt.result = settle(response);
+        return await attempt.result;
+      } finally { inFlight.delete(response.requestId); }
     },
     dispose() { disposed = true; off(); for (const sessionId of entries.keys()) remove(sessionId); settled.clear(); },
   };
+  async function settle(response) {
+    const started = sequence;
+    const result = await client.request('appApprovals/respond', response);
+    if (!disposed && result?.settled === true) {
+      // A complete snapshot accepted since this request began may already prove deletion,
+      // even when the response is delayed across a reconnect (revision resets there).
+      const confirmedAbsent = sequence > started && !authoritative.appApprovals.some(value => value.id === response.requestId);
+      if (!confirmedAbsent) settled.set(response.requestId, {generation, revision});
+      if (entries.get(response.conversationId)?.id === response.requestId) remove(response.conversationId);
+      // A newer authoritative snapshot may already contain another UUID.
+      if (connected) reconcile(true);
+    }
+    return result;
+  }
 }

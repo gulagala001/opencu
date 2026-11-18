@@ -35,7 +35,7 @@ test('manager deduplicates sessions/UUID; FIFO, retry, stale success, reconnect 
  emit(9,[req('a1','A')]);assert(visible.has('a2'));assert(visible.has('b1'));
  emit(11,[req('a1','A'),req('a2','A')]);assert(!visible.has('a1'));assert(visible.has('a2'));
  emit(11,[],false);assert(visible.has('a2'));emit(1,[req('new','A')]);assert.deepEqual([...visible.keys()],['new']);
- emit(2,[req('new','A'),req('other','B')]);await manager.respond({conversationId:'A',requestId:'a2',action:'decline'});assert(visible.has('new'));
+ emit(2,[req('new','A'),req('other','B')]);await assert.rejects(manager.respond({conversationId:'A',requestId:'a2',action:'decline'}),/失效/);assert(visible.has('new'));
  const before=calls;for(const{delegate}of[...visible.values()])await delegate();assert.equal(calls,before);assert.equal(visible.size,0);
  manager.dispose();assert(off);assert.equal(calls,before);assert.equal(requests.length,calls);
 });
@@ -155,4 +155,15 @@ test('synthetic fallback contract: visible uncaught error, queued cleanup and la
  const second=createReaRenderFallback(container,'OpenCU REA app approval');second.onUncaughtError(error);second.dispose();await Promise.resolve();assert.equal(writes.length,1);
  second.onUncaughtError(error);await Promise.resolve();assert.equal(writes.length,1);assert.equal(logs.length,2);first.dispose();
  }finally{globalThis.document=previous;console.error=original;}
+});
+
+test('one live approval accepts one in-flight choice and rejects disconnected admission',async()=>{
+ const h=await deferredManager();
+ try{
+  h.emit(1,[h.req('a')]);const first=h.respond(),second=h.respond();
+  await assert.rejects(h.manager.respond({conversationId:'A',requestId:'a',action:'accept'}),/处理中/);
+  h.emit(1,[h.req('a')],false);await assert.rejects(h.respond(),/重新连接/);
+  assert.equal(h.calls.length,1);h.calls[0].resolve({settled:true});
+  assert((await first).settled);assert((await second).settled);
+ }finally{h.manager.dispose();}
 });

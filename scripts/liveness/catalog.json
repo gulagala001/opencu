@@ -6872,18 +6872,24 @@
     {
       "file": "src/client/pending-app-approvals.mjs",
       "contract": "resources",
-      "sha256": "03160b6837192043336c899951436808eb1daffb110dd876bc721ffa25421dba",
+      "sha256": "d8682a11a7ec3ff60d0f275df708c5059cdc95335b7e714ea6de4237837c2f24",
       "kind": "javascript",
       "sites": [
         {
-          "id": "respond:await:client.request():1",
-          "line": 53,
+          "id": "respond:await:attempt.result:1",
+          "line": 64,
+          "kind": "await",
+          "callee": "attempt.result"
+        },
+        {
+          "id": "settle:await:client.request():1",
+          "line": 71,
           "kind": "await",
           "callee": "client.request()"
         },
         {
-          "id": "respond:handoff:client.request:1",
-          "line": 53,
+          "id": "settle:handoff:client.request:1",
+          "line": 71,
           "kind": "handoff",
           "callee": "client.request"
         }
@@ -21324,18 +21330,18 @@
     {
       "file": "host/tab-close-guards.ts",
       "contract": "sidebar",
-      "sha256": "18506a149c3f05646d76da8ba071b7d81ad0bd61d3691306f7d0d2f062c14d24",
+      "sha256": "aa02dadb15df800abec0af633ce0a8006f7ea101ace4bfc5d1d6700f8aac0d8e",
       "kind": "javascript",
       "sites": [
         {
           "id": "close:handoff:Promise.resolve().then:1",
-          "line": 23,
+          "line": 24,
           "kind": "handoff",
           "callee": "Promise.resolve().then"
         },
         {
           "id": "close:await:guard():1",
-          "line": 25,
+          "line": 26,
           "kind": "await",
           "callee": "guard()"
         }
