@@ -1,7 +1,5 @@
 # OpenCU 2.4.2 · DSH 0.2.2-rc.3
 
-**未发布 / Unreleased.**
-
 [中文](#zh-242) · [English](#en-242)
 
 <a id="zh-242"></a>
