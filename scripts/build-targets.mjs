@@ -85,5 +85,9 @@ for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ['rc1', 
   await writeFile(join(stage, 'lib/host-build.json'), JSON.stringify({ ...target, peers, buildInputs }, null, 2) + '\n');
   run(stage, [pnpm, '--config.ignore-scripts=true', 'pack', '--pack-destination', output], {OPENCU_SOURCE_ROOT: root});
   await nativePackageModes(join(output, `opencu-${pkg.version}.tgz`));
+  // npm excludes the root lock from tarballs. Keep the verified source lock
+  // next to the package so a release tag can carry the exact matching graph.
+  if (files['package-lock.json']) await writeFile(join(output, 'source-package-lock.json'), files['package-lock.json']);
+  else await rm(join(output, 'source-package-lock.json'), { force: true });
   await writeFile(join(output, 'build.json'), JSON.stringify({ target, stage, sdk, lock: join(sdk, 'pnpm-lock.yaml'), buildInputs, package: join(output, `opencu-${pkg.version}.tgz`) }, null, 2) + '\n');
 }

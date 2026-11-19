@@ -1,13 +1,15 @@
-import { hostTargets } from '../host/compatibility.mjs';
+import { hostTargets, targetFor } from '../host/compatibility.mjs';
+import { verifySourceInstall } from './host-build-inputs.mjs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, globSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const commit = hostTargets['022rc3'].commit;
-export const cacheName = 'dsh-sdk-' + commit.slice(0, 8);
 const root = fileURLToPath(new URL('../', import.meta.url));
+const sourceTarget = targetFor(JSON.parse(readFileSync(join(root, 'package.json'))).engines.dsh);
+export const commit = sourceTarget.commit;
+export const cacheName = 'dsh-sdk-' + commit.slice(0, 8);
 const upstream = 'https://github.com/deepseek-ai/deepseek-harness.git';
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const frozen = 'c24a38565023f08480f3832a554a676ad7479d36c0868063c85ad66ba6d3e68a';
@@ -62,7 +64,7 @@ function link(target, path) {
   if (realpathSync(path) !== realpathSync(target)) throw new Error('SDK link points to another package: ' + path);
 }
 
-export function prepareSdk(project = root, id = '022rc3') {
+export function prepareSdk(project = root, id = sourceTarget.id) {
   if (!['022rc3', '022rc4', '022rc5'].includes(id)) throw new Error('Unsupported source SDK target: ' + id);
   const { version, commit } = hostTargets[id];
   const cacheName = 'dsh-sdk-' + commit.slice(0, 8);
@@ -116,4 +118,7 @@ export function prepareSdk(project = root, id = '022rc3') {
   return home;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) console.log(prepareSdk());
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  await verifySourceInstall(root, JSON.parse(readFileSync(join(root, 'package.json'))));
+  console.log(prepareSdk());
+}

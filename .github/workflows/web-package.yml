@@ -22,6 +22,16 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
+      - name: Resolve the source manifest's exact host and validate its install lock
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs';
+          import { verifySourceInstall } from './scripts/host-build-inputs.mjs';
+          const pkg = JSON.parse(readFileSync('package.json'));
+          const target = await verifySourceInstall(process.cwd(), pkg);
+          appendFileSync(process.env.GITHUB_ENV, 'OPENCU_TARGET=' + target.id + '\n');
+          appendFileSync(process.env.GITHUB_ENV, 'OPENCU_DSH_INSTALL=' + process.cwd() + '/../.local/dsh-sdk-' + target.commit.slice(0, 8) + '/package.json\n');
+          NODE
       - run: node scripts/prepare-host-sdk.mjs
       - name: Install exact locked dependencies
         run: npm ci
@@ -37,13 +47,13 @@ jobs:
           export OPENCU_PNPM="$(npm exec --yes --package=pnpm@11.28.5 -- which pnpm)"
           export OPENCU_BUILD_ROOT="$RUNNER_TEMP/opencu-build"
           export OPENCU_PACKAGE_OUT="$RUNNER_TEMP/opencu-dist"
-          npm run build:targets -- 022rc3
-          cp "$OPENCU_PACKAGE_OUT"/022rc3/*.tgz .
+          npm run build:targets -- "$OPENCU_TARGET"
+          cp "$OPENCU_PACKAGE_OUT/$OPENCU_TARGET"/*.tgz .
           mkdir -p lib
-          cp -R "$OPENCU_BUILD_ROOT/opencu-build-022rc3/lib/." lib/
+          cp -R "$OPENCU_BUILD_ROOT/opencu-build-$OPENCU_TARGET/lib/." lib/
       - name: Verify reproducible production bytes
         run: |
-          cd "$RUNNER_TEMP/opencu-build/opencu-build-022rc3"
+          cd "$RUNNER_TEMP/opencu-build/opencu-build-$OPENCU_TARGET"
           node scripts/check-generated-client.mjs
       - name: Verify CU/BU lifecycle and regression suite
         run: |
@@ -51,7 +61,6 @@ jobs:
           if ! node --input-type=module -e "import {chromium} from 'playwright'; const browser = await chromium.launch(); await browser.close()"; then
             npx playwright install-deps chromium
           fi
-          export OPENCU_DSH_INSTALL="$PWD/../.local/dsh-sdk-38a6a5c9/package.json"
           npm run cu:verify -- --profile full
       - name: Verify rebuilt frontend and public package contents
         run: |

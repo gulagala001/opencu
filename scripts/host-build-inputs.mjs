@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { hostTargets } from '../host/compatibility.mjs';
+import { hostTargets, targetFor } from '../host/compatibility.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const inputs = join(root, 'host/build-inputs');
@@ -60,8 +60,25 @@ export async function loadBuildInputs(id, manifest) {
       if (!lock.includes("'" + name + "': link:../.local/dsh-sdk-" + target.commit.slice(0, 8) + "/packages/")) throw new Error('Missing fixed source dependency: ' + name);
     }
   }
-  if (files['package-lock.json']) checkRootLock(pkg, JSON.parse(files['package-lock.json']));
+  if (files['package-lock.json']) {
+    const lock = JSON.parse(files['package-lock.json']);
+    // The release number belongs to the root package. Preserve every dependency resolution.
+    lock.version = pkg.version;
+    lock.packages[''].version = pkg.version;
+    checkRootLock(pkg, lock);
+    files['package-lock.json'] = Buffer.from(JSON.stringify(lock, null, 2) + '\n');
+  }
   return { files, hashes: record.sha256, pkg };
+}
+
+// A source checkout needs the same root graph as its host-specific build.
+export async function verifySourceInstall(directory, manifest) {
+  const target = targetFor(manifest.engines.dsh);
+  const lock = await readFile(join(directory, 'package-lock.json'));
+  checkRootLock(manifest, JSON.parse(lock));
+  const { files } = await loadBuildInputs(target.id, manifest);
+  if (!files['package-lock.json']?.equals(lock)) throw new Error('Source install lock differs from its host build: ' + target.id);
+  return target;
 }
 
 export async function installBuildInputs(destination, files, names = sdkFiles) {
