@@ -71,10 +71,31 @@ test('macOS real native input survives human intervention, cancellation and rest
     await call({command:'focus'});
     ok(await controller.act({targetId:target.id,action:'type',text:'AI-after',inputMode:'background'}));
     assert.equal((await call({command:'state'})).text,'human-kept:AI-after');
+    const waitForShift = async (down, after) => {
+      const deadline = performance.now() + 1500;
+      let state;
+      do {
+        state = await call({command:'state'});
+        if (state.shiftEvents > after && state.deliveredShift === down && state.shiftHeld === down) return state.shiftEvents;
+        await new Promise(resolve => setTimeout(resolve, 8));
+      } while (performance.now() < deadline);
+      assert.fail(JSON.stringify({expectedShift:down, after, shiftEvents:state.shiftEvents, delivered:state.deliveredShift, system:state.shiftHeld}));
+    };
+    const focusFixture = async () => {
+      let state = await call({command:'focus'});
+      const deadline = performance.now() + 1500;
+      while (!state.focused && performance.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 8));
+        state = await call({command:'state'});
+      }
+      assert.ok(state.focused, 'the fixture must own the foreground before posting input');
+      return state;
+    };
+    const previousShift = (await focusFixture()).shiftEvents;
     ok(await controller.act({targetId:target.id,action:'keyDown',key:'Shift',inputMode:'foreground'}));
-    assert.equal((await call({command:'state'})).shiftHeld,true);
+    const acquiredShift = await waitForShift(true, previousShift);
     const began=performance.now();ok(await bounded(controller.interrupt(),3000));
-    assert.ok(performance.now()-began<3000);assert.equal((await call({command:'state'})).shiftHeld,false);
+    assert.ok(performance.now()-began<3000);await waitForShift(false, acquiredShift);
     ok(await controller.resume({targetId:target.id}));
     ok(await controller.act({targetId:target.id,action:'type',text:':resumed',inputMode:'background'}));
     ok(await bounded(controller.close(),4000));controller=undefined;backend=undefined;
@@ -82,9 +103,19 @@ test('macOS real native input survives human intervention, cancellation and rest
     ok(await controller.observe({targetId:target.id,format:'ax'}));
     ok(await controller.act({targetId:target.id,action:'type',text:':restarted',inputMode:'background'}));
     assert.equal((await call({command:'state'})).text,'human-kept:AI-after:resumed:restarted');
+    await focusFixture();
+    ok(await controller.act({targetId:target.id,action:'type',text:'界🙂',inputMode:'foreground'}));
+    const expectedText = 'human-kept:AI-after:resumed:restarted界🙂';
+    const textDeadline = performance.now() + 1500;
+    let text = (await call({command:'state'})).text;
+    while (text !== expectedText && performance.now() < textDeadline) {
+      await new Promise(resolve => setTimeout(resolve, 8));
+      text = (await call({command:'state'})).text;
+    }
+    assert.equal(text, expectedText);
     ok(await controller.stop());
     assert.equal((await controller.act({targetId:target.id,action:'type',text:'must-not-dispatch'})).ok,false);
-    assert.equal((await call({command:'state'})).text,'human-kept:AI-after:resumed:restarted');
+    assert.equal((await call({command:'state'})).text,expectedText);
   }finally{
     const failures=[];
     try{if(controller)ok(await bounded(controller.close(),5000));else if(backend)await bounded(backend.close(),5000);}catch(error){failures.push(error);}

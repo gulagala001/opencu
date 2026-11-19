@@ -17776,7 +17776,7 @@
     {
       "file": "native/linux/hyprland.py",
       "contract": "native",
-      "sha256": "6f92103eba995fbed3d9b7729f1933d54e0a854c0a6786f60c174555648985b7",
+      "sha256": "775710a6026c94f667d331f801f3fb02dad82d4cd4d807f6e558e1d9ecf15505",
       "kind": "native-boundary",
       "sites": []
     },
@@ -17811,7 +17811,7 @@
     {
       "file": "native/macos/Activity.swift",
       "contract": "native",
-      "sha256": "66ff4b6cfc1802bc305cca6586760120272e2344492ad1631666034a8ee54737",
+      "sha256": "23bca8bc22f593442d9692ebd82eabe0fd86f6d2d97feb6db55f31e5f72dee1d",
       "kind": "native-boundary",
       "sites": []
     },
@@ -17832,7 +17832,7 @@
     {
       "file": "native/macos/Input.swift",
       "contract": "native",
-      "sha256": "37ddb689c3b3651ebe22dd3b2a21db1a00ea85813e991628b89fd9d332736660",
+      "sha256": "faf1fd30b714cf89faf2b0d4fe2d6da68bdf557c1cf56fb61c8b2a45a2f31db7",
       "kind": "native-boundary",
       "sites": []
     },
@@ -17881,7 +17881,7 @@
     {
       "file": "native/macos/main.swift",
       "contract": "native",
-      "sha256": "7fc0deb691361d2eb669323653714fbf5d6610909b30c0af30174e7d952423c0",
+      "sha256": "1767ea40ac5595857da7954ce61ddb0620f5b665d5535356a40b06d0f00d6694",
       "kind": "native-boundary",
       "sites": []
     },

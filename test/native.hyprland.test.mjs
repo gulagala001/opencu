@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {mkdtemp, mkdir} from 'node:fs/promises';
+import {mkdtemp, mkdir, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createInterface} from 'node:readline';
@@ -11,8 +11,9 @@ import {platformSkip} from '../scripts/liveness/scope.mjs';
 
 // Hyprland exposes no RemoteDesktop portal, so this backend runs only on a live
 // Hyprland session. It never injects input: the checks stay read-only.
-test('real Hyprland backend enumerates windows and captures the foreground one', {skip: platformSkip('test/native.hyprland.test.mjs','real Hyprland backend enumerates windows and captures the foreground one')}, async () => {
+test('real Hyprland backend enumerates windows and captures the foreground one', {skip: platformSkip('test/native.hyprland.test.mjs','real Hyprland backend enumerates windows and captures the foreground one')}, async t => {
   const dataDir = await mkdtemp(join(tmpdir(), 'opencu-hyprland-'));
+  t.after(() => rm(dataDir, {recursive:true,force:true}));
   const backend = await createNativeBackend({dataDir});
   try {
     const targets = await backend.listTargets();
@@ -43,28 +44,28 @@ test('real Hyprland backend enumerates windows and captures the foreground one',
     assert.equal(permissions.sessionType, 'wayland');
     assert.equal(permissions.compositor, 'hyprland');
     const active = targets.find(target => target.active === true);
-    if (active) {
-      // The compositor reports layout pixels while the frame is physical pixels of a
-      // scaled monitor; the reported scale has to match the captured ratio.
-      const observed = await backend.observe(active, {format: 'screenshot'});
-      const shot = observed.screenshot;
-      assert.ok(shot.width > 0 && shot.height > 0);
-      assert.ok(Math.abs(shot.width / shot.bounds.width - shot.scale) < 0.01, 'capture scale must match the monitor scale');
-      const preview = await backend.preview(active);
-      assert.match(preview.dataUrl, /^data:image\/png;base64,/);
-      assert.equal((await backend.verify(active)).valid, true);
-      await backend.release();
-    }
+    assert.ok(active, 'Open a mapped foreground window before running the Hyprland capture check.');
+    // The compositor reports layout pixels while the frame is physical pixels of a
+    // scaled monitor; the reported scale has to match the captured ratio.
+    const observed = await backend.observe(active, {format: 'screenshot'});
+    const shot = observed.screenshot;
+    assert.ok(shot.width > 0 && shot.height > 0);
+    assert.ok(Math.abs(shot.width / shot.bounds.width - shot.scale) < 0.01, 'capture scale must match the monitor scale');
+    const preview = await backend.preview(active);
+    assert.match(preview.dataUrl, /^data:image\/png;base64,/);
+    assert.equal((await backend.verify(active)).valid, true);
+    await backend.release();
   } finally {
     await backend.close();
   }
 });
 
-test('the helper gives up its session when its peer disappears', {skip: platformSkip('test/native.hyprland.test.mjs','the helper gives up its session when its peer disappears')}, async () => {
+test('the helper gives up its session when its peer disappears', {skip: platformSkip('test/native.hyprland.test.mjs','the helper gives up its session when its peer disappears')}, async t => {
   // A driver that crashes must not leave the controlled window parked in the
   // isolation workspace: the helper has to notice the closed pipe, release held
   // input and restore the desktop on its own.
   const dataDir = await mkdtemp(join(tmpdir(), 'opencu-hyprland-exit-'));
+  t.after(() => rm(dataDir, {recursive:true,force:true}));
   const directory = join(dataDir, 'native');
   await mkdir(directory, {recursive: true});
   const helperPath = fileURLToPath(new URL('../native/linux/hyprland.py', import.meta.url));

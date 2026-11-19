@@ -15,9 +15,22 @@ func reply(_ value: [String: Any]) {
     let data = try! JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
     FileHandle.standardOutput.write(data + Data([10]))
 }
+// Record only synthetic Shift edges delivered to this disposable app.
+var shiftEvents = 0
+var deliveredShift = false
+let shiftMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown, .keyUp]) { event in
+    if event.keyCode == 56, let raw = event.cgEvent,
+       raw.getIntegerValueField(.eventSourceUnixProcessID) > 0 {
+        deliveredShift = event.modifierFlags.contains(.shift)
+        shiftEvents += 1
+    }
+    return event
+}
 func state() -> [String: Any] {
     ["text": field.stringValue, "pid": Int(getpid()), "windowId": window.windowNumber,
-     "shiftHeld": CGEventSource.keyState(.combinedSessionState, key: 56)]
+     "shiftHeld": CGEventSource.keyState(.combinedSessionState, key: 56),
+     "focused": app.isActive && window.isKeyWindow,
+     "deliveredShift": deliveredShift, "shiftEvents": shiftEvents]
 }
 window.makeKeyAndOrderFront(nil)
 app.activate(ignoringOtherApps: true)
