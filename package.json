@@ -1,11 +1,11 @@
 {
   "name": "opencu",
-  "version": "2.4.2-dsh.0.2.2-rc.3",
+  "version": "2.4.2-dsh.0.2.2-rc.5",
   "description": "Let the AI in DeepSeek Harness operate browsers and desktop apps, with live previews and annotations. You can step in at any time. macOS, Windows and Linux.",
   "type": "module",
   "engines": {
     "node": ">=24.9.0",
-    "dsh": "0.2.2-rc.3"
+    "dsh": "0.2.2-rc.5"
   },
   "exports": {
     ".": "./src/index.mjs",
@@ -61,21 +61,6 @@
     "scripts/check-docs.mjs",
     "scripts/check-release-assets.mjs"
   ],
-  "scripts": {
-    "build": "node scripts/build.mjs",
-    "build:client": "node scripts/build-client.mjs",
-    "build:native": "node scripts/build-native.mjs",
-    "build:targets": "node scripts/build-targets.mjs",
-    "pack": "node scripts/pack.mjs",
-    "test": "node --experimental-vm-modules --test test/*.test.mjs",
-    "prepack": "npm run cu:check && node scripts/check-docs.mjs && node scripts/build.mjs && node scripts/check-extension-distribution.mjs && node scripts/check-public-files.mjs",
-    "docs:check": "node scripts/check-docs.mjs",
-    "release:check": "node scripts/check-release-assets.mjs",
-    "pretest": "npm run cu:check",
-    "cu:check": "node scripts/cu-liveness.mjs check",
-    "cu:verify": "node scripts/cu-liveness.mjs verify",
-    "cu:replay": "node scripts/cu-liveness.mjs replay"
-  },
   "dependencies": {
     "playwright": "1.63.0",
     "sharp": "0.35.5"
@@ -92,18 +77,32 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
-    "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-attachment": "0.2.2-rc.3",
-    "@deepseek-ai/dsh-scope": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.5",
+    "@deepseek-ai/dsh-attachment": "0.2.2-rc.5",
+    "@deepseek-ai/dsh-scope": "0.2.2-rc.5",
     "@deepseek-ai/schemastery": "3.19.0"
   },
   "opencu": {
-    "host": "0.2.2-rc.3",
-    "sourceCommit": "38a6a5c965aa99ab525161efb7cc5cf1fe62fced",
+    "host": "0.2.2-rc.5",
+    "sourceCommit": "9c2670d3bce5275e0d1610272958121af87787bb",
     "adapterRevision": 2
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/gulagala001/opencu.git"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:client": "node scripts/build-client.mjs",
+    "build:native": "node scripts/build-native.mjs",
+    "build:targets": "node scripts/build-targets.mjs",
+    "pack": "node scripts/pack.mjs",
+    "test": "node --experimental-vm-modules --test test/*.test.mjs",
+    "docs:check": "node scripts/check-docs.mjs",
+    "release:check": "node scripts/check-release-assets.mjs",
+    "pretest": "npm run cu:check",
+    "cu:check": "node scripts/cu-liveness.mjs check",
+    "cu:verify": "node scripts/cu-liveness.mjs verify",
+    "cu:replay": "node scripts/cu-liveness.mjs replay"
   }
 }

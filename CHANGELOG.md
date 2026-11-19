@@ -1,4 +1,4 @@
-# OpenCU 2.4.2 · DSH 0.2.2-rc.3
+# OpenCU 2.4.2 · DSH 0.2.2-rc.5
 
 **未发布 / Unreleased.**
 
@@ -24,9 +24,9 @@
 
 ## 安装 / Installation
 
-DSH **0.2.2-rc.3** · Node.js **24.9.0+**
+DSH **0.2.2-rc.5** · Node.js **24.9.0+**
 
-[固定安装包 / Install package](https://github.com/gulagala001/opencu/releases/download/v2.4.2-dsh.0.2.2-rc.3/opencu-2.4.2-dsh.0.2.2-rc.3.tgz) · [安装指南 / Installation guide](https://github.com/gulagala001/opencu/blob/main/docs/install.md) · [SHA256SUMS](https://github.com/gulagala001/opencu/releases/download/v2.4.2-dsh.0.2.2-rc.3/SHA256SUMS)
+[固定安装包 / Install package](https://github.com/gulagala001/opencu/releases/download/v2.4.2-dsh.0.2.2-rc.5/opencu-2.4.2-dsh.0.2.2-rc.5.tgz) · [安装指南 / Installation guide](https://github.com/gulagala001/opencu/blob/main/docs/install.md) · [SHA256SUMS](https://github.com/gulagala001/opencu/releases/download/v2.4.2-dsh.0.2.2-rc.5/SHA256SUMS)
 
 ---
 
