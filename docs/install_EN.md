@@ -8,7 +8,7 @@ Requires DSH **0.2.2-rc.3 或 rc.5** and Node.js **24.9.0+**.
 
 Open **Plugins → Add plugin** and paste:
 
-使用 **rc.5** 时，复制 [rc.5 安装包链接](https://github.com/gulagala001/opencu/releases/download/v2.4.2-dsh.0.2.2-rc.5/opencu-2.4.2-dsh.0.2.2-rc.5.tgz)（[rc.5 校验文件](https://github.com/gulagala001/opencu/releases/download/v2.4.2-dsh.0.2.2-rc.5/SHA256SUMS)）。使用 **rc.3** 时，复制下面的地址。
+使用 **rc.5** 时，复制 [rc.5 安装包链接](https://github.com/gulagala001/opencu/releases/download/v2.4.3-dsh.0.2.2-rc.5/opencu-2.4.3-dsh.0.2.2-rc.5.tgz)（[rc.5 校验文件](https://github.com/gulagala001/opencu/releases/download/v2.4.3-dsh.0.2.2-rc.5/SHA256SUMS)）。使用 **rc.3** 时，复制下面的地址。
 
 ```text
 https://github.com/gulagala001/opencu/releases/download/v2.4.2-dsh.0.2.2-rc.3/opencu-2.4.2-dsh.0.2.2-rc.3.tgz

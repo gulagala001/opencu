@@ -28,7 +28,7 @@
 
 In DSH, open **Plugins → Add plugin** and paste:
 
-For **rc.5**, copy the [rc.5 package URL](https://github.com/gulagala001/opencu/releases/download/v2.4.2-dsh.0.2.2-rc.5/opencu-2.4.2-dsh.0.2.2-rc.5.tgz) ([rc.5 checksums](https://github.com/gulagala001/opencu/releases/download/v2.4.2-dsh.0.2.2-rc.5/SHA256SUMS)). For **rc.3**, use the URL below.
+For **rc.5**, copy the [rc.5 package URL](https://github.com/gulagala001/opencu/releases/download/v2.4.3-dsh.0.2.2-rc.5/opencu-2.4.3-dsh.0.2.2-rc.5.tgz) ([rc.5 checksums](https://github.com/gulagala001/opencu/releases/download/v2.4.3-dsh.0.2.2-rc.5/SHA256SUMS)). For **rc.3**, use the URL below.
 
 ```text
 https://github.com/gulagala001/opencu/releases/download/v2.4.2-dsh.0.2.2-rc.3/opencu-2.4.2-dsh.0.2.2-rc.3.tgz
