@@ -85,6 +85,12 @@
     {
       "path": "README.md",
       "rule": "version",
+      "text": "v2.4.2-dsh.0.2.2-rc.5/SHA256SUMS",
+      "reason": "rc.5 的独立安装包使用该次发行的校验和。"
+    },
+    {
+      "path": "README.md",
+      "rule": "version",
       "text": "0.2.2-rc.5",
       "reason": "同一产品版本为 DSH 0.2.2-rc.5 提供单独发布的固定安装包。"
     },
@@ -93,6 +99,12 @@
       "rule": "version",
       "text": "v2.4.2-dsh.0.2.2-rc.5/opencu-2.4.2-dsh.0.2.2-rc.5.tgz",
       "reason": "同一产品版本为 DSH 0.2.2-rc.5 提供单独发布的固定安装包。"
+    },
+    {
+      "path": "README_EN.md",
+      "rule": "version",
+      "text": "v2.4.2-dsh.0.2.2-rc.5/SHA256SUMS",
+      "reason": "rc.5 的独立安装包使用该次发行的校验和。"
     },
     {
       "path": "README_EN.md",
@@ -105,6 +117,12 @@
       "rule": "version",
       "text": "v2.4.2-dsh.0.2.2-rc.5/opencu-2.4.2-dsh.0.2.2-rc.5.tgz",
       "reason": "同一产品版本为 DSH 0.2.2-rc.5 提供单独发布的固定安装包。"
+    },
+    {
+      "path": "docs/install.md",
+      "rule": "version",
+      "text": "v2.4.2-dsh.0.2.2-rc.5/SHA256SUMS",
+      "reason": "rc.5 的独立安装包使用该次发行的校验和。"
     },
     {
       "path": "docs/install.md",
@@ -117,6 +135,12 @@
       "rule": "version",
       "text": "v2.4.2-dsh.0.2.2-rc.5/opencu-2.4.2-dsh.0.2.2-rc.5.tgz",
       "reason": "同一产品版本为 DSH 0.2.2-rc.5 提供单独发布的固定安装包。"
+    },
+    {
+      "path": "docs/install_EN.md",
+      "rule": "version",
+      "text": "v2.4.2-dsh.0.2.2-rc.5/SHA256SUMS",
+      "reason": "rc.5 的独立安装包使用该次发行的校验和。"
     },
     {
       "path": "docs/install_EN.md",
