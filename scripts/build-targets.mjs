@@ -59,6 +59,11 @@ for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ['rc1', 
   await writeFile(join(stage, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
   if (files['package-lock.json']) await writeFile(join(stage, 'package-lock.json'), files['package-lock.json']);
   else await rm(join(stage, 'package-lock.json'), { force: true });
+  const changesPath = join(stage, 'CHANGELOG.md');
+  const changes = await readFile(changesPath, 'utf8');
+  const history = changes.indexOf('\n---\n');
+  const boundary = history < 0 ? changes.length : history;
+  await writeFile(changesPath, changes.slice(0, boundary).replaceAll(manifest.engines.dsh, target.version) + changes.slice(boundary));
   const distributionPath = join(stage, 'src/extension/distribution.json');
   const distribution = JSON.parse(await readFile(distributionPath, 'utf8'));
   distribution.packageVersion = pkg.version;
